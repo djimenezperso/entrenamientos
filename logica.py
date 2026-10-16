@@ -202,3 +202,152 @@ def sesiones_por_semana(entrenos: list[dict], semanas: int = 8, hoy: dt.date | N
             continue
         cuentas.setdefault(w[clave], [0] * semanas)[i] += 1
     return lunes, cuentas
+
+
+# ---------- rutinas ----------
+NUM_PESO = re.compile(r"@\s*(\d+(?:[.,]\d+)?)")
+PALABRAS_METCON = ("wod", "conditioning", "gym", "emom", "amrap", "metcon", "for time")
+
+
+def fmt_num(v: float) -> str:
+    v = round(float(v) * 100) / 100
+    return str(int(v)) if v.is_integer() else f"{v:g}".replace(".", ",")
+
+
+def progresar(presc: str, delta: float) -> str:
+    """Suma `delta` kg a cada peso escrito tras una @ ('3@40 2@45' -> '3@42,5 2@47,5')."""
+    if not presc or not delta:
+        return presc or ""
+    return NUM_PESO.sub(lambda m: "@" + fmt_num(max(0.0, float(m.group(1).replace(",", ".")) + delta)), presc)
+
+
+def prescripcion_semana(linea: dict, semana: int, ajustes: dict | None) -> tuple[str, bool, bool]:
+    """(texto para esa semana, ¿ha subido respecto a la base?, ¿es un ajuste solo de esa semana?)."""
+    aj = (ajustes or {}).get(str(semana), {}).get(linea["id"])
+    if aj is not None:
+        return aj, False, True
+    base = linea.get("prescripcion") or ""
+    delta = (semana - int(linea.get("base") or 1)) * float(linea.get("sube") or 0)
+    return progresar(base, delta), bool(delta) and bool(NUM_PESO.search(base)), False
+
+
+def peso_principal(presc: str) -> float | None:
+    """El último peso escrito (la serie más pesada en '3@40 2@45 1@50')."""
+    nums = NUM_PESO.findall(presc or "")
+    return float(nums[-1].replace(",", ".")) if nums else None
+
+
+def es_metcon(nombre: str) -> bool:
+    n = norm(nombre)
+    return any(p in n for p in PALABRAS_METCON)
+
+
+def _limpio(v) -> str:
+    if v is None or (isinstance(v, float) and v != v):
+        return ""
+    return str(v).strip()
+
+
+def _num(v, defecto: float = 0.0) -> float:
+    try:
+        f = float(str(v).replace(",", "."))
+        return defecto if f != f else f
+    except (TypeError, ValueError):
+        return defecto
+
+
+def aplicar_edicion(rut: dict, dia_id: str, filas: list[dict], semana: int, solo_esta: bool, nuevo_id) -> dict:
+    """Aplica lo editado en la tabla de un día. `filas` = [{id, ejercicio, presc, sube, nota}]."""
+    import copy
+    rut = copy.deepcopy(rut)
+    ajustes = rut.setdefault("ajustes", {})
+    dia = next(d for d in rut["dias"] if d["id"] == dia_id)
+    previas = {l["id"]: l for l in dia["lineas"]}
+    nuevas = []
+    for f in filas:
+        ejercicio = _limpio(f.get("ejercicio"))
+        presc = _limpio(f.get("presc"))
+        sube = _num(f.get("sube"), 0.0)
+        nota = _limpio(f.get("nota"))
+        lid = _limpio(f.get("id"))
+        if not ejercicio and not presc:
+            continue
+        if lid not in previas:
+            sube = _num(f.get("sube"), 0.0 if es_metcon(ejercicio) else 2.5)
+            nuevas.append({"id": nuevo_id(), "ejercicio": ejercicio or "Sin nombre", "prescripcion": presc,
+                           "sube": sube, "base": semana, "nota": nota})
+            continue
+        l = dict(previas[lid])
+        actual, _, _ = prescripcion_semana(l, semana, ajustes)
+        sin_ajuste, _, _ = prescripcion_semana(l, semana, None)
+        if sube != float(l.get("sube") or 0):  # nuevo ritmo a partir de esta semana
+            l["prescripcion"], l["base"], l["sube"] = sin_ajuste, semana, sube
+        l["ejercicio"], l["nota"] = ejercicio or l["ejercicio"], nota
+        if presc != actual:
+            if solo_esta:
+                ajustes.setdefault(str(semana), {})[lid] = presc
+            else:
+                l["prescripcion"], l["base"] = presc, semana
+                for s in list(ajustes):
+                    if int(s) >= semana:
+                        ajustes[s].pop(lid, None)
+        nuevas.append(l)
+    dia["lineas"] = nuevas
+    rut["ajustes"] = {s: a for s, a in ajustes.items() if a}
+    return rut
+
+
+# ---------- validar días ----------
+def clave_dia(semana: int, dia_id: str) -> str:
+    return f"{int(semana)}|{dia_id}"
+
+
+def estado_dia(rut: dict, semana: int, dia_id: str, registrado: bool = False) -> dict:
+    """{'estado': 'hecho'|'pospuesto'|'pendiente', 'destino': [semana, dia_id]?}"""
+    e = (rut.get("estados") or {}).get(clave_dia(semana, dia_id))
+    if registrado or (e and e.get("estado") == "hecho"):
+        return {"estado": "hecho", "registrado": registrado}
+    return e or {"estado": "pendiente"}
+
+
+def destino_dia_siguiente(rut: dict, semana: int, dia_id: str) -> list:
+    ids = [d["id"] for d in rut["dias"]]
+    i = ids.index(dia_id)
+    return [semana, ids[i + 1]] if i + 1 < len(ids) else [semana + 1, ids[0]]
+
+
+def destino_semana_siguiente(semana: int, dia_id: str) -> list:
+    return [semana + 1, dia_id]
+
+
+def marcar_dia(rut: dict, semana: int, dia_id: str, estado: str | None, destino: list | None = None) -> dict:
+    """estado: 'hecho', 'pospuesto' (con destino) o None para quitar la marca."""
+    import copy
+    rut = copy.deepcopy(rut)
+    estados = rut.setdefault("estados", {})
+    k = clave_dia(semana, dia_id)
+    if estado is None:
+        estados.pop(k, None)
+    elif estado == "pospuesto":
+        estados[k] = {"estado": "pospuesto", "destino": list(destino)}
+    else:
+        estados[k] = {"estado": estado}
+    return rut
+
+
+def pendientes_para(rut: dict, semana: int, dia_id: str, titulos_registrados: set) -> list[tuple[int, str]]:
+    """Días pospuestos que caen en (semana, dia_id) y aún no se han hecho."""
+    out = []
+    nombres = {d["id"]: d["nombre"] for d in rut["dias"]}
+    for k, e in (rut.get("estados") or {}).items():
+        if e.get("estado") != "pospuesto" or list(e.get("destino") or []) != [semana, dia_id]:
+            continue
+        s, did = k.split("|", 1)
+        if did in nombres and f"Semana {s} · {nombres[did]}" not in titulos_registrados:
+            out.append((int(s), did))
+    return sorted(out)
+
+
+def sin_validar(rut: dict, semana: int, titulos_registrados: set) -> list[str]:
+    return [d["nombre"] for d in rut["dias"]
+            if estado_dia(rut, semana, d["id"], f"Semana {semana} · {d['nombre']}" in titulos_registrados)["estado"] == "pendiente"]
