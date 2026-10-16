@@ -24,9 +24,9 @@ from logica import (
     prescripcion_semana, series_ejercicios, sesiones_por_semana,
     PARTES, agrupar_por_parte, destino_dia_siguiente, destino_semana_siguiente, estado_parte, marcar_parte,
     partes_del_dia, pendientes_para, resumen_dia, se_repite, semanas_que_sube, sin_validar,
-    NUM_PESO, cambiar_pesos, poner_pesos,
+    NUM_PESO, cambiar_pesos, poner_pesos, linea_no_hecha, marcar_linea, no_hechas_en,
 )
-from rutinas_iniciales import rutinas_iniciales
+from rutinas_iniciales import migrar, rutinas_iniciales
 
 try:  # fotos HEIC del iPhone
     from pillow_heif import register_heif_opener
@@ -378,7 +378,8 @@ def _cambiar_peso(atleta: str, semana: int, lid: str, txt: str, claves: list[str
     st.session_state["aviso"] = "Peso guardado" + (f" (también en {', '.join(tocados)})" if tocados else "")
 
 
-def _lineas(rut: dict, lineas: list[dict], semana: int, parte: str, atleta: str | None = None):
+def _lineas(rut: dict, lineas: list[dict], semana: int, parte: str, atleta: str | None = None,
+            por_ejercicio: bool = False):
     """Muestra las líneas de una parte. Con `atleta`, los pesos son casillas que se pueden tocar y cambiar."""
     texto = []
 
@@ -412,6 +413,10 @@ def _lineas(rut: dict, lineas: list[dict], semana: int, parte: str, atleta: str 
                     cols[i].number_input(f"{pref} reps" if pref.isdigit() else pref, min_value=0.0, step=1.25,
                                          format="%.2f", value=p, key=claves[i], on_change=_cambiar_peso,
                                          args=(atleta, semana, l["id"], txt, claves))
+            if por_ejercicio:
+                kc = f"nh_{atleta}_{semana}_{l['id']}_{linea_no_hecha(l, semana)}"
+                st.checkbox("✗ No lo hice (repite peso la semana que viene)", value=linea_no_hecha(l, semana),
+                            key=kc, on_change=_marcar_linea_cb, args=(atleta, semana, l["id"], kc))
             continue
         solo_bloque = metcon and norm(l["ejercicio"]) in norm(parte)  # «B) WOD» + línea «WOD»
         nombre = "" if solo_bloque else f"**{l['ejercicio']}** · "
@@ -427,6 +432,10 @@ def _lineas(rut: dict, lineas: list[dict], semana: int, parte: str, atleta: str 
         st.caption("Sin ejercicios.")
 
 
+def _marcar_linea_cb(atleta: str, semana: int, lid: str, clave: str):
+    guardar_rutina(atleta, marcar_linea(_rutina_actual(atleta), lid, semana, bool(st.session_state.get(clave))))
+
+
 def _guardar_marca(atleta: str, semana: int, dia_id: str, parte: str, clave: str, opciones: dict):
     """Callback del selector de estado de una parte."""
     elegido = st.session_state.get(clave)
@@ -439,6 +448,14 @@ def _guardar_marca(atleta: str, semana: int, dia_id: str, parte: str, clave: str
     guardar_rutina(atleta, nueva)
 
 
+def _etiqueta_semana_sig(rut: dict, dia: dict, sem_aqui: int) -> str:
+    destino = dia.get("pasa_a")
+    if destino and destino != dia["id"]:
+        nombre = next((d["nombre"] for d in rut["dias"] if d["id"] == destino), "otro día")
+        return f"→ {nombre} (sem. {sem_aqui + 1})"
+    return f"→ Semana {sem_aqui + 1}"
+
+
 def _selector_parte(atleta: str, rut: dict, semana: int, dia: dict, parte: str, desde: tuple[int, str] | None = None):
     """✓ Hecho / → día siguiente / → semana que viene, para una parte. `desde` = dónde se muestra si es un pendiente."""
     sem_aqui, dia_aqui = desde or (semana, dia["id"])
@@ -448,7 +465,7 @@ def _selector_parte(atleta: str, rut: dict, semana: int, dia: dict, parte: str, 
         "✓ Hecho": ("hecho", None),
         "✗ No hecho": ("no_hecho", None),
         f"→ {nombre_sig}" + (f" (sem. {sig[0]})" if sig[0] != sem_aqui else ""): ("pospuesto", sig),
-        f"→ Semana {sem_aqui + 1}": ("pospuesto", destino_semana_siguiente(sem_aqui, dia["id"])),
+        _etiqueta_semana_sig(rut, dia, sem_aqui): ("pospuesto", destino_semana_siguiente(sem_aqui, dia.get("pasa_a") or dia["id"])),
     }
     est = estado_parte(rut, semana, dia["id"], parte)
     actual = None
@@ -469,6 +486,7 @@ def _completar_partes(rut: dict | None, atleta: str) -> dict | None:
     """Rutinas guardadas antes de existir las partes: las toma de la rutina inicial o las deduce."""
     if not rut:
         return rut
+    rut = migrar(rut, atleta, ATLETAS)
     semilla = {l["id"]: l.get("parte") for d in (rutinas_iniciales(ATLETAS).get(atleta) or {}).get("dias", [])
                for l in d["lineas"]}
     for d in rut["dias"]:
@@ -546,8 +564,10 @@ def tab_rutina(atleta: str, entrenos: list[dict]):
                 st.caption("Sin ejercicios. Añádelos en Editar.")
             for parte, lineas in grupos:
                 est = estado_parte(rut, semana, dia["id"], parte)
-                st.markdown(f"**{parte}**  {_chip_parte(est, semana, dias)}")
-                _lineas(rut, lineas, semana, parte, atleta)
+                n_no = no_hechas_en(lineas, semana) if est["estado"] != "no_hecho" else 0
+                aviso_no = f" :red[({n_no} sin hacer)]" if n_no else ""
+                st.markdown(f"**{parte}**  {_chip_parte(est, semana, dias)}{aviso_no}")
+                _lineas(rut, lineas, semana, parte, atleta, bool(dia.get("por_ejercicio")))
                 _selector_parte(atleta, rut, semana, dia, parte)
             if grupos:
                 with st.expander("Registrar resultados"):
@@ -589,6 +609,14 @@ def editar_dia(atleta: str, rut: dict, dia: dict, semana: int):
     )
     opciones_parte = list(dict.fromkeys(PARTES + [p for p in df["Parte"] if p]))
     nombre = st.text_input("Nombre del día", dia["nombre"], key=f"nom_{base}")
+    por_ej = st.toggle("Poder marcar cada ejercicio de fuerza como no hecho", value=bool(dia.get("por_ejercicio")),
+                       key=f"porej_{base}")
+    ids_dias = [d["id"] for d in rut["dias"]]
+    nombres_dias = {d["id"]: d["nombre"] for d in rut["dias"]}
+    actual_pasa = dia.get("pasa_a") if dia.get("pasa_a") in ids_dias else dia["id"]
+    pasa_a = st.selectbox("Si no se hace, a la semana siguiente pasa al…", ids_dias, index=ids_dias.index(actual_pasa),
+                          format_func=lambda i: nombres_dias[i] + (" (el mismo día)" if i == dia["id"] else ""),
+                          key=f"pasa_{base}")
     tabla = st.data_editor(
         df, num_rows="dynamic", hide_index=True, use_container_width=True, key=f"edr_{base}",
         column_order=["Parte", "Ejercicio", col, "Sube (kg)", "Nota"],
@@ -613,6 +641,8 @@ def editar_dia(atleta: str, rut: dict, dia: dict, semana: int):
         for d in nueva["dias"]:
             if d["id"] == dia["id"]:
                 d["nombre"] = nombre.strip() or d["nombre"]
+                d["por_ejercicio"] = por_ej
+                d["pasa_a"] = None if pasa_a == dia["id"] else pasa_a
         guardar_rutina(atleta, nueva)
         st.session_state["aviso"] = "Rutina guardada"
         st.rerun()
