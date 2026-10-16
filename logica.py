@@ -658,7 +658,7 @@ def clasificar_wod(texto: str, titulo: str = "") -> list[str]:
         cats.append("Barbell")
     if any(_contiene(t, p) for p in _PALABRAS["Gym"]):
         cats.append("Gym")
-    if any(_contiene(t, p) for p in _PALABRAS["Cardio"]) or re.search(r"\d\s*m\b", t):
+    if any(_contiene(t, p) for p in _PALABRAS["Cardio"]):
         cats.append("Cardio")
     return cats
 
