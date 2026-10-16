@@ -25,6 +25,7 @@ from logica import (
     PARTES, agrupar_por_parte, destino_dia_siguiente, destino_semana_siguiente, estado_parte, marcar_parte,
     partes_del_dia, pendientes_para, resumen_dia, se_repite, semanas_que_sube, sin_validar,
     NUM_PESO, cambiar_pesos, poner_pesos, linea_no_hecha, marcar_linea, no_hechas_en,
+    historial_parte, renombrar_parte, parametros_semana,
 )
 from rutinas_iniciales import migrar, rutinas_iniciales
 
@@ -360,8 +361,9 @@ def _etiqueta_extra(l: dict, txt: str, semana: int, ajuste: bool, subio: bool) -
         return " :orange[(solo esta semana)]"
     if txt and se_repite(l, semana):
         return " :gray[(se repite)]"
-    if subio and semanas_que_sube(l, semana) > 0:
-        return f" :green[+{fmt_num(semanas_que_sube(l, semana) * float(l['sube']))}]"
+    p = parametros_semana(l, semana)
+    if subio and semanas_que_sube(p, semana) > 0:
+        return f" :green[+{fmt_num(semanas_que_sube(p, semana) * float(p['sube']))}]"
     return ""
 
 
@@ -454,6 +456,32 @@ def _etiqueta_semana_sig(rut: dict, dia: dict, sem_aqui: int) -> str:
         nombre = next((d["nombre"] for d in rut["dias"] if d["id"] == destino), "otro día")
         return f"→ {nombre} (sem. {sem_aqui + 1})"
     return f"→ Semana {sem_aqui + 1}"
+
+
+SIMBOLO = {"hecho": ":green[✓]", "no_hecho": ":red[✗]", "pospuesto": ":orange[↷]", "pendiente": ":gray[·]"}
+
+
+def _historial_txt(rut: dict, dia: dict, parte: str, semana: int) -> str:
+    """Semanas anteriores de esta parte: S1 ✓ · S2 ✗ · S3 ↷."""
+    previas = historial_parte(rut, dia["id"], parte, semana - 1)
+    if not previas:
+        return ""
+    return ":gray[Historial:] " + " ".join(f":gray[S{s}]{SIMBOLO[e]}" for s, e in previas)
+
+
+def _cabecera_parte(atleta: str, rut: dict, dia: dict, parte: str, semana: int):
+    """El nombre de la parte; al tocarlo se puede cambiar la letra y el nombre."""
+    k = f"{atleta}_{dia['id']}_{semana}_{parte}"
+    with st.popover(f"**{parte}** ✏️"):
+        opciones = list(dict.fromkeys([parte] + PARTES))
+        elegida = st.selectbox("Parte", opciones, key=f"ps_{k}")
+        libre = st.text_input("…o escribe otra", placeholder="C) Gymnastics", key=f"pl_{k}")
+        if st.button("Guardar", key=f"pg_{k}", type="primary"):
+            nueva = libre.strip() or elegida
+            if nueva != parte:
+                guardar_rutina(atleta, renombrar_parte(_rutina_actual(atleta), dia["id"], parte, nueva))
+                st.session_state["aviso"] = f"Parte cambiada a {nueva}"
+            st.rerun()
 
 
 def _selector_parte(atleta: str, rut: dict, semana: int, dia: dict, parte: str, desde: tuple[int, str] | None = None):
@@ -566,7 +594,9 @@ def tab_rutina(atleta: str, entrenos: list[dict]):
                 est = estado_parte(rut, semana, dia["id"], parte)
                 n_no = no_hechas_en(lineas, semana) if est["estado"] != "no_hecho" else 0
                 aviso_no = f" :red[({n_no} sin hacer)]" if n_no else ""
-                st.markdown(f"**{parte}**  {_chip_parte(est, semana, dias)}{aviso_no}")
+                _cabecera_parte(atleta, rut, dia, parte, semana)
+                estado_txt = f"{_chip_parte(est, semana, dias)}{aviso_no}".strip()
+                st.markdown(f"{estado_txt}  {_historial_txt(rut, dia, parte, semana)}".strip())
                 _lineas(rut, lineas, semana, parte, atleta, bool(dia.get("por_ejercicio")))
                 _selector_parte(atleta, rut, semana, dia, parte)
             if grupos:
