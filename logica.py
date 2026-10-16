@@ -226,9 +226,41 @@ def prescripcion_semana(linea: dict, semana: int, ajustes: dict | None) -> tuple
     aj = (ajustes or {}).get(str(semana), {}).get(linea["id"])
     if aj is not None:
         return aj, False, True
-    base = linea.get("prescripcion") or ""
-    delta = semanas_que_sube(linea, semana) * float(linea.get("sube") or 0)
+    p = parametros_semana(linea, semana)
+    base = p.get("prescripcion") or ""
+    delta = semanas_que_sube(p, semana) * float(p.get("sube") or 0)
     return progresar(base, delta), bool(delta) and bool(NUM_PESO.search(base)), False
+
+
+def parametros_semana(linea: dict, semana: int) -> dict:
+    """Los datos de la línea que valían en esa semana (los cambios nunca reescriben semanas anteriores)."""
+    for e in sorted(linea.get("historial") or [], key=lambda e: e["hasta"]):
+        if semana <= int(e["hasta"]):
+            return {**linea, **e}
+    return linea
+
+
+def rebasar(linea: dict, semana: int, presc: str | None = None, sube: float | None = None) -> None:
+    """Empieza un tramo nuevo en `semana` (modifica `linea`). Lo anterior se guarda tal cual en `historial`."""
+    hist = [dict(e) for e in sorted(linea.get("historial") or [], key=lambda e: e["hasta"])]
+    for e in hist:
+        e["hasta"] = min(int(e["hasta"]), semana - 1)
+    hist = [e for e in hist if e["hasta"] >= 1]
+    tope = max((e["hasta"] for e in hist), default=0)
+    if semana - 1 >= 1 and tope < semana - 1:
+        hist.append({"hasta": semana - 1, "prescripcion": linea.get("prescripcion") or "",
+                     "base": int(linea.get("base") or 1), "sube": float(linea.get("sube") or 0)})
+    vistos, limpio = set(), []
+    for e in hist:
+        if e["hasta"] not in vistos:
+            vistos.add(e["hasta"])
+            limpio.append(e)
+    linea["historial"] = limpio
+    if presc is not None:
+        linea["prescripcion"] = presc
+    if sube is not None:
+        linea["sube"] = sube
+    linea["base"] = int(semana)
 
 
 def semanas_que_sube(linea: dict, semana: int) -> int:
@@ -240,7 +272,9 @@ def semanas_que_sube(linea: dict, semana: int) -> int:
 
 def se_repite(linea: dict, semana: int) -> bool:
     """¿Esta semana repite pesos porque la anterior no se hizo?"""
-    return (semana - 1) in [int(p) for p in linea.get("pausas") or []] and float(linea.get("sube") or 0) > 0
+    p = parametros_semana(linea, semana)
+    return (semana - 1) in [int(x) for x in linea.get("pausas") or []] and float(p.get("sube") or 0) > 0 \
+        and int(p.get("base") or 1) <= semana - 1
 
 
 def peso_principal(presc: str) -> float | None:
@@ -286,7 +320,7 @@ def aplicar_edicion(rut: dict, dia_id: str, filas: list[dict], semana: int, solo
         if not ejercicio and not presc:
             continue
         if lid not in previas:
-            sube = _num(f.get("sube"), 0.0 if es_metcon(ejercicio) else 2.5)
+            sube = _num(f.get("sube"), 0.0 if es_metcon(ejercicio) or "accessor" in parte.lower() else 2.5)
             nuevas.append({"id": nuevo_id(), "ejercicio": ejercicio or "Sin nombre", "prescripcion": presc,
                            "sube": sube, "base": semana, "nota": nota, "parte": parte})
             continue
@@ -294,7 +328,7 @@ def aplicar_edicion(rut: dict, dia_id: str, filas: list[dict], semana: int, solo
         actual, _, _ = prescripcion_semana(l, semana, ajustes)
         sin_ajuste, _, _ = prescripcion_semana(l, semana, None)
         if sube != float(l.get("sube") or 0):  # nuevo ritmo a partir de esta semana
-            l["prescripcion"], l["base"], l["sube"] = sin_ajuste, semana, sube
+            rebasar(l, semana, sin_ajuste, sube)
         l["ejercicio"], l["nota"] = ejercicio or l["ejercicio"], nota
         if parte:
             l["parte"] = parte
@@ -302,7 +336,7 @@ def aplicar_edicion(rut: dict, dia_id: str, filas: list[dict], semana: int, solo
             if solo_esta:
                 ajustes.setdefault(str(semana), {})[lid] = presc
             else:
-                l["prescripcion"], l["base"] = presc, semana
+                rebasar(l, semana, presc)
                 for s in list(ajustes):
                     if int(s) >= semana:
                         ajustes[s].pop(lid, None)
@@ -467,7 +501,7 @@ def fijar_prescripcion(rut: dict, lid: str, semana: int, presc: str, solo_esta: 
     if solo_esta:
         ajustes.setdefault(str(semana), {})[lid] = presc
         return
-    l["prescripcion"], l["base"] = presc, int(semana)
+    rebasar(l, int(semana), presc)
     for s in list(ajustes):
         if int(s) >= semana:
             ajustes[s].pop(lid, None)
@@ -529,3 +563,29 @@ def marcar_linea(rut: dict, lid: str, semana: int, no_hecha: bool) -> dict:
 
 def no_hechas_en(lineas: list[dict], semana: int) -> int:
     return sum(1 for l in lineas if not es_metcon(l["ejercicio"]) and linea_no_hecha(l, semana))
+
+
+# ---------- renombrar partes e historial ----------
+def renombrar_parte(rut: dict, dia_id: str, vieja: str, nueva: str) -> dict:
+    """Cambia la letra/nombre de una parte del día y conserva lo ya validado."""
+    import copy
+    rut = copy.deepcopy(rut)
+    nueva = nueva.strip()
+    if not nueva or nueva == vieja:
+        return rut
+    dia = next(d for d in rut["dias"] if d["id"] == dia_id)
+    for l, p in zip(dia["lineas"], partes_del_dia(dia)):
+        l["parte"] = nueva if p == vieja else p
+    dia["lineas"] = [l for _, l in sorted(enumerate(dia["lineas"]), key=lambda t: (_letra(t[1]["parte"]), t[0]))]
+    estados = rut.get("estados") or {}
+    for k in list(estados):
+        trozos = k.split("|", 2)
+        if len(trozos) == 3 and trozos[1] == dia_id and trozos[2] == vieja:
+            estados[f"{trozos[0]}|{dia_id}|{nueva}"] = estados.pop(k)
+    return rut
+
+
+def historial_parte(rut: dict, dia_id: str, parte: str, hasta: int, maximo: int = 6) -> list[tuple[int, str]]:
+    """[(semana, estado)] de las últimas semanas hasta `hasta` (incluida)."""
+    desde = max(1, hasta - maximo + 1)
+    return [(s, estado_parte(rut, s, dia_id, parte)["estado"]) for s in range(desde, hasta + 1)]
