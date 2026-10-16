@@ -93,4 +93,27 @@ HEROES = [
     ("Hansen", "5 rondas: 30 KB swings 32/24 kg, 30 burpees, 30 GHD sit ups"),
 ]
 
-REPERTORIO = {"wod": WODS + COMPETICION + HEROES, "conditioning": CONDITIONING, "accessory": ACCESSORIES}
+MOVILIDAD = [
+    ("90/90 de cadera", "3x8 cambios por lado, lento"),
+    ("Couch stretch", "2x90\" por lado"),
+    ("Pigeon", "2x60\" por lado"),
+    ("Frog stretch", "2x60\""),
+    ("Cossack squat", "3x8 por lado"),
+    ("Deep squat hold", "3x60\" con rotaciones de cadera"),
+    ("World's greatest stretch", "2x5 por lado"),
+    ("Shoulder dislocates con banda", "3x15"),
+    ("Wall slides", "3x10"),
+    ("Pec stretch en pared", "2x45\" por lado"),
+    ("Thoracic rotations (open book)", "2x10 por lado"),
+    ("Cat-cow", "2x10"),
+    ("Jefferson curl ligero", "3x8"),
+    ("Knee to wall (tobillo)", "3x10 por lado"),
+    ("Calf stretch en escalón", "2x45\" por lado"),
+    ("Pancake", "3x45\""),
+    ("Hamstring floss", "2x10 por pierna"),
+    ("Banded hip distraction", "2x60\" por lado"),
+    ("Flujo de movilidad 10'", "Cat-cow, world's greatest stretch, 90/90, deep squat hold y dislocates, 2' cada uno"),
+]
+
+REPERTORIO = {"wod": WODS + COMPETICION + HEROES, "conditioning": CONDITIONING, "accessory": ACCESSORIES,
+              "mobility": MOVILIDAD}
