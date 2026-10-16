@@ -1136,6 +1136,15 @@ def seccion_biblio(tipo: str, todos: list[dict]):
             titulo = g["titulo"] or (primera[:60] + ("…" if len(primera) > 60 else ""))
             chips = " ".join(f":{COLOR_CAT.get(c, 'gray')}[● {c}]" for c in g["categorias"]) or ":gray[sin clasificar]"
             st.markdown(f"**{titulo}**  {chips}")
+            with st.popover("Cambiar tipo"):
+                elegidas = st.multiselect("Tipos", [c for c in cats_tipo if c != "Todos"],
+                                          default=[c for c in g["categorias"] if c in cats_tipo],
+                                          key=f"cat_{tipo}_{g['clave'][:60]}")
+                if st.button("Guardar", key=f"catg_{tipo}_{g['clave'][:60]}", type="primary"):
+                    corr = dict(bib.get("categorias_manual", {}), **{g["clave"]: elegidas})
+                    guardar_rutina(CLAVE_BIBLIOTECA, dict(bib, categorias_manual=corr))
+                    st.session_state["aviso"] = "Tipo cambiado"
+                    st.rerun()
             if g["texto"] and g["texto"] != titulo:
                 st.markdown(g["texto"].replace("\n", "  \n"))
             lineas = []
