@@ -31,9 +31,10 @@ from logica import (
     historial_parte, renombrar_parte, parametros_semana, editar_texto_linea,
     CATEGORIAS_WOD, CLAVE_BIBLIOTECA, coincide_busqueda, wods_hechos,
     CLAVES_BIBLIO, NOMBRE_BIBLIO, anadir_linea, biblioteca, tipo_de_linea,
-    detectar_entrenos, emparejar_autor, norm_busqueda, parse_whatsapp,
+    detectar_entrenos, emparejar_autor, norm_busqueda, parse_whatsapp, CATEGORIAS_MOVILIDAD,
 )
 from repertorio import COMPETICION, HEROES, REPERTORIO
+from i18n import lang, t
 from rutinas_iniciales import migrar, rutinas_iniciales
 
 try:  # fotos HEIC del iPhone
@@ -43,8 +44,9 @@ except Exception:
     pass
 
 # ===== Cambia aquí los nombres =====
-ATLETAS = ["Yo", "Manu Anel", "Salatti", "Mi esposa"]
-COLORES_ATLETA = ["#16202b", "#d6312b", "#1f5fbf", "#2a8c4a", "#d9a200", "#7f8994"]
+ATLETAS = ["Yo", "Manu Anel", "Salatti", "Mi esposa", "Dario", "Archchana", "Juan"]
+IDIOMA_DEFECTO = {"Archchana": "fr"}  # el resto, español
+COLORES_ATLETA = ["#16202b", "#d6312b", "#1f5fbf", "#2a8c4a", "#d9a200", "#8e44ad", "#e67e22", "#7f8994"]
 # ===================================
 
 st.set_page_config(page_title="Diario de Entrenos", page_icon="🏋️", layout="centered")
@@ -237,14 +239,14 @@ def formulario_entreno(atleta: str, entrenos: list[dict], clave: str, inicial: d
 
     with st.form(f"form_{clave}_{n}"):
         c1, c2 = st.columns(2)
-        tipo = c1.selectbox("Tipo", tipos, index=tipos.index(inicial.get("tipo", "fuerza")),
+        tipo = c1.selectbox(t("Tipo"), tipos, index=tipos.index(inicial.get("tipo", "fuerza")),
                             format_func=lambda k: TIPOS[k][0])
-        fecha = c2.date_input("Fecha", dt.date.today(), format="DD/MM/YYYY")
+        fecha = c2.date_input(t("Fecha"), dt.date.today(), format="DD/MM/YYYY")
         c3, c4 = st.columns([2, 1])
-        titulo = c3.text_input("Título", value=inicial.get("titulo", ""), placeholder="Fran, Pierna, 10K suave…")
-        duracion = c4.text_input("Duración total", placeholder="h:mm:ss o min")
+        titulo = c3.text_input(t("Título"), value=inicial.get("titulo", ""), placeholder="Fran, Pierna, 10K suave…")
+        duracion = c4.text_input(t("Duración total"), placeholder="h:mm:ss o min")
 
-        st.markdown("**Resultados**")
+        st.markdown(f"**{t('Resultados')}**")
         tabla = st.data_editor(
             pd.DataFrame(filas, columns=["Ejercicio", "Resultado", "Unidad"]),
             num_rows="dynamic", hide_index=True, use_container_width=True, key=f"tabla_{clave}_{n}",
@@ -256,10 +258,10 @@ def formulario_entreno(atleta: str, entrenos: list[dict], clave: str, inicial: d
         )
         st.caption("Tiempo como 4:35 o 1:02:10. Escribe cada ejercicio siempre igual para seguir su progresión."
                    + (f" Ya usados: {', '.join(usados[:12])}." if usados and not inicial else ""))
-        notas = st.text_area("Notas", placeholder="Sensaciones, escalado, qué falló…")
-        hechas = st.multiselect("Partes que has hecho (se validan al guardar)", partes, default=partes) if partes else []
-        foto = st.file_uploader("Foto", type=["jpg", "jpeg", "png", "webp", "heic", "heif"])
-        enviado = st.form_submit_button("Guardar entreno", type="primary", use_container_width=True)
+        notas = st.text_area(t("Notas"), placeholder="Sensaciones, escalado, qué falló…")
+        hechas = st.multiselect(t("Partes que has hecho (se validan al guardar)"), partes, default=partes) if partes else []
+        foto = st.file_uploader(t("Foto"), type=["jpg", "jpeg", "png", "webp", "heic", "heif"])
+        enviado = st.form_submit_button(t("Guardar entreno"), type="primary", use_container_width=True)
 
     if not enviado:
         return
@@ -345,14 +347,14 @@ def _cambiar_semana(atleta: str, rut: dict, nueva: int):
 
 
 CHIP_DIA = {"hecho": ":green[✓ hecho]", "no_hecho": ":red[✗ no hecho]", "parcial": ":orange[◐ a medias]",
-            "pospuesto": ":orange[↷ pasado]", "pendiente": ":gray[○ sin validar]"}
+            "pospuesto": ":orange[↷ pasado]", "pendiente": ":gray[○ sin validar]"}  # se traducen con t()
 
 
 def _chip_parte(est: dict, semana: int, dias: dict) -> str:
     if est["estado"] == "hecho":
         return ":green[✓]"
     if est["estado"] == "no_hecho":
-        return ":red[✗ no hecho · la semana que viene se repite]"
+        return t(":red[✗ no hecho · la semana que viene se repite]")
     if est["estado"] == "pospuesto":
         s_, did = est["destino"]
         nombre = dias.get(did, {}).get("nombre", "otro día")
@@ -386,6 +388,7 @@ def _cliente_ia():
 
 
 QUE_ES = {"wod": "WOD de CrossFit", "conditioning": "sesión de conditioning (motor, cardio, intervalos)",
+          "mobility": "bloque de movilidad o estiramientos con su duración o repeticiones",
           "accessory": "ejercicio accesorio de fuerza con sus series y repeticiones"}
 
 
@@ -395,6 +398,7 @@ def inventar_con_ia(tipo: str, ejemplos: list[tuple[str, str]], idea: str, durac
         f"Inventa un {QUE_ES[tipo]} nuevo y original para un grupo de amigos que entrena CrossFit.\n"
         f"Inspírate en el estilo, el volumen y los movimientos de estos (no los copies):\n{lista}\n\n"
         f"Duración: {duracion}. Estilo: {estilo}.\n"
+        + ("Escribe en francés.\n" if lang() == "fr" else "")
         + (f"Lo que pide el atleta: {idea}\n" if idea else "")
         + "Usa pesos RX hombre/mujer en kg cuando haya carga. Escribe en español, con los nombres de los movimientos "
           "en inglés como en los ejemplos, y en una o dos líneas.\n"
@@ -417,14 +421,19 @@ def _ia_panel(tipo: str, k: str):
     if not ia_disponible():
         st.caption("La IA no está activada. Añade ANTHROPIC_API_KEY en los Secrets de Streamlit (lo explica el README).")
         return None
-    idea = st.text_input("Idea (opcional)", key=f"ii_{k}", placeholder="thrusters y pull ups, algo corto e intenso…")
-    c1, c2 = st.columns(2)
-    dur = c1.selectbox("Duración", ["Corto (menos de 10')", "Medio (10-20')", "Largo (más de 20')"], index=1,
+    idea = st.text_input(t("Idea (opcional)"), key=f"ii_{k}", placeholder="thrusters y pull ups, algo corto e intenso…")
+    c1, c2, c3 = st.columns(3)
+    dur = c1.selectbox(t("Duración"), ["Corto (menos de 10')", "Medio (10-20')", "Largo (más de 20')"], index=1,
                        key=f"id_{k}")
     estilos = ["Como los nuestros", "Competición (tipo Open)", "Hero WOD"] if tipo == "wod" else ["Como los nuestros"]
-    estilo = c2.selectbox("Estilo", estilos, key=f"ie_{k}")
-    if st.button("✨ Inventar uno" if not st.session_state.get(f"ir_{k}") else "✨ Otro", key=f"ib_{k}"):
-        ejemplos = [(g["titulo"], g["texto"]) for g in _bib(tipo)]
+    estilo = c2.selectbox(t("Estilo"), estilos, key=f"ie_{k}")
+    persona = c3.selectbox(t("Al estilo de"), ["Todos"] + ATLETAS, key=f"ip_{k}", format_func=t)
+    if st.button(t("✨ Inventar uno") if not st.session_state.get(f"ir_{k}") else t("✨ Otro"), key=f"ib_{k}"):
+        grupos = _bib(tipo)
+        if persona != "Todos":
+            grupos = [g for g in grupos if any(v["atleta"] == persona for v in g["veces"])] or grupos
+            estilo += f" (el de {persona})"
+        ejemplos = [(g["titulo"], g["texto"]) for g in grupos]
         if estilo.startswith("Competición") or estilo == "Hero WOD":
             ejemplos = COMPETICION + ejemplos
         elif len(ejemplos) < 5:
@@ -468,34 +477,34 @@ def _titulo_grupo(g: dict) -> str:
 def _elegir_contenido(tipo: str, k: str):
     """✍️ Nuevo / 📚 Ya hechos / 💡 Repertorio. Devuelve (modo, (nombre, texto) | None)."""
     modo = st.segmented_control("Origen", ["✍️ Nuevo", "📚 Ya hechos", "💡 Repertorio", "✨ IA"], default="✍️ Nuevo",
-                                key=f"om_{k}", label_visibility="collapsed") or "✍️ Nuevo"
+                                key=f"om_{k}", label_visibility="collapsed", format_func=t) or "✍️ Nuevo"
     if modo == "✨ IA":
         return modo, _ia_panel(tipo, k)
     if modo == "📚 Ya hechos":
-        q = st.text_input("Buscar por movimiento", key=f"oq_{k}", placeholder="thruster, row, pull up…")
+        q = st.text_input(t("Buscar por movimiento"), key=f"oq_{k}", placeholder="thruster, row, pull up…")
         ops = [g for g in _bib(tipo) if any(v["estado"] == "hecho" for v in g["veces"])
                and (not q or coincide_busqueda(g["titulo"] + "\n" + g["texto"], q))]
         if not ops:
             st.caption("Todavía no hay nada de este tipo hecho por ninguno. Prueba el repertorio.")
             return modo, None
-        i = st.selectbox("Elige", range(len(ops)), key=f"os_{k}",
+        i = st.selectbox(t("Elige"), range(len(ops)), key=f"os_{k}",
                          format_func=lambda i: f"{_titulo_grupo(ops[i])[:70]} ({len(ops[i]['veces'])}x)")
         g = ops[min(i, len(ops) - 1)]
         st.caption(g["texto"].replace("\n", "  \n") + "  \n" +
                    "Hecho por: " + ", ".join(sorted({v['atleta'] for v in g['veces'] if v['atleta']})))
         return modo, (g["titulo"], g["texto"])
     if modo == "💡 Repertorio":
-        q = st.text_input("Buscar por movimiento", key=f"rq_{k}", placeholder="thruster, row, pull up…")
+        q = st.text_input(t("Buscar por movimiento"), key=f"rq_{k}", placeholder="thruster, row, pull up…")
         ops = [x for x in REPERTORIO[tipo] if not q or coincide_busqueda(x[0] + "\n" + x[1], q)]
         if not ops:
             st.caption("Nada en el repertorio con eso.")
             return modo, None
         clave = f"rs_{k}"
-        if st.button("🎲 Al azar", key=f"rz_{k}"):
+        if st.button(t("🎲 Al azar"), key=f"rz_{k}"):
             st.session_state[clave] = random.randrange(len(ops))
         if st.session_state.get(clave, 0) >= len(ops):
             st.session_state[clave] = 0
-        i = st.selectbox("Elige", range(len(ops)), key=clave, format_func=lambda i: f"{ops[i][0]} · {ops[i][1]}"[:80])
+        i = st.selectbox(t("Elige"), range(len(ops)), key=clave, format_func=lambda i: f"{ops[i][0]} · {ops[i][1]}"[:80])
         st.caption(f"**{ops[i][0]}** · {ops[i][1]}")
         return modo, ops[i]
     return modo, None
@@ -504,7 +513,7 @@ def _elegir_contenido(tipo: str, k: str):
 def _contenido_elegido(tipo: str, l: dict, sel: tuple) -> tuple[str, str]:
     """(ejercicio, prescripción) a guardar en la línea a partir de lo elegido."""
     titulo, texto = sel
-    if tipo == "accessory":
+    if tipo in ("accessory", "mobility"):
         return (titulo or l["ejercicio"]), texto
     if not titulo or norm(texto).startswith(norm(titulo)):
         return l["ejercicio"], texto
@@ -514,20 +523,20 @@ def _contenido_elegido(tipo: str, l: dict, sel: tuple) -> tuple[str, str]:
 def _linea_texto_editable(atleta: str, rut: dict, l: dict, txt: str, semana: int, metcon: bool, nombre: str,
                           extra: str, tipo: str = "wod"):
     """WOD, conditioning o accessory: se ve el texto y al tocarlo se edita o se elige de lo hecho / el repertorio."""
-    resumen = (txt or "por definir").replace("\n", " / ")
+    resumen = (txt or t("por definir")).replace("\n", " / ")
     if len(resumen) > 80:
         resumen = resumen[:77] + "…"
     k = f"{atleta}_{semana}_{l['id']}"
     with st.popover(f"{nombre}{resumen} ✏️", use_container_width=True):
         modo, sel = _elegir_contenido(tipo, k)
         if modo == "✍️ Nuevo":
-            nuevo_nombre = st.text_input("Nombre", l["ejercicio"], key=f"tn_{k}")
-            nuevo_txt = st.text_area("Qué toca", txt, height=120, key=f"tt_{k}",
+            nuevo_nombre = st.text_input(t("Nombre"), l["ejercicio"], key=f"tn_{k}")
+            nuevo_txt = st.text_area(t("Qué toca"), txt, height=120, key=f"tt_{k}",
                                      placeholder="AMRAP 12': 10 thrusters @40 + 5 burpees")
-            nueva_nota = st.text_input("Nota", l.get("nota", ""), key=f"to_{k}")
-        alcance = st.radio("Aplicar a", ["Solo esta semana", "Esta semana y las siguientes"],
+            nueva_nota = st.text_input(t("Nota"), l.get("nota", ""), key=f"to_{k}")
+        alcance = st.radio(t("Aplicar a"), ["Solo esta semana", "Esta semana y las siguientes"], format_func=t,
                            index=0 if metcon else 1, key=f"ta_{k}", horizontal=True)
-        if st.button("Guardar" if modo == "✍️ Nuevo" else "Usar este", type="primary", key=f"tg_{k}",
+        if st.button(t("Guardar") if modo == "✍️ Nuevo" else t("Usar este"), type="primary", key=f"tg_{k}",
                      disabled=(modo != "✍️ Nuevo" and sel is None)):
             rut_act = _rutina_actual(atleta)
             if modo == "✍️ Nuevo":
@@ -546,16 +555,18 @@ def _linea_texto_editable(atleta: str, rut: dict, l: dict, txt: str, semana: int
         st.caption(extra.strip())
 
 
-def _anadir_a_parte(atleta: str, dia: dict, parte: str, semana: int):
-    """Botón para añadir un accessory (nuevo, ya hecho o del repertorio) a esta parte, desde esta semana."""
+def _anadir_a_parte(atleta: str, dia: dict, parte: str, semana: int, tipo: str = "accessory"):
+    """Botón para añadir un accessory o movilidad (nuevo, ya hecho o del repertorio) a esta parte, desde esta semana."""
     k = f"add_{atleta}_{semana}_{dia['id']}_{parte}"
-    with st.popover("+ Añadir accessory"):
-        modo, sel = _elegir_contenido("accessory", k)
+    with st.popover(t("+ Añadir movilidad") if tipo == "mobility" else t("+ Añadir accessory")):
+        modo, sel = _elegir_contenido(tipo, k)
         if modo == "✍️ Nuevo":
-            nombre = st.text_input("Ejercicio", key=f"an_{k}", placeholder="Romanian deadlift")
-            texto = st.text_input("Series y peso", key=f"at_{k}", placeholder="3x10 @60")
+            nombre = st.text_input(t("Ejercicio"), key=f"an_{k}",
+                                   placeholder="Couch stretch" if tipo == "mobility" else "Romanian deadlift")
+            texto = st.text_input(t("Series y peso"), key=f"at_{k}",
+                                  placeholder="2x90\" por lado" if tipo == "mobility" else "3x10 @60")
             sel = (nombre, texto) if nombre.strip() else None
-        if st.button("Añadir", type="primary", key=f"ag_{k}", disabled=sel is None):
+        if st.button(t("Añadir"), type="primary", key=f"ag_{k}", disabled=sel is None):
             nombre, texto = sel
             guardar_rutina(atleta, anadir_linea(_rutina_actual(atleta), dia["id"], parte, nombre, texto, semana))
             st.session_state["aviso"] = f"{nombre} añadido desde la semana {semana}"
@@ -592,7 +603,7 @@ def _lineas(rut: dict, lineas: list[dict], semana: int, parte: str, atleta: str 
         metcon = es_metcon(l["ejercicio"])
         extra = _etiqueta_extra(l, txt, semana, ajuste, subio)
         nota = f" — _{l['nota']}_" if l.get("nota") else ""
-        if atleta and not metcon and "accessor" not in parte.lower():
+        if atleta and tipo_de_linea(parte, l["ejercicio"]) is None:
             volcar()
             cargas = PREFIJO_CARGA.findall(txt)
             pesos = [float(x.replace(",", ".")) for x in NUM_PESO.findall(txt)]
@@ -601,7 +612,7 @@ def _lineas(rut: dict, lineas: list[dict], semana: int, parte: str, atleta: str 
             if len(pesos) <= 1:
                 etiqueta = f"**{l['ejercicio']}**" + (f" · {esquema}" if esquema else "") + extra + nota
                 st.number_input(etiqueta, min_value=0.0, step=1.25, format="%.2f",
-                                value=pesos[0] if pesos else None, placeholder="falta el peso · toca para ponerlo",
+                                value=pesos[0] if pesos else None, placeholder=t("falta el peso · toca para ponerlo"),
                                 key=k, on_change=_cambiar_peso, args=(atleta, semana, l["id"], txt, [k]))
             else:
                 st.markdown(f"**{l['ejercicio']}**{extra}{nota}")
@@ -614,7 +625,7 @@ def _lineas(rut: dict, lineas: list[dict], semana: int, parte: str, atleta: str 
                                          args=(atleta, semana, l["id"], txt, claves))
             if por_ejercicio:
                 kc = f"nh_{atleta}_{semana}_{l['id']}_{linea_no_hecha(l, semana)}"
-                st.checkbox("✗ No lo hice (repite peso la semana que viene)", value=linea_no_hecha(l, semana),
+                st.checkbox(t("✗ No lo hice (repite peso la semana que viene)"), value=linea_no_hecha(l, semana),
                             key=kc, on_change=_marcar_linea_cb, args=(atleta, semana, l["id"], kc))
             continue
         solo_bloque = metcon and norm(l["ejercicio"]) in norm(parte)  # «B) WOD» + línea «WOD»
@@ -627,7 +638,7 @@ def _lineas(rut: dict, lineas: list[dict], semana: int, parte: str, atleta: str 
         if txt:
             linea = f"- {nombre}`{txt}`"
         elif metcon:
-            linea = f"- {nombre}:gray[por definir]"
+            linea = f"- {nombre}:gray[{t('por definir')}]"
         else:
             linea = f"- {nombre}:orange[falta el peso]"
         texto.append(linea + extra + nota)
@@ -657,7 +668,7 @@ def _etiqueta_semana_sig(rut: dict, dia: dict, sem_aqui: int) -> str:
     if destino and destino != dia["id"]:
         nombre = next((d["nombre"] for d in rut["dias"] if d["id"] == destino), "otro día")
         return f"→ {nombre} (sem. {sem_aqui + 1})"
-    return f"→ Semana {sem_aqui + 1}"
+    return t("→ Semana {n}", n=sem_aqui + 1)
 
 
 SIMBOLO = {"hecho": ":green[✓]", "no_hecho": ":red[✗]", "pospuesto": ":orange[↷]", "pendiente": ":gray[·]"}
@@ -668,7 +679,7 @@ def _historial_txt(rut: dict, dia: dict, parte: str, semana: int) -> str:
     previas = historial_parte(rut, dia["id"], parte, semana - 1)
     if not previas:
         return ""
-    return ":gray[Historial:] " + " ".join(f":gray[S{s}]{SIMBOLO[e]}" for s, e in previas)
+    return f":gray[{t('Historial:')}] " + " ".join(f":gray[S{s}]{SIMBOLO[e]}" for s, e in previas)
 
 
 def _cabecera_parte(atleta: str, rut: dict, dia: dict, parte: str, semana: int):
@@ -692,8 +703,8 @@ def _selector_parte(atleta: str, rut: dict, semana: int, dia: dict, parte: str, 
     sig = destino_dia_siguiente(rut, sem_aqui, dia_aqui)
     nombre_sig = next(d["nombre"] for d in rut["dias"] if d["id"] == sig[1])
     opciones = {
-        "✓ Hecho": ("hecho", None),
-        "✗ No hecho": ("no_hecho", None),
+        t("✓ Hecho"): ("hecho", None),
+        t("✗ No hecho"): ("no_hecho", None),
         f"→ {nombre_sig}" + (f" (sem. {sig[0]})" if sig[0] != sem_aqui else ""): ("pospuesto", sig),
         _etiqueta_semana_sig(rut, dia, sem_aqui): ("pospuesto", destino_semana_siguiente(sem_aqui, dia.get("pasa_a") or dia["id"])),
     }
@@ -765,28 +776,28 @@ def tab_rutina(atleta: str, entrenos: list[dict]):
     if clave_sem not in st.session_state:
         st.session_state[clave_sem] = actual
     c1, c2 = st.columns([1, 2], vertical_alignment="bottom")
-    semana = int(c1.number_input("Semana", min_value=1, step=1, key=clave_sem))
+    semana = int(c1.number_input(t("Semana"), min_value=1, step=1, key=clave_sem))
     if semana == actual:
-        c2.button(f"Terminé la semana {actual} → pasar a la {actual + 1}", key=f"sig_{atleta}",
+        c2.button(t("Terminé la semana {a} → pasar a la {b}", a=actual, b=actual + 1), key=f"sig_{atleta}",
                   on_click=_cambiar_semana, args=(atleta, rut, actual + 1), use_container_width=True)
     else:
-        c2.button(f"Marcar la semana {semana} como la actual", key=f"act_{atleta}",
+        c2.button(t("Marcar la semana {s} como la actual", s=semana), key=f"act_{atleta}",
                   on_click=_cambiar_semana, args=(atleta, rut, semana), use_container_width=True)
-    momento = "esta semana" if semana == actual else ("semana pasada" if semana < actual else "semana que viene")
-    st.caption(f"Semana {semana} ({momento}). Los pesos tras @ suben lo indicado en «Sube» cada semana "
-               "(2,5 kg por defecto). Cámbialo o haz excepciones en «Editar».")
+    momento = t("esta semana") if semana == actual else (t("semana pasada") if semana < actual else t("semana que viene"))
+    st.caption(t("Semana {s} ({m}). Los pesos tras @ suben lo indicado en «Sube» cada semana (2,5 kg por defecto).",
+                 s=semana, m=momento))
 
-    st.caption("Toca un peso para cambiarlo: se guarda solo y las semanas siguientes se recalculan. "
-               "Los WOD, conditionings y accessories se editan tocándolos. "
-               "En las pestañas: ✓ hecho · ◐ a medias · ↷ pasado · ✗ no hecho · • tiene pendientes.")
-    with st.expander("Opciones al cambiar un peso"):
-        st.toggle("Mover igual el mismo ejercicio en los otros días", value=True, key=f"propagar_{atleta}")
-        st.toggle("Cambiar solo esta semana (excepción)", value=False, key=f"solo_sem_{atleta}")
+    st.caption(t("Toca un peso para cambiarlo: se guarda solo y las semanas siguientes se recalculan. ")
+               + t("Los WOD, conditionings y accessories se editan tocándolos. ")
+               + t("En las pestañas: ✓ hecho · ◐ a medias · ↷ pasado · ✗ no hecho · • tiene pendientes."))
+    with st.expander(t("Opciones al cambiar un peso")):
+        st.toggle(t("Mover igual el mismo ejercicio en los otros días"), value=True, key=f"propagar_{atleta}")
+        st.toggle(t("Cambiar solo esta semana (excepción)"), value=False, key=f"solo_sem_{atleta}")
 
     faltan = sin_validar(rut, semana)
     if semana <= actual and faltan:
-        st.warning(f"Sin validar en la semana {semana}: {'; '.join(faltan)}. "
-                   "Marca cada parte como hecha o pásala a otro día.")
+        st.warning(t("Sin validar en la semana {s}: {f}. Marca cada parte como hecha o pásala a otro día.",
+                     s=semana, f="; ".join(faltan)))
 
     dias = {d["id"]: d for d in rut["dias"]}
     icono = {"hecho": " ✓", "parcial": " ◐", "pospuesto": " ↷", "no_hecho": " ✗", "pendiente": ""}
@@ -796,7 +807,7 @@ def tab_rutina(atleta: str, entrenos: list[dict]):
         etiquetas.append(f"{d['nombre']}{icono[resumen_dia(rut, semana, d)]}{pend}")
     for pestana, dia in zip(st.tabs(etiquetas), rut["dias"]):
         with pestana:
-            st.markdown(f"#### {dia['nombre']}  {CHIP_DIA[resumen_dia(rut, semana, dia)]}")
+            st.markdown(f"#### {dia['nombre']}  {t(CHIP_DIA[resumen_dia(rut, semana, dia)])}")
             grupos = agrupar_por_parte(dia)
             if not grupos:
                 st.caption("Sin ejercicios. Añádelos en Editar.")
@@ -808,11 +819,11 @@ def tab_rutina(atleta: str, entrenos: list[dict]):
                 estado_txt = f"{_chip_parte(est, semana, dias)}{aviso_no}".strip()
                 st.markdown(f"{estado_txt}  {_historial_txt(rut, dia, parte, semana)}".strip())
                 _lineas(rut, lineas, semana, parte, atleta, bool(dia.get("por_ejercicio")))
-                if "accessor" in parte.lower():
-                    _anadir_a_parte(atleta, dia, parte, semana)
+                if tipo_de_linea(parte, "") in ("accessory", "mobility"):
+                    _anadir_a_parte(atleta, dia, parte, semana, tipo_de_linea(parte, ""))
                 _selector_parte(atleta, rut, semana, dia, parte)
             if grupos:
-                with st.expander("Registrar resultados"):
+                with st.expander(t("Registrar resultados")):
                     formulario_entreno(atleta, entrenos, f"rut_{atleta}_{dia['id']}_{semana}",
                                        _inicial_desde_dia(rut, dia, semana), partes=[p for p, _ in grupos],
                                        al_guardar=_marcar_hechas(atleta, semana, dia["id"]))
@@ -830,10 +841,10 @@ def tab_rutina(atleta: str, entrenos: list[dict]):
                                                           f"{_titulo_dia(so, origen)} · {parte}"),
                                        partes=[parte], al_guardar=_marcar_hechas(atleta, so, did))
 
-            with st.expander("Editar ejercicios"):
+            with st.expander(t("Editar ejercicios")):
                 editar_dia(atleta, rut, dia, semana)
 
-    if st.button("+ Añadir día", key=f"add_dia_{atleta}"):
+    if st.button(t("+ Añadir día"), key=f"add_dia_{atleta}"):
         rut2 = dict(rut, dias=rut["dias"] + [{"id": _nuevo_id(), "nombre": f"Día {len(rut['dias']) + 1}", "lineas": []}])
         guardar_rutina(atleta, rut2)
         st.rerun()
@@ -1087,7 +1098,8 @@ def tab_grupo(todos: list[dict]):
 
 
 # ---------------------------------------------------------------- WODs
-COLOR_CAT = {"Gym": "violet", "Barbell": "red", "Dumbbell": "blue", "Cardio": "green", "🎖️ Hero": "orange"}
+COLOR_CAT = {"Gym": "violet", "Barbell": "red", "Dumbbell": "blue", "Cardio": "green", "🎖️ Hero": "orange",
+             "Cadera": "violet", "Hombros": "blue", "Tobillos": "green", "Espalda": "orange", "Isquios": "red"}
 
 
 def seccion_wods(todos: list[dict]):
@@ -1105,13 +1117,16 @@ def seccion_biblio(tipo: str, todos: list[dict]):
     clave = CLAVES_BIBLIO[tipo]
     k = f"bib_{tipo}"
 
-    q = st.text_input("Buscar por movimiento", key=f"{k}_q",
+    q = st.text_input(t("Buscar por movimiento"), key=f"{k}_q",
                       placeholder="thruster, pull up, wall ball… (separa con comas para buscar varios)")
-    cats_tipo = CATEGORIAS_WOD if tipo == "wod" else [c for c in CATEGORIAS_WOD if "Hero" not in c]
-    cat = st.segmented_control("Tipo", cats_tipo, default="Todos", key=f"{k}_cat") or "Todos"
+    if tipo == "mobility":
+        cats_tipo = CATEGORIAS_MOVILIDAD
+    else:
+        cats_tipo = CATEGORIAS_WOD if tipo == "wod" else [c for c in CATEGORIAS_WOD if "Hero" not in c]
+    cat = st.segmented_control(t("Tipo"), cats_tipo, default="Todos", key=f"{k}_cat", format_func=t) or "Todos"
     c1, c2 = st.columns([2, 1], vertical_alignment="bottom")
-    quien = c1.multiselect("Quién", ATLETAS, placeholder="Todos", key=f"{k}_quien")
-    solo = c2.toggle("Solo los hechos", value=True, key=f"{k}_solo")
+    quien = c1.multiselect(t("Quién"), ATLETAS, placeholder=t("Todos"), key=f"{k}_quien")
+    solo = c2.toggle(t("Solo los hechos"), value=True, key=f"{k}_solo")
 
     filtrados, por_cat = [], {c: 0 for c in cats_tipo}
     for g in biblioteca(rutinas, ATLETAS, todos, bib, tipo):
@@ -1124,7 +1139,7 @@ def seccion_biblio(tipo: str, todos: list[dict]):
                 por_cat[c] += 1
         if cat == "Todos" or cat in g["categorias"]:
             filtrados.append((g, veces))
-    st.caption(" · ".join(f"{c}: {n}" for c, n in por_cat.items()))
+    st.caption(" · ".join(f"{t(c)}: {n}" for c, n in por_cat.items()))
     if tipo == "wod":
         url = ("https://www.google.com/search?q=" + quote(f"site:wodwell.com {q}")) if q else "https://wodwell.com"
         st.link_button("Buscar en Wodwell" + (f": {q}" if q else ""), url)
@@ -1136,9 +1151,9 @@ def seccion_biblio(tipo: str, todos: list[dict]):
         with st.container(border=True):
             primera = g["texto"].split("\n")[0]
             titulo = g["titulo"] or (primera[:60] + ("…" if len(primera) > 60 else ""))
-            chips = " ".join(f":{COLOR_CAT.get(c, 'gray')}[● {c}]" for c in g["categorias"]) or ":gray[sin clasificar]"
+            chips = " ".join(f":{COLOR_CAT.get(c, 'gray')}[● {t(c)}]" for c in g["categorias"]) or ":gray[—]"
             st.markdown(f"**{titulo}**  {chips}")
-            with st.popover("Cambiar tipo"):
+            with st.popover(t("Cambiar tipo")):
                 elegidas = st.multiselect("Tipos", [c for c in cats_tipo if c != "Todos"],
                                           default=[c for c in g["categorias"] if c in cats_tipo],
                                           key=f"cat_{tipo}_{g['clave'][:60]}")
@@ -1185,10 +1200,10 @@ def seccion_biblio(tipo: str, todos: list[dict]):
 
 
 
-    with st.expander("📲 Importar de WhatsApp"):
+    with st.expander(t("📲 Importar de WhatsApp")):
         importar_whatsapp(bib, tipo)
 
-    with st.expander("✨ Inventar con IA"):
+    with st.expander(t("✨ Inventar con IA")):
         res = _ia_panel(tipo, f"sec_{tipo}")
         if res and st.button("Guardar en la lista como idea", key=f"ig_{tipo}"):
             bib2 = dict(bib, **{clave: bib.get(clave, []) + [{
@@ -1199,8 +1214,8 @@ def seccion_biblio(tipo: str, todos: list[dict]):
             st.session_state["aviso"] = "Guardado como idea (quita «Solo los hechos» para verlo)"
             st.rerun()
 
-    with st.expander("💡 Ideas del repertorio"):
-        q2 = st.text_input("Buscar en el repertorio", key=f"{k}_rq", placeholder="thruster, row…")
+    with st.expander(t("💡 Ideas del repertorio")):
+        q2 = st.text_input(t("Buscar en el repertorio"), key=f"{k}_rq", placeholder="thruster, row…")
         heroes = {n for n, _ in HEROES}
         bloques = ([("Clásicos y propuestas", [x for x in REPERTORIO[tipo] if x[0] not in heroes and x not in COMPETICION]),
                     ("🏆 Competición (Open)", COMPETICION), ("🎖️ Hero WODs", HEROES)]
@@ -1217,7 +1232,7 @@ def seccion_biblio(tipo: str, todos: list[dict]):
 
 
 # ---------------------------------------------------------------- importar de WhatsApp
-TIPO_ETIQUETA = {"wod": "WOD", "conditioning": "Conditioning", "accessory": "Accessory"}
+TIPO_ETIQUETA = {"wod": "WOD", "conditioning": "Conditioning", "accessory": "Accessory", "mobility": "Movilidad"}
 NADIE = "Nadie (guardar como idea)"
 
 
@@ -1281,7 +1296,8 @@ def importar_whatsapp(bib: dict, tipo_seccion: str):
     solo = st.multiselect("Importar solo los mandados por", sorted(mapa), default=sorted(mapa), key=f"wa_solo_{n}")
 
     ya = {norm_busqueda(item.get("texto", "")) for clave in CLAVES_BIBLIO.values() for item in bib.get(clave, [])}
-    filas = [{"Importar": norm_busqueda(c["cuerpo"]) not in ya, "Fecha": c["fecha"], "Autor": c["autor"],
+    filas = [{"Importar": norm_busqueda(c["cuerpo"]) not in ya, "Fecha": c.get("fecha_entreno", c["fecha"]),
+              "Mensaje": c["fecha"], "Autor": c["autor"],
               "Chat": c["chat"], "Tipo": TIPO_ETIQUETA[c["tipo"]], "Nombre": c["nombre"], "Entreno": c["cuerpo"]}
              for c in candidatos if c["autor"] in solo]
     if not filas:
@@ -1290,10 +1306,11 @@ def importar_whatsapp(bib: dict, tipo_seccion: str):
     st.markdown("**Revisa la lista:** desmarca lo que no sea un entreno y corrige tipo o nombre si hace falta.")
     tabla = st.data_editor(
         pd.DataFrame(filas), hide_index=True, use_container_width=True, key=f"wa_tabla_{n}",
-        disabled=["Fecha", "Autor", "Chat"],
+        disabled=["Mensaje", "Autor", "Chat"],
         column_config={
             "Importar": st.column_config.CheckboxColumn(width="small"),
-            "Fecha": st.column_config.DateColumn(format="DD/MM/YYYY"),
+            "Fecha": st.column_config.DateColumn(format="DD/MM/YYYY", help="Día del entreno (sale de «mañana», «el lunes», «12/10»… si el mensaje lo dice)"),
+            "Mensaje": st.column_config.DateColumn(format="DD/MM/YYYY", help="Día en que se mandó el mensaje"),
             "Tipo": st.column_config.SelectboxColumn(options=list(TIPO_ETIQUETA.values()), required=True),
             "Entreno": st.column_config.TextColumn(width="large"),
         },
@@ -1316,21 +1333,33 @@ def importar_whatsapp(bib: dict, tipo_seccion: str):
 
 
 # ---------------------------------------------------------------- main
+def _idioma_de_atleta():
+    """Al cambiar de persona, pone su idioma (Archchana en francés); luego se puede cambiar arriba."""
+    st.session_state["lang"] = IDIOMA_DEFECTO.get(st.session_state.get("atleta"), "es")
+
+
 def main():
     control_contrasena()
     st.markdown("""<style>
       h1 {letter-spacing:.02em; text-transform:uppercase}
       [data-testid="stMetricValue"] {font-variant-numeric: tabular-nums}
     </style>""", unsafe_allow_html=True)
-    st.title("Diario de Entrenos")
+    cab, idi = st.columns([4, 1], vertical_alignment="bottom")
+    cab.title(t("Diario de Entrenos"))
+    idi.segmented_control(t("Idioma"), ["es", "fr"], key="lang", default="es", label_visibility="collapsed",
+                          format_func=lambda x: {"es": "🇪🇸 ES", "fr": "🇫🇷 FR"}[x])
 
     if isinstance(store(), LocalStore):
         st.caption("Modo local: los datos se guardan en la carpeta `data/`. Configura Supabase para usarla online.")
 
-    secciones = {"WODs": "wod", "Conditioning": "conditioning", "Accessories": "accessory"}
-    atleta = st.segmented_control("Atleta", ATLETAS + list(secciones), default=ATLETAS[0], key="atleta",
-                                  label_visibility="collapsed")
-    atleta = atleta or ATLETAS[0]
+    secciones = {"WODs": "wod", "Conditioning": "conditioning", "Accessories": "accessory", "Movilidad": "mobility"}
+    vista = st.segmented_control("Ver", ["Personas"] + list(secciones), default="Personas", key="vista",
+                                 label_visibility="collapsed", format_func=t) or "Personas"
+    if vista == "Personas":
+        atleta = st.segmented_control("Atleta", ATLETAS, default=ATLETAS[0], key="atleta",
+                                      label_visibility="collapsed", on_change=_idioma_de_atleta) or ATLETAS[0]
+    else:
+        atleta = vista
 
     if aviso := st.session_state.pop("aviso", None):
         st.toast(aviso)
@@ -1345,7 +1374,7 @@ def main():
         return
     mios = [w for w in todos if w["athlete"] == atleta]
 
-    t0, t1, t2, t3, t4 = st.tabs(["Rutina", "Registrar", "Historial", "Progreso", "Grupo"])
+    t0, t1, t2, t3, t4 = st.tabs([t("Rutina"), t("Registrar"), t("Historial"), t("Progreso"), t("Grupo")])
     with t0:
         tab_rutina(atleta, mios)
     with t1:
