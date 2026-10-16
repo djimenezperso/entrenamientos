@@ -22,7 +22,8 @@ from logica import (
     fmt_tiempo, fmt_valor, ids_con_pr, mejor_punto, norm, parse_tiempo, parse_valor, peso_principal,
     prescripcion_semana, series_ejercicios, sesiones_por_semana,
     PARTES, agrupar_por_parte, destino_dia_siguiente, destino_semana_siguiente, estado_parte, marcar_parte,
-    partes_del_dia, pendientes_para, resumen_dia, sin_validar,
+    partes_del_dia, pendientes_para, resumen_dia, se_repite, semanas_que_sube, sin_validar,
+    NUM_PESO, cambiar_pesos, poner_pesos,
 )
 from rutinas_iniciales import rutinas_iniciales
 
@@ -334,13 +335,15 @@ def _cambiar_semana(atleta: str, rut: dict, nueva: int):
     st.session_state[f"sem_{atleta}"] = nueva
 
 
-CHIP_DIA = {"hecho": ":green[✓ hecho]", "parcial": ":orange[◐ a medias]",
+CHIP_DIA = {"hecho": ":green[✓ hecho]", "no_hecho": ":red[✗ no hecho]", "parcial": ":orange[◐ a medias]",
             "pospuesto": ":orange[↷ pasado]", "pendiente": ":gray[○ sin validar]"}
 
 
 def _chip_parte(est: dict, semana: int, dias: dict) -> str:
     if est["estado"] == "hecho":
         return ":green[✓]"
+    if est["estado"] == "no_hecho":
+        return ":red[✗ no hecho · la semana que viene se repite]"
     if est["estado"] == "pospuesto":
         s_, did = est["destino"]
         nombre = dias.get(did, {}).get("nombre", "otro día")
@@ -363,8 +366,10 @@ def _lineas(rut: dict, lineas: list[dict], semana: int, parte: str):
             linea = f"- {nombre}:orange[falta el peso]"
         if ajuste:
             linea += " :orange[(cambio solo esta semana)]"
-        elif subio and semana > int(l.get("base") or 1):
-            linea += f" :green[+{fmt_num((semana - int(l['base'])) * float(l['sube']))}]"
+        elif txt and se_repite(l, semana):
+            linea += " :gray[(se repite: no se hizo la semana pasada)]"
+        elif subio and semanas_que_sube(l, semana) > 0:
+            linea += f" :green[+{fmt_num(semanas_que_sube(l, semana) * float(l['sube']))}]"
         if l.get("nota"):
             linea += f" — _{l['nota']}_"
         out.append(linea)
@@ -390,6 +395,7 @@ def _selector_parte(atleta: str, rut: dict, semana: int, dia: dict, parte: str, 
     nombre_sig = next(d["nombre"] for d in rut["dias"] if d["id"] == sig[1])
     opciones = {
         "✓ Hecho": ("hecho", None),
+        "✗ No hecho": ("no_hecho", None),
         f"→ {nombre_sig}" + (f" (sem. {sig[0]})" if sig[0] != sem_aqui else ""): ("pospuesto", sig),
         f"→ Semana {sem_aqui + 1}": ("pospuesto", destino_semana_siguiente(sem_aqui, dia["id"])),
     }
@@ -506,13 +512,57 @@ def tab_rutina(atleta: str, entrenos: list[dict]):
                                                           f"{_titulo_dia(so, origen)} · {parte}"),
                                        partes=[parte], al_guardar=_marcar_hechas(atleta, so, did))
 
-            with st.expander("Editar"):
+            if any(not es_metcon(l["ejercicio"]) for l in dia["lineas"]):
+                with st.expander("✏️ Cambiar pesos"):
+                    cambiar_pesos_dia(atleta, rut, dia, semana)
+            with st.expander("Editar ejercicios"):
                 editar_dia(atleta, rut, dia, semana)
 
     if st.button("+ Añadir día", key=f"add_dia_{atleta}"):
         rut2 = dict(rut, dias=rut["dias"] + [{"id": _nuevo_id(), "nombre": f"Día {len(rut['dias']) + 1}", "lineas": []}])
         guardar_rutina(atleta, rut2)
         st.rerun()
+
+
+def cambiar_pesos_dia(atleta: str, rut: dict, dia: dict, semana: int):
+    base = f"{atleta}_{dia['id']}_{semana}"
+    lineas = [l for l in dia["lineas"] if not es_metcon(l["ejercicio"])]
+    with st.form(f"pesos_{base}"):
+        entradas = {}
+        for l in lineas:
+            txt = prescripcion_semana(l, semana, rut.get("ajustes"))[0]
+            pesos = [float(x.replace(",", ".")) for x in NUM_PESO.findall(txt)]
+            st.markdown(f"**{l['ejercicio']}** · `{txt or 'sin peso'}`")
+            if len(pesos) <= 1:
+                v = st.number_input("Peso (kg)", min_value=0.0, step=1.25, format="%.2f",
+                                    value=pesos[0] if pesos else 0.0, key=f"p_{base}_{l['id']}_{txt}",
+                                    label_visibility="collapsed")
+                entradas[l["id"]] = (txt, pesos, [v])
+            else:
+                cols = st.columns(len(pesos))
+                vals = [cols[i].number_input(f"Carga {i + 1}", min_value=0.0, step=1.25, format="%.2f", value=p,
+                                             key=f"p_{base}_{l['id']}_{i}_{txt}") for i, p in enumerate(pesos)]
+                entradas[l["id"]] = (txt, pesos, vals)
+        modo = st.radio("Aplicar a", ["Esta semana y las siguientes", "Solo esta semana"], horizontal=True,
+                        key=f"pm_{base}")
+        propagar = st.checkbox("Mover igual el mismo ejercicio en los otros días", value=True, key=f"pp_{base}")
+        enviar = st.form_submit_button("Guardar pesos", type="primary", use_container_width=True)
+    st.caption("Desde la semana que guardes, los pesos siguen subiendo lo de siempre. Un peso a 0 no se toca.")
+    if not enviar:
+        return
+    cambios = {}
+    for lid, (txt, antes, nuevos) in entradas.items():
+        if not antes and not nuevos[0]:
+            continue  # sin peso y lo dejas en 0
+        if [round(x, 2) for x in nuevos] != [round(x, 2) for x in antes]:
+            cambios[lid] = poner_pesos(txt, nuevos)
+    if not cambios:
+        st.info("No has cambiado ningún peso.")
+        return
+    nueva, tocados = cambiar_pesos(rut, semana, cambios, modo == "Solo esta semana", propagar)
+    guardar_rutina(atleta, nueva)
+    st.session_state["aviso"] = "Pesos guardados" + (f" (también en {', '.join(tocados)})" if tocados else "")
+    st.rerun()
 
 
 def editar_dia(atleta: str, rut: dict, dia: dict, semana: int):
