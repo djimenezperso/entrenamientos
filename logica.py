@@ -270,12 +270,13 @@ def aplicar_edicion(rut: dict, dia_id: str, filas: list[dict], semana: int, solo
         sube = _num(f.get("sube"), 0.0)
         nota = _limpio(f.get("nota"))
         lid = _limpio(f.get("id"))
+        parte = _limpio(f.get("parte"))
         if not ejercicio and not presc:
             continue
         if lid not in previas:
             sube = _num(f.get("sube"), 0.0 if es_metcon(ejercicio) else 2.5)
             nuevas.append({"id": nuevo_id(), "ejercicio": ejercicio or "Sin nombre", "prescripcion": presc,
-                           "sube": sube, "base": semana, "nota": nota})
+                           "sube": sube, "base": semana, "nota": nota, "parte": parte})
             continue
         l = dict(previas[lid])
         actual, _, _ = prescripcion_semana(l, semana, ajustes)
@@ -283,6 +284,8 @@ def aplicar_edicion(rut: dict, dia_id: str, filas: list[dict], semana: int, solo
         if sube != float(l.get("sube") or 0):  # nuevo ritmo a partir de esta semana
             l["prescripcion"], l["base"], l["sube"] = sin_ajuste, semana, sube
         l["ejercicio"], l["nota"] = ejercicio or l["ejercicio"], nota
+        if parte:
+            l["parte"] = parte
         if presc != actual:
             if solo_esta:
                 ajustes.setdefault(str(semana), {})[lid] = presc
@@ -293,21 +296,37 @@ def aplicar_edicion(rut: dict, dia_id: str, filas: list[dict], semana: int, solo
                         ajustes[s].pop(lid, None)
         nuevas.append(l)
     dia["lineas"] = nuevas
+    for l, p in zip(nuevas, partes_del_dia(dia)):
+        l["parte"] = p
+    dia["lineas"] = [l for _, l in sorted(enumerate(nuevas), key=lambda t: (_letra(t[1]["parte"]), t[0]))]
     rut["ajustes"] = {s: a for s, a in ajustes.items() if a}
     return rut
 
 
-# ---------- validar días ----------
-def clave_dia(semana: int, dia_id: str) -> str:
-    return f"{int(semana)}|{dia_id}"
+# ---------- validar partes de cada día ----------
+def clave_parte(semana: int, dia_id: str, parte: str) -> str:
+    return f"{int(semana)}|{dia_id}|{parte}"
 
 
-def estado_dia(rut: dict, semana: int, dia_id: str, registrado: bool = False) -> dict:
+def estado_parte(rut: dict, semana: int, dia_id: str, parte: str) -> dict:
     """{'estado': 'hecho'|'pospuesto'|'pendiente', 'destino': [semana, dia_id]?}"""
-    e = (rut.get("estados") or {}).get(clave_dia(semana, dia_id))
-    if registrado or (e and e.get("estado") == "hecho"):
-        return {"estado": "hecho", "registrado": registrado}
+    est = rut.get("estados") or {}
+    e = est.get(clave_parte(semana, dia_id, parte)) or est.get(f"{int(semana)}|{dia_id}")  # marca antigua de día entero
     return e or {"estado": "pendiente"}
+
+
+def resumen_dia(rut: dict, semana: int, dia: dict) -> str:
+    """'hecho', 'parcial', 'pospuesto' o 'pendiente'."""
+    ests = [estado_parte(rut, semana, dia["id"], p)["estado"] for p, _ in agrupar_por_parte(dia)]
+    if not ests:
+        return "pendiente"
+    if all(e == "hecho" for e in ests):
+        return "hecho"
+    if all(e == "pospuesto" for e in ests):
+        return "pospuesto"
+    if any(e != "pendiente" for e in ests):
+        return "parcial"
+    return "pendiente"
 
 
 def destino_dia_siguiente(rut: dict, semana: int, dia_id: str) -> list:
@@ -320,12 +339,18 @@ def destino_semana_siguiente(semana: int, dia_id: str) -> list:
     return [semana + 1, dia_id]
 
 
-def marcar_dia(rut: dict, semana: int, dia_id: str, estado: str | None, destino: list | None = None) -> dict:
+def marcar_parte(rut: dict, semana: int, dia_id: str, parte: str, estado: str | None, destino: list | None = None) -> dict:
     """estado: 'hecho', 'pospuesto' (con destino) o None para quitar la marca."""
     import copy
     rut = copy.deepcopy(rut)
     estados = rut.setdefault("estados", {})
-    k = clave_dia(semana, dia_id)
+    viejo = f"{int(semana)}|{dia_id}"
+    if viejo in estados:  # pasar la marca antigua de día entero a cada parte
+        e = estados.pop(viejo)
+        dia = next((d for d in rut["dias"] if d["id"] == dia_id), None)
+        for p, _ in (agrupar_por_parte(dia) if dia else []):
+            estados.setdefault(clave_parte(semana, dia_id, p), dict(e))
+    k = clave_parte(semana, dia_id, parte)
     if estado is None:
         estados.pop(k, None)
     elif estado == "pospuesto":
@@ -335,19 +360,69 @@ def marcar_dia(rut: dict, semana: int, dia_id: str, estado: str | None, destino:
     return rut
 
 
-def pendientes_para(rut: dict, semana: int, dia_id: str, titulos_registrados: set) -> list[tuple[int, str]]:
-    """Días pospuestos que caen en (semana, dia_id) y aún no se han hecho."""
+def pendientes_para(rut: dict, semana: int, dia_id: str) -> list[tuple[int, str, str]]:
+    """Partes pospuestas que caen en (semana, dia_id): [(semana_origen, dia_origen, parte)]."""
     out = []
-    nombres = {d["id"]: d["nombre"] for d in rut["dias"]}
+    ids = {d["id"] for d in rut["dias"]}
     for k, e in (rut.get("estados") or {}).items():
         if e.get("estado") != "pospuesto" or list(e.get("destino") or []) != [semana, dia_id]:
             continue
-        s, did = k.split("|", 1)
-        if did in nombres and f"Semana {s} · {nombres[did]}" not in titulos_registrados:
-            out.append((int(s), did))
+        trozos = k.split("|", 2)
+        if trozos[1] not in ids:
+            continue
+        if len(trozos) == 3:
+            out.append((int(trozos[0]), trozos[1], trozos[2]))
+        else:  # marca antigua de día entero
+            dia = next(d for d in rut["dias"] if d["id"] == trozos[1])
+            out += [(int(trozos[0]), trozos[1], p) for p, _ in agrupar_por_parte(dia)]
     return sorted(out)
 
 
-def sin_validar(rut: dict, semana: int, titulos_registrados: set) -> list[str]:
-    return [d["nombre"] for d in rut["dias"]
-            if estado_dia(rut, semana, d["id"], f"Semana {semana} · {d['nombre']}" in titulos_registrados)["estado"] == "pendiente"]
+def sin_validar(rut: dict, semana: int) -> list[str]:
+    out = []
+    for d in rut["dias"]:
+        faltan = [p.split(")")[0] for p, _ in agrupar_por_parte(d)
+                  if estado_parte(rut, semana, d["id"], p)["estado"] == "pendiente"]
+        if faltan:
+            out.append(f"{d['nombre']} ({', '.join(faltan)})")
+    return out
+
+
+# ---------- partes del día (A, B, C…) ----------
+PARTES = ["A) Fuerza", "A) Halterofilia", "B) Fuerza", "B) WOD", "B) Gym", "B) Gym / WOD", "B) Conditioning",
+          "B) Accessory", "C) WOD", "C) Conditioning", "C) Accessory", "D) Conditioning", "D) Accessory"]
+
+
+def _letra(parte: str) -> str:
+    p = (parte or "").strip()
+    return p[0].upper() if p[:1].isalpha() and p[1:2] in (")", ".", " ", "") else "Z"
+
+
+def partes_del_dia(dia: dict) -> list[str]:
+    """La parte de cada línea; si falta, la deduce (fuerza seguida, cada metcon una letra nueva)."""
+    out, ultima = [], None
+    for l in dia.get("lineas", []):
+        p = (l.get("parte") or "").strip()
+        if not p:
+            nombre = l["ejercicio"] if es_metcon(l["ejercicio"]) else "Fuerza"
+            if ultima and ultima.split(") ", 1)[-1] == nombre:
+                p = ultima
+            else:
+                sig = chr(ord(_letra(ultima)) + 1) if ultima and _letra(ultima) != "Z" else "A"
+                p = f"{sig}) {nombre}"
+        out.append(p)
+        ultima = p
+    return out
+
+
+def agrupar_por_parte(dia: dict) -> list[tuple[str, list[dict]]]:
+    """[(parte, [líneas])] ordenado por letra, respetando el orden dentro de cada parte."""
+    partes = partes_del_dia(dia)
+    orden = sorted(range(len(partes)), key=lambda i: (_letra(partes[i]), i))
+    grupos: list[tuple[str, list[dict]]] = []
+    for i in orden:
+        if grupos and grupos[-1][0] == partes[i]:
+            grupos[-1][1].append(dia["lineas"][i])
+        else:
+            grupos.append((partes[i], [dia["lineas"][i]]))
+    return grupos
