@@ -653,8 +653,10 @@ def clasificar_wod(texto: str, titulo: str = "") -> list[str]:
     cats = ["🎖️ Hero"] if es_hero(titulo or texto.splitlines()[0] if texto else titulo) else []
     if any(_contiene(t, p) for p in _PALABRAS["Dumbbell"]):
         cats.append("Dumbbell")
-    sin_db = re.sub(r"(?<![a-z0-9])(db|dbs|dumbbell|dumbell|mancuernas?)\s+[a-z]+(\s+[a-z]+)?", " ", t)
-    if any(_contiene(sin_db, p) for p in _PALABRAS["Barbell"]):
+    # Barbell solo si aparece en una línea/movimiento sin mancuerna ("DB hang clean and jerk" no es barra)
+    trozos = [norm_busqueda(x) for x in re.split(r"[\n,;+/]", texto or "")]
+    if any(any(_contiene(x, p) for p in _PALABRAS["Barbell"]) and not any(_contiene(x, p) for p in _PALABRAS["Dumbbell"])
+           for x in trozos):
         cats.append("Barbell")
     if any(_contiene(t, p) for p in _PALABRAS["Gym"]):
         cats.append("Gym")
@@ -754,7 +756,12 @@ def biblioteca(rutinas: dict, atletas: list[str], entrenos: list[dict], manual: 
                           "cuando": "idea guardada" if item.get("idea") else _fecha_corta(item.get("fecha", "")),
                           "orden": item.get("fecha", ""), "estado": "pendiente" if item.get("idea") else "hecho",
                           "resultado": item.get("resultado", ""), "id": item.get("id")})
-    return _agrupar_veces(veces, por_titulo=(tipo == "accessory"))
+    grupos = _agrupar_veces(veces, por_titulo=(tipo == "accessory"))
+    corregidas = (manual or {}).get("categorias_manual", {})
+    for g in grupos:
+        if g["clave"] in corregidas:
+            g["categorias"] = list(corregidas[g["clave"]])
+    return grupos
 
 
 def _veces_de_entrenos(entrenos: list[dict]) -> list[dict]:
@@ -777,7 +784,7 @@ def _agrupar_veces(veces: list[dict], por_titulo: bool = False) -> list[dict]:
         k = norm_busqueda((v["titulo"] + " | " if por_titulo else "") + v["texto"]) or norm_busqueda(v["titulo"])
         if not k:
             continue
-        g = grupos.setdefault(k, {"titulo": "", "texto": v["texto"], "veces": [], "ids": set()})
+        g = grupos.setdefault(k, {"titulo": "", "texto": v["texto"], "veces": [], "ids": set(), "clave": k})
         g["titulo"] = g["titulo"] or v["titulo"]
         g["veces"].append(v)
         if v.get("id"):
