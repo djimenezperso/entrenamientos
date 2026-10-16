@@ -28,9 +28,9 @@ def _yo():
                 _metcon("y15", "Conditioning", base=b, parte="C) Conditioning"),
             ]},
             {"id": "d2", "nombre": "Día 2", "lineas": [
-                _l("y21", "Power snatch", "@40", base=b),
-                _l("y22", "Squat clean", "@70", base=b),
-                _l("y23", "Clean pull", "@100", base=b),
+                _l("y21", "Power snatch", "3x3 @40", base=b),
+                _l("y22", "Squat clean", "3x2 @70", base=b),
+                _l("y23", "Clean pull", "3x3 @100", base=b),
                 _metcon("y24", "Gym / WOD", base=b),
             ]},
             {"id": "d3", "nombre": "Día 3", "por_ejercicio": True, "lineas": [
@@ -40,7 +40,7 @@ def _yo():
                 _l("y34", "Bench press", "1x10 @50", base=b, nota="dinámico"),
                 _metcon("y35", "Conditioning", base=b),
             ]},
-            {"id": "d4", "nombre": "Día 4", "lineas": [
+            {"id": "d4", "nombre": "Día 4", "por_ejercicio": True, "lineas": [
                 _l("y41", "3 hang power snatch + 1 squat snatch", "@40", base=b),
                 _l("y42", "3 hang power clean + 1 squat clean", "", base=b),
                 _l("y43", "Push press + push jerk + split jerk", "3x(1+1+1)", base=b),
@@ -147,6 +147,21 @@ def migrar(rut: dict, atleta: str, atletas: list[str]) -> dict:
                     for sem in (rut.get("ajustes") or {}).values():
                         if l["id"] in sem and "x" not in sem[l["id"]].lower():
                             sem[l["id"]] = "1x10 " + sem[l["id"]]
+        if "series_d2_y_d4" not in rut.setdefault("migraciones", []):
+            series = {"y21": "3x3", "y22": "3x2", "y23": "3x3"}
+            for d in rut.get("dias", []):
+                if d["id"] == "d4" and any(l["id"].startswith("y4") for l in d["lineas"]):
+                    d["por_ejercicio"] = True
+                for l in d["lineas"]:
+                    if l["id"] in series and "x" not in (l.get("prescripcion") or "").lower():
+                        l["prescripcion"] = f"{series[l['id']]} {l.get('prescripcion') or ''}".strip()
+                        for e in l.get("historial") or []:
+                            if "x" not in (e.get("prescripcion") or "").lower():
+                                e["prescripcion"] = f"{series[l['id']]} {e.get('prescripcion') or ''}".strip()
+                        for sem in (rut.get("ajustes") or {}).values():
+                            if l["id"] in sem and "x" not in sem[l["id"]].lower():
+                                sem[l["id"]] = f"{series[l['id']]} {sem[l['id']]}"
+            rut["migraciones"].append("series_d2_y_d4")
         # El día 5 repite la fuerza del día 3 (mismos pesos y repes): se iguala una vez.
         hechas = rut.setdefault("migraciones", [])
         if "d5_igual_d3" not in hechas:
