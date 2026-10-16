@@ -227,8 +227,20 @@ def prescripcion_semana(linea: dict, semana: int, ajustes: dict | None) -> tuple
     if aj is not None:
         return aj, False, True
     base = linea.get("prescripcion") or ""
-    delta = (semana - int(linea.get("base") or 1)) * float(linea.get("sube") or 0)
+    delta = semanas_que_sube(linea, semana) * float(linea.get("sube") or 0)
     return progresar(base, delta), bool(delta) and bool(NUM_PESO.search(base)), False
+
+
+def semanas_que_sube(linea: dict, semana: int) -> int:
+    """Semanas de subida desde la base, sin contar las que se repiten por un «no hecho»."""
+    b = int(linea.get("base") or 1)
+    pausas = sum(1 for p in linea.get("pausas") or [] if b <= int(p) < semana)
+    return semana - b - pausas
+
+
+def se_repite(linea: dict, semana: int) -> bool:
+    """¿Esta semana repite pesos porque la anterior no se hizo?"""
+    return (semana - 1) in [int(p) for p in linea.get("pausas") or []] and float(linea.get("sube") or 0) > 0
 
 
 def peso_principal(presc: str) -> float | None:
@@ -316,12 +328,14 @@ def estado_parte(rut: dict, semana: int, dia_id: str, parte: str) -> dict:
 
 
 def resumen_dia(rut: dict, semana: int, dia: dict) -> str:
-    """'hecho', 'parcial', 'pospuesto' o 'pendiente'."""
+    """'hecho', 'no_hecho', 'parcial', 'pospuesto' o 'pendiente'."""
     ests = [estado_parte(rut, semana, dia["id"], p)["estado"] for p, _ in agrupar_por_parte(dia)]
     if not ests:
         return "pendiente"
     if all(e == "hecho" for e in ests):
         return "hecho"
+    if all(e == "no_hecho" for e in ests):
+        return "no_hecho"
     if all(e == "pospuesto" for e in ests):
         return "pospuesto"
     if any(e != "pendiente" for e in ests):
@@ -340,7 +354,7 @@ def destino_semana_siguiente(semana: int, dia_id: str) -> list:
 
 
 def marcar_parte(rut: dict, semana: int, dia_id: str, parte: str, estado: str | None, destino: list | None = None) -> dict:
-    """estado: 'hecho', 'pospuesto' (con destino) o None para quitar la marca."""
+    """estado: 'hecho', 'no_hecho' (repite pesos la semana siguiente), 'pospuesto' (con destino) o None."""
     import copy
     rut = copy.deepcopy(rut)
     estados = rut.setdefault("estados", {})
@@ -351,6 +365,15 @@ def marcar_parte(rut: dict, semana: int, dia_id: str, parte: str, estado: str | 
         for p, _ in (agrupar_por_parte(dia) if dia else []):
             estados.setdefault(clave_parte(semana, dia_id, p), dict(e))
     k = clave_parte(semana, dia_id, parte)
+    dia = next((d for d in rut["dias"] if d["id"] == dia_id), None)
+    lineas = next((ls for p, ls in agrupar_por_parte(dia) if p == parte), []) if dia else []
+    for l in lineas:  # quitar la repetición que pudiera haber de antes
+        if semana in [int(x) for x in l.get("pausas") or []]:
+            l["pausas"] = [x for x in l["pausas"] if int(x) != semana]
+    if estado == "no_hecho":  # la semana siguiente repite pesos
+        for l in lineas:
+            if float(l.get("sube") or 0) > 0:
+                l.setdefault("pausas", []).append(int(semana))
     if estado is None:
         estados.pop(k, None)
     elif estado == "pospuesto":
@@ -426,3 +449,60 @@ def agrupar_por_parte(dia: dict) -> list[tuple[str, list[dict]]]:
         else:
             grupos.append((partes[i], [dia["lineas"][i]]))
     return grupos
+
+
+# ---------- cambiar pesos rápido ----------
+def _buscar_linea(rut: dict, lid: str) -> dict | None:
+    return next((l for d in rut["dias"] for l in d["lineas"] if l["id"] == lid), None)
+
+
+def fijar_prescripcion(rut: dict, lid: str, semana: int, presc: str, solo_esta: bool) -> None:
+    """Fija la prescripción de una línea en `semana` (modifica `rut`). Desde esa semana sigue subiendo."""
+    l = _buscar_linea(rut, lid)
+    if l is None:
+        return
+    ajustes = rut.setdefault("ajustes", {})
+    if solo_esta:
+        ajustes.setdefault(str(semana), {})[lid] = presc
+        return
+    l["prescripcion"], l["base"] = presc, int(semana)
+    for s in list(ajustes):
+        if int(s) >= semana:
+            ajustes[s].pop(lid, None)
+    rut["ajustes"] = {s: a for s, a in ajustes.items() if a}
+
+
+def poner_pesos(presc: str, pesos: list[float]) -> str:
+    """Sustituye, en orden, los pesos tras @ por `pesos`. Si no tenía ninguno, añade ' @peso'."""
+    if not pesos:
+        return presc
+    if not NUM_PESO.search(presc or ""):
+        return ((presc or "").strip() + f" @{fmt_num(pesos[0])}").strip()
+    it = iter(pesos)
+    return NUM_PESO.sub(lambda m: "@" + fmt_num(next(it, float(m.group(1).replace(",", ".")))), presc)
+
+
+def cambiar_pesos(rut: dict, semana: int, cambios: dict, solo_esta: bool, propagar: bool) -> tuple[dict, list[str]]:
+    """cambios = {id_linea: nueva_prescripcion}. Con `propagar`, mueve igual el mismo ejercicio en otros días.
+    Devuelve (rutina nueva, nombres de los días tocados por propagación)."""
+    import copy
+    rut = copy.deepcopy(rut)
+    tocados = []
+    antes = {lid: prescripcion_semana(_buscar_linea(rut, lid), semana, rut.get("ajustes"))[0] for lid in cambios}
+    for lid, presc in cambios.items():
+        fijar_prescripcion(rut, lid, semana, presc, solo_esta)
+    if propagar:
+        for lid, presc in cambios.items():
+            viejo, nuevo = peso_principal(antes[lid]), peso_principal(presc)
+            if viejo is None or nuevo is None or viejo == nuevo:
+                continue
+            nombre = norm(_buscar_linea(rut, lid)["ejercicio"])
+            for d in rut["dias"]:
+                for l in d["lineas"]:
+                    if l["id"] in cambios or norm(l["ejercicio"]) != nombre:
+                        continue
+                    actual = prescripcion_semana(l, semana, rut.get("ajustes"))[0]
+                    if NUM_PESO.search(actual):
+                        fijar_prescripcion(rut, l["id"], semana, progresar(actual, nuevo - viejo), solo_esta)
+                        tocados.append(d["nombre"])
+    return rut, sorted(set(tocados), key=tocados.index)
