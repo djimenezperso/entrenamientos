@@ -5,12 +5,13 @@ semana en la que vale esa prescripción (base) y nota.
 """
 
 
-def _l(i, ejercicio, presc="", sube=2.5, base=1, nota=""):
-    return {"id": i, "ejercicio": ejercicio, "prescripcion": presc, "sube": sube, "base": base, "nota": nota}
+def _l(i, ejercicio, presc="", sube=2.5, base=1, nota="", parte="A) Fuerza"):
+    return {"id": i, "ejercicio": ejercicio, "prescripcion": presc, "sube": sube, "base": base, "nota": nota,
+            "parte": parte}
 
 
-def _metcon(i, nombre, presc="", base=1, nota=""):
-    return _l(i, nombre, presc, 0, base, nota)
+def _metcon(i, nombre, presc="", base=1, nota="", parte=None):
+    return _l(i, nombre, presc, 0, base, nota, parte or f"B) {nombre}")
 
 
 def _yo():
@@ -24,7 +25,7 @@ def _yo():
                 _l("y12", "Power clean + press", "2+2 @65", base=b),
                 _l("y13", "Snatch pull", "3x3 @85", base=b),
                 _metcon("y14", "WOD", base=b),
-                _metcon("y15", "Conditioning", base=b),
+                _metcon("y15", "Conditioning", base=b, parte="C) Conditioning"),
             ]},
             {"id": "d2", "nombre": "Día 2", "lineas": [
                 _l("y21", "Power snatch", "@40", base=b),
@@ -43,7 +44,7 @@ def _yo():
                 _l("y41", "3 hang power snatch + 1 squat snatch", "@40", base=b),
                 _l("y42", "3 hang power clean + 1 squat clean", "", base=b),
                 _l("y43", "Push press + push jerk + split jerk", "3x(1+1+1)", base=b),
-                _l("y44", "Snatch deadlift", "", base=b),
+                _l("y44", "Snatch deadlift", "", base=b, parte="B) Accessory"),
             ]},
             {"id": "d5", "nombre": "Día 5", "lineas": [
                 _l("y51", "Back squat", "@120", base=b),
@@ -55,8 +56,8 @@ def _yo():
             {"id": "d6", "nombre": "Día 6", "lineas": [
                 _l("y61", "Snatch", "3@40 2@45 1@50", base=b),
                 _l("y62", "Clean & jerk", "3@60 2@70 1@80", base=b),
-                _metcon("y63", "EMOM 40'", "5x (10 thrusters + 5 burpees)", base=b, nota="¿40 min?"),
-                _l("y64", "Deadlift", "3x6 @140", base=b),
+                _metcon("y63", "EMOM 40'", "5x (10 thrusters + 5 burpees)", base=b, nota="¿40 min?", parte="B) Conditioning"),
+                _l("y64", "Deadlift", "3x6 @140", base=b, parte="C) Accessory"),
             ]},
         ],
     }
