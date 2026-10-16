@@ -1085,7 +1085,7 @@ def tab_grupo(todos: list[dict]):
 
 
 # ---------------------------------------------------------------- WODs
-COLOR_CAT = {"Gym": "violet", "Barbell": "red", "Dumbbell": "blue"}
+COLOR_CAT = {"Gym": "violet", "Barbell": "red", "Dumbbell": "blue", "Cardio": "green", "🎖️ Hero": "orange"}
 
 
 def seccion_wods(todos: list[dict]):
@@ -1134,7 +1134,7 @@ def seccion_biblio(tipo: str, todos: list[dict]):
         with st.container(border=True):
             primera = g["texto"].split("\n")[0]
             titulo = g["titulo"] or (primera[:60] + ("…" if len(primera) > 60 else ""))
-            chips = " ".join(f":{COLOR_CAT[c]}[● {c}]" for c in g["categorias"]) or ":gray[sin clasificar]"
+            chips = " ".join(f":{COLOR_CAT.get(c, 'gray')}[● {c}]" for c in g["categorias"]) or ":gray[sin clasificar]"
             st.markdown(f"**{titulo}**  {chips}")
             if g["texto"] and g["texto"] != titulo:
                 st.markdown(g["texto"].replace("\n", "  \n"))
