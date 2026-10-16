@@ -621,7 +621,8 @@ _PALABRAS = {
     "Dumbbell": ["dumbbell", "dumbell", "db", "dbs", "mancuerna", "mancuernas", "devil press", "man maker"],
     "Barbell": ["barbell", "barra", "thruster", "thrusters", "clean", "cleans", "snatch", "snatches", "jerk", "jerks",
                 "deadlift", "deadlifts", "peso muerto", "front squat", "back squat", "overhead squat", "ohs",
-                "push press", "sdhp", "c&j", "power clean", "power snatch", "hang clean", "hang snatch"],
+                "push press", "sdhp", "c&j", "power clean", "power snatch", "hang clean", "hang snatch", "rdl",
+                "romanian deadlift", "good morning", "good mornings", "bench press", "press banca"],
     "Cardio": ["run", "running", "correr", "carrera", "row", "remo", "bike", "echo", "assault", "ski", "skierg",
                "swim", "nadar", "cal", "km", "z2", "zona 2", "double under", "double unders", "du", "comba"],
     "Gym": ["pull up", "pull ups", "pullup", "pullups", "dominada", "dominadas", "chest to bar", "c2b", "ctb",
@@ -802,3 +803,101 @@ def _agrupar_veces(veces: list[dict], por_titulo: bool = False) -> list[dict]:
 
 def wods_hechos(rutinas: dict, atletas: list[str], entrenos: list[dict], manual: dict | None) -> list[dict]:
     return biblioteca(rutinas, atletas, entrenos, manual, "wod")
+
+
+# ---------- importar de WhatsApp ----------
+_RE_IOS = re.compile(r"^\[(\d{1,2})/(\d{1,2})/(\d{2,4}),?\s+(\d{1,2}):(\d{2})(?::\d{2})?\]\s+([^:]+?):\s?(.*)$")
+_RE_ANDROID = re.compile(r"^(\d{1,2})/(\d{1,2})/(\d{2,4}),?\s+(\d{1,2}):(\d{2})\s+-\s+([^:]+?):\s?(.*)$")
+_RUIDO = ("omitido", "omitted", "omitida", "este mensaje fue eliminado", "this message was deleted",
+          "los mensajes y las llamadas están cifrados", "messages and calls are end-to-end encrypted",
+          "<adjunto:", "<attached:", "mensaje editado", "<this message was edited>", "<se editó este mensaje.>")
+
+
+def parse_whatsapp(texto: str) -> list[dict]:
+    """Mensajes de un chat exportado (iPhone o Android): [{fecha, autor, texto}]."""
+    mensajes = []
+    for linea in (texto or "").replace("\r\n", "\n").split("\n"):
+        limpia = linea.replace("‎", "").replace("‏", "").replace(" ", " ").replace("\xa0", " ")
+        m = _RE_IOS.match(limpia) or _RE_ANDROID.match(limpia)
+        if m:
+            d, mes, a, _, _, autor, cuerpo = m.groups()
+            a = int(a) + (2000 if len(a) == 2 else 0)
+            try:
+                fecha = dt.date(a, int(mes), int(d))
+            except ValueError:
+                try:
+                    fecha = dt.date(a, int(d), int(mes))  # por si el móvil está en formato mes/día
+                except ValueError:
+                    continue
+            mensajes.append({"fecha": fecha, "autor": autor.strip(), "texto": cuerpo})
+        elif mensajes:
+            mensajes[-1]["texto"] += "\n" + limpia
+    for m in mensajes:
+        lineas = [l for l in m["texto"].split("\n") if not any(r in l.lower() for r in _RUIDO)]
+        m["texto"] = "\n".join(lineas).strip()
+    return [m for m in mensajes if m["texto"]]
+
+
+_FORMATOS = ["amrap", "emom", "e2mom", "e3mom", "every", "for time", "ft", "rft", "rondas", "rounds", "ronda", "round",
+             "rnd", "rnds", "tabata", "cap", "time cap", "intervalos", "intervals", "chipper", "max", "reps", "cals",
+             "metros", "series", "x"]
+
+
+def _tipo_probable(texto: str) -> str:
+    t = norm_busqueda(texto)
+    cats = clasificar_wod(texto)
+    lineas = [l for l in texto.split("\n") if l.strip()]
+    if cats == ["Cardio"]:
+        return "conditioning"
+    if re.search(r"\b\d+\s*x\s*\d+", t) and len(lineas) <= 3 and not any(_contiene(t, f) for f in
+                                                                           ("amrap", "emom", "for time", "rondas", "rounds")):
+        return "accessory"
+    if cats == ["Cardio"]:
+        return "conditioning"
+    return "wod"
+
+
+_INTRO = ("hoy", "manana", "wod", "toca", "aqui", "ahi", "va", "os paso", "el de", "entreno", "training")
+
+
+def _separar_nombre(texto: str) -> tuple[str, str]:
+    """Quita líneas de introducción ("Hoy toca:") y toma como nombre una primera línea corta sin números."""
+    lineas = [l.strip() for l in texto.split("\n")]
+    while lineas and (not lineas[0] or (lineas[0].endswith(":") and len(lineas[0]) <= 30)
+                      or norm_busqueda(lineas[0]) in _INTRO):
+        lineas.pop(0)
+    if lineas and len(lineas) > 1 and len(lineas[0]) <= 30 and not re.search(r"\d", lineas[0]) \
+            and not any(_contiene(norm_busqueda(lineas[0]), p) for p in ("amrap", "emom", "for time")):
+        return lineas[0], "\n".join(lineas[1:]).strip()
+    return "", "\n".join(lineas).strip()
+
+
+def detectar_entrenos(mensajes: list[dict]) -> list[dict]:
+    """Mensajes que parecen un WOD, conditioning o accessory, con una puntuación de confianza."""
+    todas = [p for lista in _PALABRAS.values() for p in lista]
+    out = []
+    for m in mensajes:
+        t = norm_busqueda(m["texto"])
+        if len(t) < 12 or not re.search(r"\d", t):
+            continue
+        movs = {p for p in todas if len(p) > 2 and _contiene(t, p)}
+        formatos = {f for f in _FORMATOS if _contiene(t, f)}
+        lineas = len([l for l in m["texto"].split("\n") if l.strip()])
+        puntos = len(movs) * 2 + len(formatos) * 2 + min(lineas, 6) + len(re.findall(r"(?<![a-z0-9])\d+(?![a-z0-9])", t)) // 3
+        puntos += 3 * bool(re.search(r"\d+\s*x\s*\d+", t)) + 2 * bool(re.search(r"@\s*\d", m["texto"]))
+        puntos += 3 * bool(re.search(r"\d+\s*-\s*\d+\s*-\s*\d+", m["texto"])) + bool(re.search(r"\d\s*kg", t))
+        puntos += 2 * any(_contiene(t, w) for w in ("descanso", "rest", "accesorio", "accesorios", "accessory", "rx"))
+        if movs and puntos >= 7:
+            nombre, cuerpo = _separar_nombre(m["texto"])
+            out.append({**m, "puntos": puntos, "tipo": _tipo_probable(m["texto"]), "nombre": nombre, "cuerpo": cuerpo})
+    return out
+
+
+def emparejar_autor(autor: str, atletas: list[str]) -> str | None:
+    """'Manu' -> 'Manu Anel'. None si no se parece a ninguno."""
+    a = norm_busqueda(autor)
+    for at in atletas:
+        n = norm_busqueda(at)
+        if a == n or (a and (a in n.split() or n.split()[0] == a.split()[0])):
+            return at
+    return None
