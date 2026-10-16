@@ -8,9 +8,11 @@ from __future__ import annotations
 import datetime as dt
 import io
 import json
+import random
 import re
 import sqlite3
 import uuid
+from urllib.parse import quote
 from pathlib import Path
 
 import pandas as pd
@@ -25,8 +27,11 @@ from logica import (
     PARTES, agrupar_por_parte, destino_dia_siguiente, destino_semana_siguiente, estado_parte, marcar_parte,
     partes_del_dia, pendientes_para, resumen_dia, se_repite, semanas_que_sube, sin_validar,
     NUM_PESO, cambiar_pesos, poner_pesos, linea_no_hecha, marcar_linea, no_hechas_en,
-    historial_parte, renombrar_parte, parametros_semana,
+    historial_parte, renombrar_parte, parametros_semana, editar_texto_linea,
+    CATEGORIAS_WOD, CLAVE_BIBLIOTECA, coincide_busqueda, wods_hechos,
+    CLAVES_BIBLIO, NOMBRE_BIBLIO, anadir_linea, biblioteca, tipo_de_linea,
 )
+from repertorio import COMPETICION, HEROES, REPERTORIO
 from rutinas_iniciales import migrar, rutinas_iniciales
 
 try:  # fotos HEIC del iPhone
@@ -367,6 +372,194 @@ def _etiqueta_extra(l: dict, txt: str, semana: int, ajuste: bool, subio: bool) -
     return ""
 
 
+# ---------------------------------------------------------------- IA (opcional)
+def ia_disponible() -> bool:
+    return bool(secreto("ANTHROPIC_API_KEY"))
+
+
+@st.cache_resource
+def _cliente_ia():
+    import anthropic
+    return anthropic.Anthropic(api_key=secreto("ANTHROPIC_API_KEY"))
+
+
+QUE_ES = {"wod": "WOD de CrossFit", "conditioning": "sesión de conditioning (motor, cardio, intervalos)",
+          "accessory": "ejercicio accesorio de fuerza con sus series y repeticiones"}
+
+
+def inventar_con_ia(tipo: str, ejemplos: list[tuple[str, str]], idea: str, duracion: str, estilo: str) -> tuple[str, str]:
+    lista = "\n".join(f"- {n}: {t}" if n else f"- {t}" for n, t in ejemplos[:25]) or "(todavía no hay ejemplos)"
+    prompt = (
+        f"Inventa un {QUE_ES[tipo]} nuevo y original para un grupo de amigos que entrena CrossFit.\n"
+        f"Inspírate en el estilo, el volumen y los movimientos de estos (no los copies):\n{lista}\n\n"
+        f"Duración: {duracion}. Estilo: {estilo}.\n"
+        + (f"Lo que pide el atleta: {idea}\n" if idea else "")
+        + "Usa pesos RX hombre/mujer en kg cuando haya carga. Escribe en español, con los nombres de los movimientos "
+          "en inglés como en los ejemplos, y en una o dos líneas.\n"
+          'Responde SOLO con JSON: {"nombre": "...", "texto": "..."}. '
+          'En accessories, "nombre" es el ejercicio y "texto" las series, por ejemplo "3x10 @40".'
+    )
+    msg = _cliente_ia().messages.create(model=secreto("ANTHROPIC_MODEL", "claude-sonnet-5-5"), max_tokens=500,
+                                        messages=[{"role": "user", "content": prompt}])
+    texto = "".join(getattr(b, "text", "") for b in msg.content)
+    m = re.search(r"\{.*\}", texto, re.S)
+    try:
+        data = json.loads(m.group(0)) if m else {}
+    except json.JSONDecodeError:
+        data = {}
+    return str(data.get("nombre", "")).strip(), str(data.get("texto", texto)).strip()
+
+
+def _ia_panel(tipo: str, k: str):
+    """Pide a la IA uno nuevo al estilo de lo hecho. Devuelve (nombre, texto) o None."""
+    if not ia_disponible():
+        st.caption("La IA no está activada. Añade ANTHROPIC_API_KEY en los Secrets de Streamlit (lo explica el README).")
+        return None
+    idea = st.text_input("Idea (opcional)", key=f"ii_{k}", placeholder="thrusters y pull ups, algo corto e intenso…")
+    c1, c2 = st.columns(2)
+    dur = c1.selectbox("Duración", ["Corto (menos de 10')", "Medio (10-20')", "Largo (más de 20')"], index=1,
+                       key=f"id_{k}")
+    estilos = ["Como los nuestros", "Competición (tipo Open)", "Hero WOD"] if tipo == "wod" else ["Como los nuestros"]
+    estilo = c2.selectbox("Estilo", estilos, key=f"ie_{k}")
+    if st.button("✨ Inventar uno" if not st.session_state.get(f"ir_{k}") else "✨ Otro", key=f"ib_{k}"):
+        ejemplos = [(g["titulo"], g["texto"]) for g in _bib(tipo)]
+        if estilo.startswith("Competición") or estilo == "Hero WOD":
+            ejemplos = COMPETICION + ejemplos
+        elif len(ejemplos) < 5:
+            ejemplos += REPERTORIO[tipo]
+        with st.spinner("Pensando…"):
+            try:
+                st.session_state[f"ir_{k}"] = inventar_con_ia(tipo, ejemplos, idea, dur, estilo)
+            except Exception as ex:
+                st.error(f"La IA no ha podido responder: {ex}")
+    res = st.session_state.get(f"ir_{k}")
+    if res:
+        st.markdown(f"**{res[0] or 'Propuesta'}** · {res[1]}")
+    return res
+
+
+_BIB_RUN: dict = {}
+
+
+def _bib(tipo: str) -> list[dict]:
+    """Lo ya hecho de un tipo (todos los atletas), calculado una vez por pantalla."""
+    if tipo not in _BIB_RUN:
+        try:
+            guardadas = cargar_rutinas()
+        except Exception:
+            guardadas = {}
+        rutinas = {a: _completar_partes(guardadas.get(a) or rutinas_iniciales(ATLETAS).get(a), a) for a in ATLETAS}
+        try:
+            entrenos = cargar_todo()
+        except Exception:
+            entrenos = []
+        _BIB_RUN[tipo] = biblioteca(rutinas, ATLETAS, entrenos, guardadas.get(CLAVE_BIBLIOTECA), tipo)
+    return _BIB_RUN[tipo]
+
+
+def _titulo_grupo(g: dict) -> str:
+    if g["titulo"] and g["texto"] and norm(g["texto"]) != norm(g["titulo"]):
+        return f"{g['titulo']} · {g['texto'].splitlines()[0]}"
+    return g["titulo"] or g["texto"].splitlines()[0]
+
+
+def _elegir_contenido(tipo: str, k: str):
+    """✍️ Nuevo / 📚 Ya hechos / 💡 Repertorio. Devuelve (modo, (nombre, texto) | None)."""
+    modo = st.segmented_control("Origen", ["✍️ Nuevo", "📚 Ya hechos", "💡 Repertorio", "✨ IA"], default="✍️ Nuevo",
+                                key=f"om_{k}", label_visibility="collapsed") or "✍️ Nuevo"
+    if modo == "✨ IA":
+        return modo, _ia_panel(tipo, k)
+    if modo == "📚 Ya hechos":
+        q = st.text_input("Buscar por movimiento", key=f"oq_{k}", placeholder="thruster, row, pull up…")
+        ops = [g for g in _bib(tipo) if any(v["estado"] == "hecho" for v in g["veces"])
+               and (not q or coincide_busqueda(g["titulo"] + "\n" + g["texto"], q))]
+        if not ops:
+            st.caption("Todavía no hay nada de este tipo hecho por ninguno. Prueba el repertorio.")
+            return modo, None
+        i = st.selectbox("Elige", range(len(ops)), key=f"os_{k}",
+                         format_func=lambda i: f"{_titulo_grupo(ops[i])[:70]} ({len(ops[i]['veces'])}x)")
+        g = ops[min(i, len(ops) - 1)]
+        st.caption(g["texto"].replace("\n", "  \n") + "  \n" +
+                   "Hecho por: " + ", ".join(sorted({v['atleta'] for v in g['veces'] if v['atleta']})))
+        return modo, (g["titulo"], g["texto"])
+    if modo == "💡 Repertorio":
+        q = st.text_input("Buscar por movimiento", key=f"rq_{k}", placeholder="thruster, row, pull up…")
+        ops = [x for x in REPERTORIO[tipo] if not q or coincide_busqueda(x[0] + "\n" + x[1], q)]
+        if not ops:
+            st.caption("Nada en el repertorio con eso.")
+            return modo, None
+        clave = f"rs_{k}"
+        if st.button("🎲 Al azar", key=f"rz_{k}"):
+            st.session_state[clave] = random.randrange(len(ops))
+        if st.session_state.get(clave, 0) >= len(ops):
+            st.session_state[clave] = 0
+        i = st.selectbox("Elige", range(len(ops)), key=clave, format_func=lambda i: f"{ops[i][0]} · {ops[i][1]}"[:80])
+        st.caption(f"**{ops[i][0]}** · {ops[i][1]}")
+        return modo, ops[i]
+    return modo, None
+
+
+def _contenido_elegido(tipo: str, l: dict, sel: tuple) -> tuple[str, str]:
+    """(ejercicio, prescripción) a guardar en la línea a partir de lo elegido."""
+    titulo, texto = sel
+    if tipo == "accessory":
+        return (titulo or l["ejercicio"]), texto
+    if not titulo or norm(texto).startswith(norm(titulo)):
+        return l["ejercicio"], texto
+    return l["ejercicio"], f"{titulo}: {texto}"
+
+
+def _linea_texto_editable(atleta: str, rut: dict, l: dict, txt: str, semana: int, metcon: bool, nombre: str,
+                          extra: str, tipo: str = "wod"):
+    """WOD, conditioning o accessory: se ve el texto y al tocarlo se edita o se elige de lo hecho / el repertorio."""
+    resumen = (txt or "por definir").replace("\n", " / ")
+    if len(resumen) > 80:
+        resumen = resumen[:77] + "…"
+    k = f"{atleta}_{semana}_{l['id']}"
+    with st.popover(f"{nombre}{resumen} ✏️", use_container_width=True):
+        modo, sel = _elegir_contenido(tipo, k)
+        if modo == "✍️ Nuevo":
+            nuevo_nombre = st.text_input("Nombre", l["ejercicio"], key=f"tn_{k}")
+            nuevo_txt = st.text_area("Qué toca", txt, height=120, key=f"tt_{k}",
+                                     placeholder="AMRAP 12': 10 thrusters @40 + 5 burpees")
+            nueva_nota = st.text_input("Nota", l.get("nota", ""), key=f"to_{k}")
+        alcance = st.radio("Aplicar a", ["Solo esta semana", "Esta semana y las siguientes"],
+                           index=0 if metcon else 1, key=f"ta_{k}", horizontal=True)
+        if st.button("Guardar" if modo == "✍️ Nuevo" else "Usar este", type="primary", key=f"tg_{k}",
+                     disabled=(modo != "✍️ Nuevo" and sel is None)):
+            rut_act = _rutina_actual(atleta)
+            if modo == "✍️ Nuevo":
+                nueva = editar_texto_linea(rut_act, l["id"], semana, nuevo_nombre, nuevo_txt, nueva_nota,
+                                           alcance == "Solo esta semana")
+            else:
+                ejercicio, presc = _contenido_elegido(tipo, l, sel)
+                nueva = editar_texto_linea(rut_act, l["id"], semana, ejercicio, presc, l.get("nota", ""),
+                                           alcance == "Solo esta semana")
+            guardar_rutina(atleta, nueva)
+            st.session_state["aviso"] = "Guardado"
+            st.rerun()
+    if "\n" in (txt or ""):
+        st.caption(txt.replace("\n", "  \n"))
+    if extra.strip():
+        st.caption(extra.strip())
+
+
+def _anadir_a_parte(atleta: str, dia: dict, parte: str, semana: int):
+    """Botón para añadir un accessory (nuevo, ya hecho o del repertorio) a esta parte, desde esta semana."""
+    k = f"add_{atleta}_{semana}_{dia['id']}_{parte}"
+    with st.popover("+ Añadir accessory"):
+        modo, sel = _elegir_contenido("accessory", k)
+        if modo == "✍️ Nuevo":
+            nombre = st.text_input("Ejercicio", key=f"an_{k}", placeholder="Romanian deadlift")
+            texto = st.text_input("Series y peso", key=f"at_{k}", placeholder="3x10 @60")
+            sel = (nombre, texto) if nombre.strip() else None
+        if st.button("Añadir", type="primary", key=f"ag_{k}", disabled=sel is None):
+            nombre, texto = sel
+            guardar_rutina(atleta, anadir_linea(_rutina_actual(atleta), dia["id"], parte, nombre, texto, semana))
+            st.session_state["aviso"] = f"{nombre} añadido desde la semana {semana}"
+            st.rerun()
+
+
 def _cambiar_peso(atleta: str, semana: int, lid: str, txt: str, claves: list[str]):
     """Callback al tocar un peso: guarda desde esta semana (o solo esta) y mueve el mismo ejercicio si toca."""
     vals = [st.session_state.get(k) for k in claves]
@@ -391,11 +584,13 @@ def _lineas(rut: dict, lineas: list[dict], semana: int, parte: str, atleta: str 
             texto.clear()
 
     for l in lineas:
+        if semana < int(l.get("desde") or 0):
+            continue
         txt, subio, ajuste = prescripcion_semana(l, semana, rut.get("ajustes"))
         metcon = es_metcon(l["ejercicio"])
         extra = _etiqueta_extra(l, txt, semana, ajuste, subio)
         nota = f" — _{l['nota']}_" if l.get("nota") else ""
-        if atleta and not metcon:
+        if atleta and not metcon and "accessor" not in parte.lower():
             volcar()
             cargas = PREFIJO_CARGA.findall(txt)
             pesos = [float(x.replace(",", ".")) for x in NUM_PESO.findall(txt)]
@@ -422,6 +617,11 @@ def _lineas(rut: dict, lineas: list[dict], semana: int, parte: str, atleta: str 
             continue
         solo_bloque = metcon and norm(l["ejercicio"]) in norm(parte)  # «B) WOD» + línea «WOD»
         nombre = "" if solo_bloque else f"**{l['ejercicio']}** · "
+        if atleta:
+            volcar()
+            _linea_texto_editable(atleta, rut, l, txt, semana, metcon, nombre, extra + nota,
+                                  tipo_de_linea(parte, l["ejercicio"]) or "wod")
+            continue
         if txt:
             linea = f"- {nombre}`{txt}`"
         elif metcon:
@@ -536,6 +736,7 @@ def _marcar_hechas(atleta: str, semana: int, dia_id: str):
 
 
 def tab_rutina(atleta: str, entrenos: list[dict]):
+    _BIB_RUN.clear()
     try:
         guardadas = cargar_rutinas()
     except Exception as ex:
@@ -573,7 +774,9 @@ def tab_rutina(atleta: str, entrenos: list[dict]):
     st.caption(f"Semana {semana} ({momento}). Los pesos tras @ suben lo indicado en «Sube» cada semana "
                "(2,5 kg por defecto). Cámbialo o haz excepciones en «Editar».")
 
-    st.caption("Toca un peso para cambiarlo: se guarda solo y las semanas siguientes se recalculan.")
+    st.caption("Toca un peso para cambiarlo: se guarda solo y las semanas siguientes se recalculan. "
+               "Los WOD, conditionings y accessories se editan tocándolos. "
+               "En las pestañas: ✓ hecho · ◐ a medias · ↷ pasado · ✗ no hecho · • tiene pendientes.")
     with st.expander("Opciones al cambiar un peso"):
         st.toggle("Mover igual el mismo ejercicio en los otros días", value=True, key=f"propagar_{atleta}")
         st.toggle("Cambiar solo esta semana (excepción)", value=False, key=f"solo_sem_{atleta}")
@@ -584,8 +787,13 @@ def tab_rutina(atleta: str, entrenos: list[dict]):
                    "Marca cada parte como hecha o pásala a otro día.")
 
     dias = {d["id"]: d for d in rut["dias"]}
-    for dia in rut["dias"]:
-        with st.container(border=True):
+    icono = {"hecho": " ✓", "parcial": " ◐", "pospuesto": " ↷", "no_hecho": " ✗", "pendiente": ""}
+    etiquetas = []
+    for d in rut["dias"]:
+        pend = " •" if pendientes_para(rut, semana, d["id"]) else ""
+        etiquetas.append(f"{d['nombre']}{icono[resumen_dia(rut, semana, d)]}{pend}")
+    for pestana, dia in zip(st.tabs(etiquetas), rut["dias"]):
+        with pestana:
             st.markdown(f"#### {dia['nombre']}  {CHIP_DIA[resumen_dia(rut, semana, dia)]}")
             grupos = agrupar_por_parte(dia)
             if not grupos:
@@ -598,6 +806,8 @@ def tab_rutina(atleta: str, entrenos: list[dict]):
                 estado_txt = f"{_chip_parte(est, semana, dias)}{aviso_no}".strip()
                 st.markdown(f"{estado_txt}  {_historial_txt(rut, dia, parte, semana)}".strip())
                 _lineas(rut, lineas, semana, parte, atleta, bool(dia.get("por_ejercicio")))
+                if "accessor" in parte.lower():
+                    _anadir_a_parte(atleta, dia, parte, semana)
                 _selector_parte(atleta, rut, semana, dia, parte)
             if grupos:
                 with st.expander("Registrar resultados"):
@@ -874,6 +1084,124 @@ def tab_grupo(todos: list[dict]):
     st.dataframe(pd.DataFrame(marcas).drop(columns="_v"), hide_index=True, use_container_width=True)
 
 
+# ---------------------------------------------------------------- WODs
+COLOR_CAT = {"Gym": "violet", "Barbell": "red", "Dumbbell": "blue"}
+
+
+def seccion_wods(todos: list[dict]):
+    seccion_biblio("wod", todos)
+
+
+def seccion_biblio(tipo: str, todos: list[dict]):
+    try:
+        guardadas = cargar_rutinas()
+    except Exception as ex:
+        st.warning(f"No se pudieron cargar las rutinas: {ex}")
+        guardadas = {}
+    rutinas = {a: _completar_partes(guardadas.get(a) or rutinas_iniciales(ATLETAS).get(a), a) for a in ATLETAS}
+    bib = dict(guardadas.get(CLAVE_BIBLIOTECA) or {})
+    clave = CLAVES_BIBLIO[tipo]
+    k = f"bib_{tipo}"
+
+    q = st.text_input("Buscar por movimiento", key=f"{k}_q",
+                      placeholder="thruster, pull up, wall ball… (separa con comas para buscar varios)")
+    cats_tipo = CATEGORIAS_WOD if tipo == "wod" else [c for c in CATEGORIAS_WOD if "Hero" not in c]
+    cat = st.segmented_control("Tipo", cats_tipo, default="Todos", key=f"{k}_cat") or "Todos"
+    c1, c2 = st.columns([2, 1], vertical_alignment="bottom")
+    quien = c1.multiselect("Quién", ATLETAS, placeholder="Todos", key=f"{k}_quien")
+    solo = c2.toggle("Solo los hechos", value=True, key=f"{k}_solo")
+
+    filtrados, por_cat = [], {c: 0 for c in cats_tipo}
+    for g in biblioteca(rutinas, ATLETAS, todos, bib, tipo):
+        veces = [v for v in g["veces"] if (not quien or v["atleta"] in quien) and (not solo or v["estado"] == "hecho")]
+        if not veces or (q and not coincide_busqueda(g["titulo"] + "\n" + g["texto"], q)):
+            continue
+        por_cat["Todos"] += 1
+        for c in g["categorias"]:
+            if c in por_cat:
+                por_cat[c] += 1
+        if cat == "Todos" or cat in g["categorias"]:
+            filtrados.append((g, veces))
+    st.caption(" · ".join(f"{c}: {n}" for c, n in por_cat.items()))
+    if tipo == "wod":
+        url = ("https://www.google.com/search?q=" + quote(f"site:wodwell.com {q}")) if q else "https://wodwell.com"
+        st.link_button("Buscar en Wodwell" + (f": {q}" if q else ""), url)
+
+    if not filtrados:
+        st.info(f"No hay {NOMBRE_BIBLIO[tipo]} con estos filtros. Aparecen aquí cuando escribís o elegís lo que toca "
+                "en esa parte de la rutina (y la marcáis como hecha) o si los añadís abajo.")
+    for g, veces in filtrados:
+        with st.container(border=True):
+            primera = g["texto"].split("\n")[0]
+            titulo = g["titulo"] or (primera[:60] + ("…" if len(primera) > 60 else ""))
+            chips = " ".join(f":{COLOR_CAT[c]}[● {c}]" for c in g["categorias"]) or ":gray[sin clasificar]"
+            st.markdown(f"**{titulo}**  {chips}")
+            if g["texto"] and g["texto"] != titulo:
+                st.markdown(g["texto"].replace("\n", "  \n"))
+            lineas = []
+            for v in veces:
+                linea = f"- **{v['atleta'] or '—'}** · {v['cuando']} {SIMBOLO.get(v['estado'], '')}"
+                if v["resultado"]:
+                    linea += f" · `{v['resultado']}`"
+                lineas.append(linea)
+            st.markdown("\n".join(lineas))
+            if g["ids"]:
+                with st.popover("Borrar de la lista"):
+                    st.write("¿Seguro? Solo se borra el WOD añadido a mano, no los de las rutinas.")
+                    if st.button("Sí, borrar", key=f"del{tipo}_{'_'.join(sorted(g['ids']))}", type="primary"):
+                        bib2 = dict(bib, **{clave: [w for w in bib.get(clave, []) if w.get("id") not in g["ids"]]})
+                        guardar_rutina(CLAVE_BIBLIOTECA, bib2)
+                        st.rerun()
+
+    with st.expander(f"➕ Añadir a {NOMBRE_BIBLIO[tipo]}"):
+        with st.form(f"nuevo_{tipo}", clear_on_submit=True):
+            nombre = st.text_input("Nombre", placeholder="Fran, Cindy, DT…")
+            texto = st.text_area("Qué es", placeholder="21-15-9: thrusters @42,5 + pull ups", height=100)
+            c1, c2 = st.columns(2)
+            quien_n = c1.multiselect("Quién lo hizo", ATLETAS, key=f"{k}_nq")
+            fecha = c2.date_input("Fecha", dt.date.today(), format="DD/MM/YYYY")
+            resultado = st.text_input("Resultado", placeholder="5:41, 18 rondas + 3…")
+            if st.form_submit_button("Añadir", type="primary", use_container_width=True):
+                if not (nombre.strip() or texto.strip()):
+                    st.error("Escribe al menos el nombre o qué es.")
+                else:
+                    bib2 = dict(bib, **{clave: bib.get(clave, []) + [{
+                        "id": uuid.uuid4().hex[:8], "nombre": nombre.strip(), "texto": texto.strip(),
+                        "quien": quien_n, "fecha": fecha.isoformat(), "resultado": resultado.strip()}]})
+                    guardar_rutina(CLAVE_BIBLIOTECA, bib2)
+                    st.session_state["aviso"] = "Añadido a la lista"
+                    st.rerun()
+
+
+
+    with st.expander("✨ Inventar con IA"):
+        res = _ia_panel(tipo, f"sec_{tipo}")
+        if res and st.button("Guardar en la lista como idea", key=f"ig_{tipo}"):
+            bib2 = dict(bib, **{clave: bib.get(clave, []) + [{
+                "id": uuid.uuid4().hex[:8], "nombre": res[0], "texto": res[1], "quien": [],
+                "fecha": dt.date.today().isoformat(), "resultado": "", "idea": True}]})
+            guardar_rutina(CLAVE_BIBLIOTECA, bib2)
+            st.session_state.pop(f"ir_sec_{tipo}", None)
+            st.session_state["aviso"] = "Guardado como idea (quita «Solo los hechos» para verlo)"
+            st.rerun()
+
+    with st.expander("💡 Ideas del repertorio"):
+        q2 = st.text_input("Buscar en el repertorio", key=f"{k}_rq", placeholder="thruster, row…")
+        heroes = {n for n, _ in HEROES}
+        bloques = ([("Clásicos y propuestas", [x for x in REPERTORIO[tipo] if x[0] not in heroes and x not in COMPETICION]),
+                    ("🏆 Competición (Open)", COMPETICION), ("🎖️ Hero WODs", HEROES)]
+                   if tipo == "wod" else [("", REPERTORIO[tipo])])
+        if tipo == "wod" and cat == "🎖️ Hero":
+            bloques = [("🎖️ Hero WODs", HEROES)]
+        for titulo_b, items in bloques:
+            vis = [x for x in items if not q2 or coincide_busqueda(x[0] + "\n" + x[1], q2)]
+            if not vis:
+                continue
+            if titulo_b:
+                st.markdown(f"**{titulo_b}**")
+            st.markdown("\n".join(f"- **{n}** · {t}" for n, t in vis))
+
+
 # ---------------------------------------------------------------- main
 def main():
     control_contrasena()
@@ -886,7 +1214,9 @@ def main():
     if isinstance(store(), LocalStore):
         st.caption("Modo local: los datos se guardan en la carpeta `data/`. Configura Supabase para usarla online.")
 
-    atleta = st.segmented_control("Atleta", ATLETAS, default=ATLETAS[0], key="atleta", label_visibility="collapsed")
+    secciones = {"WODs": "wod", "Conditioning": "conditioning", "Accessories": "accessory"}
+    atleta = st.segmented_control("Atleta", ATLETAS + list(secciones), default=ATLETAS[0], key="atleta",
+                                  label_visibility="collapsed")
     atleta = atleta or ATLETAS[0]
 
     if aviso := st.session_state.pop("aviso", None):
@@ -897,6 +1227,9 @@ def main():
     except Exception as ex:
         st.error(f"No se pudieron cargar los datos: {ex}")
         st.stop()
+    if atleta in secciones:
+        seccion_biblio(secciones[atleta], todos)
+        return
     mios = [w for w in todos if w["athlete"] == atleta]
 
     t0, t1, t2, t3, t4 = st.tabs(["Rutina", "Registrar", "Historial", "Progreso", "Grupo"])
