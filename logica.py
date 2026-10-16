@@ -206,7 +206,8 @@ def sesiones_por_semana(entrenos: list[dict], semanas: int = 8, hoy: dt.date | N
 
 # ---------- rutinas ----------
 NUM_PESO = re.compile(r"@\s*(\d+(?:[.,]\d+)?)")
-PALABRAS_METCON = ("wod", "conditioning", "gym", "emom", "amrap", "metcon", "for time")
+PALABRAS_METCON = ("wod", "conditioning", "gym", "emom", "amrap", "metcon", "for time", "movilidad", "mobility",
+                   "mobilite", "estiramientos", "stretching")
 
 
 def fmt_num(v: float) -> str:
@@ -451,7 +452,8 @@ def sin_validar(rut: dict, semana: int) -> list[str]:
 
 # ---------- partes del día (A, B, C…) ----------
 PARTES = ["A) Fuerza", "A) Halterofilia", "B) Fuerza", "B) WOD", "B) Gym", "B) Gym / WOD", "B) Conditioning",
-          "B) Accessory", "C) WOD", "C) Conditioning", "C) Accessory", "D) Conditioning", "D) Accessory"]
+          "B) Accessory", "C) WOD", "C) Conditioning", "C) Accessory", "C) Movilidad", "D) Conditioning",
+          "D) Accessory", "D) Movilidad"]
 
 
 def _letra(parte: str) -> str:
@@ -623,9 +625,9 @@ _PALABRAS = {
                 "deadlift", "deadlifts", "peso muerto", "front squat", "back squat", "overhead squat", "ohs",
                 "push press", "sdhp", "c&j", "power clean", "power snatch", "hang clean", "hang snatch", "rdl",
                 "romanian deadlift", "good morning", "good mornings", "bench press", "press banca"],
-    "Cardio": ["run", "running", "correr", "carrera", "row", "remo", "bike", "echo", "assault", "ski", "skierg",
+    "Cardio": ["run", "running", "correr", "carrera", "course", "rameur", "velo", "row", "remo", "bike", "echo", "assault", "ski", "skierg",
                "swim", "nadar", "cal", "km", "z2", "zona 2", "double under", "double unders", "du", "comba"],
-    "Gym": ["pull up", "pull ups", "pullup", "pullups", "dominada", "dominadas", "chest to bar", "c2b", "ctb",
+    "Gym": ["pompes", "tractions", "fentes", "gainage", "abdos", "pull up", "pull ups", "pullup", "pullups", "dominada", "dominadas", "chest to bar", "c2b", "ctb",
             "toes to bar", "t2b", "ttb", "muscle up", "muscle ups", "mu", "bmu", "rmu", "handstand", "hspu", "pino",
             "rope climb", "rope climbs", "cuerda", "ring", "rings", "anillas", "pistol", "pistols", "dips", "fondos",
             "knees to elbow", "k2e", "double under", "double unders", "du", "dus", "burpee", "burpees", "push up",
@@ -691,13 +693,31 @@ def _fecha_corta(f) -> str:
         return str(f or "")
 
 
-CLAVES_BIBLIO = {"wod": "wods", "conditioning": "conditionings", "accessory": "accessories"}
-NOMBRE_BIBLIO = {"wod": "WODs", "conditioning": "Conditioning", "accessory": "Accessories"}
+CLAVES_BIBLIO = {"wod": "wods", "conditioning": "conditionings", "accessory": "accessories", "mobility": "movilidad"}
+NOMBRE_BIBLIO = {"wod": "WODs", "conditioning": "Conditioning", "accessory": "Accessories", "mobility": "Movilidad"}
+CATEGORIAS_MOVILIDAD = ["Todos", "Cadera", "Hombros", "Tobillos", "Espalda", "Isquios"]
+_ZONAS = {
+    "Cadera": ["cadera", "hip", "hips", "90 90", "pigeon", "paloma", "frog", "rana", "couch stretch", "cossack",
+               "psoas", "gluteo", "glute", "aductor", "adductor", "pancake", "hanche"],
+    "Hombros": ["hombro", "hombros", "shoulder", "shoulders", "dislocates", "wall slides", "pec", "pectoral",
+                "lat stretch", "overhead", "epaule", "epaules"],
+    "Tobillos": ["tobillo", "tobillos", "ankle", "ankles", "knee to wall", "calf", "gemelo", "gemelos", "cheville"],
+    "Espalda": ["espalda", "thoracic", "toracica", "columna", "spine", "cat cow", "jefferson", "rotations",
+                "rotaciones", "dos", "lumbar"],
+    "Isquios": ["isquio", "isquios", "hamstring", "hamstrings", "pancake", "jefferson", "floss", "ischio"],
+}
+
+
+def clasificar_movilidad(texto: str) -> list[str]:
+    t = norm_busqueda(texto)
+    return [z for z, ps in _ZONAS.items() if any(_contiene(t, p) for p in ps)]
 
 
 def tipo_de_linea(parte: str, ejercicio: str) -> str | None:
     """'wod', 'conditioning', 'accessory' o None (fuerza)."""
     p, e = norm_busqueda(parte), norm_busqueda(ejercicio)
+    if any(w in p or w in e for w in ("movilidad", "mobility", "mobilite", "estiramiento", "stretch")):
+        return "mobility"
     if "accessor" in p:
         return "accessory"
     if "conditioning" in p or "conditioning" in e:
@@ -757,7 +777,7 @@ def biblioteca(rutinas: dict, atletas: list[str], entrenos: list[dict], manual: 
                           "cuando": "idea guardada" if item.get("idea") else _fecha_corta(item.get("fecha", "")),
                           "orden": item.get("fecha", ""), "estado": "pendiente" if item.get("idea") else "hecho",
                           "resultado": item.get("resultado", ""), "id": item.get("id")})
-    grupos = _agrupar_veces(veces, por_titulo=(tipo == "accessory"))
+    grupos = _agrupar_veces(veces, por_titulo=(tipo in ("accessory", "mobility")), tipo=tipo)
     corregidas = (manual or {}).get("categorias_manual", {})
     for g in grupos:
         if g["clave"] in corregidas:
@@ -779,7 +799,7 @@ def _veces_de_entrenos(entrenos: list[dict]) -> list[dict]:
     return veces
 
 
-def _agrupar_veces(veces: list[dict], por_titulo: bool = False) -> list[dict]:
+def _agrupar_veces(veces: list[dict], por_titulo: bool = False, tipo: str = "wod") -> list[dict]:
     grupos: dict[str, dict] = {}
     for v in veces:
         k = norm_busqueda((v["titulo"] + " | " if por_titulo else "") + v["texto"]) or norm_busqueda(v["titulo"])
@@ -793,7 +813,10 @@ def _agrupar_veces(veces: list[dict], por_titulo: bool = False) -> list[dict]:
     out = []
     for g in grupos.values():
         primera = (g["texto"].split(":")[0] if ":" in g["texto"].splitlines()[0] else "") if g["texto"] else ""
-        g["categorias"] = clasificar_wod(g["titulo"] + "\n" + g["texto"], g["titulo"] or primera)
+        if tipo == "mobility":
+            g["categorias"] = clasificar_movilidad(g["titulo"] + "\n" + g["texto"])
+        else:
+            g["categorias"] = clasificar_wod(g["titulo"] + "\n" + g["texto"], g["titulo"] or primera)
         g["veces"].sort(key=lambda v: v["orden"], reverse=True)
         g["ultimo"] = g["veces"][0]["orden"]
         out.append(g)
@@ -840,7 +863,7 @@ def parse_whatsapp(texto: str) -> list[dict]:
 
 _FORMATOS = ["amrap", "emom", "e2mom", "e3mom", "every", "for time", "ft", "rft", "rondas", "rounds", "ronda", "round",
              "rnd", "rnds", "tabata", "cap", "time cap", "intervalos", "intervals", "chipper", "max", "reps", "cals",
-             "metros", "series", "x"]
+             "metros", "series", "x", "tours", "tour", "repos", "repetitions", "minutes"]
 
 
 def _tipo_probable(texto: str) -> str:
@@ -855,6 +878,36 @@ def _tipo_probable(texto: str) -> str:
     if cats == ["Cardio"]:
         return "conditioning"
     return "wod"
+
+
+_DIAS = {"lunes": 0, "martes": 1, "miercoles": 2, "jueves": 3, "viernes": 4, "sabado": 5, "domingo": 6,
+         "lundi": 0, "mardi": 1, "mercredi": 2, "jeudi": 3, "vendredi": 4, "samedi": 5, "dimanche": 6,
+         "monday": 0, "tuesday": 1, "wednesday": 2, "thursday": 3, "friday": 4, "saturday": 5, "sunday": 6}
+
+
+def fecha_del_entreno(texto: str, fecha_mensaje: dt.date) -> dt.date:
+    """La fecha a la que se refiere el mensaje: «mañana», «ayer», «el lunes», «12/10»… o la del propio mensaje."""
+    t = norm_busqueda(" ".join(texto.split("\n")[:3]))
+    m = re.search(r"(?<![\d/])(\d{1,2})/(\d{1,2})(?:/(\d{2,4}))?(?![\d/])", " ".join(texto.split("\n")[:3]))
+    if m:
+        d, mes, a = int(m.group(1)), int(m.group(2)), m.group(3)
+        anio = (int(a) + (2000 if len(a) == 2 else 0)) if a else fecha_mensaje.year
+        try:
+            f = dt.date(anio, mes, d)
+            if abs((f - fecha_mensaje).days) <= 60:
+                return f
+        except ValueError:
+            pass
+    if any(_contiene(t, w) for w in ("pasado manana", "apres demain")):
+        return fecha_mensaje + dt.timedelta(days=2)
+    if any(_contiene(t, w) for w in ("manana", "demain", "tomorrow")) and not _contiene(t, "esta manana"):
+        return fecha_mensaje + dt.timedelta(days=1)
+    if any(_contiene(t, w) for w in ("ayer", "hier", "yesterday")):
+        return fecha_mensaje - dt.timedelta(days=1)
+    for nombre, wd in _DIAS.items():
+        if _contiene(t, nombre):
+            return fecha_mensaje + dt.timedelta(days=(wd - fecha_mensaje.weekday()) % 7)
+    return fecha_mensaje
 
 
 _INTRO = ("hoy", "manana", "wod", "toca", "aqui", "ahi", "va", "os paso", "el de", "entreno", "training")
@@ -886,10 +939,15 @@ def detectar_entrenos(mensajes: list[dict]) -> list[dict]:
         puntos = len(movs) * 2 + len(formatos) * 2 + min(lineas, 6) + len(re.findall(r"(?<![a-z0-9])\d+(?![a-z0-9])", t)) // 3
         puntos += 3 * bool(re.search(r"\d+\s*x\s*\d+", t)) + 2 * bool(re.search(r"@\s*\d", m["texto"]))
         puntos += 3 * bool(re.search(r"\d+\s*-\s*\d+\s*-\s*\d+", m["texto"])) + bool(re.search(r"\d\s*kg", t))
-        puntos += 2 * any(_contiene(t, w) for w in ("descanso", "rest", "accesorio", "accesorios", "accessory", "rx"))
-        if movs and puntos >= 7:
+        puntos += 2 * any(_contiene(t, w) for w in ("descanso", "rest", "repos", "accesorio", "accesorios", "accessory",
+                                                    "rx", "movilidad", "mobilite", "estiramientos", "etirements"))
+        zonas = clasificar_movilidad(m["texto"])
+        if (movs or zonas) and puntos >= 7:
             nombre, cuerpo = _separar_nombre(m["texto"])
-            out.append({**m, "puntos": puntos, "tipo": _tipo_probable(m["texto"]), "nombre": nombre, "cuerpo": cuerpo})
+            tipo = "mobility" if zonas and (not movs or any(_contiene(t, w) for w in (
+                "movilidad", "mobility", "mobilite", "estiramientos", "etirements", "stretch"))) else _tipo_probable(m["texto"])
+            out.append({**m, "puntos": puntos, "tipo": tipo, "nombre": nombre, "cuerpo": cuerpo,
+                        "fecha_entreno": fecha_del_entreno(m["texto"], m["fecha"])})
     return out
 
 
