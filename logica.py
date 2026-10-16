@@ -223,6 +223,8 @@ def progresar(presc: str, delta: float) -> str:
 
 def prescripcion_semana(linea: dict, semana: int, ajustes: dict | None) -> tuple[str, bool, bool]:
     """(texto para esa semana, ¿ha subido respecto a la base?, ¿es un ajuste solo de esa semana?)."""
+    if semana < int(linea.get("desde") or 0):  # añadida más tarde: no existía esa semana
+        return "", False, False
     aj = (ajustes or {}).get(str(semana), {}).get(linea["id"])
     if aj is not None:
         return aj, False, True
@@ -322,7 +324,7 @@ def aplicar_edicion(rut: dict, dia_id: str, filas: list[dict], semana: int, solo
         if lid not in previas:
             sube = _num(f.get("sube"), 0.0 if es_metcon(ejercicio) or "accessor" in parte.lower() else 2.5)
             nuevas.append({"id": nuevo_id(), "ejercicio": ejercicio or "Sin nombre", "prescripcion": presc,
-                           "sube": sube, "base": semana, "nota": nota, "parte": parte})
+                           "sube": sube, "base": semana, "nota": nota, "parte": parte, "desde": semana})
             continue
         l = dict(previas[lid])
         actual, _, _ = prescripcion_semana(l, semana, ajustes)
@@ -589,3 +591,207 @@ def historial_parte(rut: dict, dia_id: str, parte: str, hasta: int, maximo: int 
     """[(semana, estado)] de las últimas semanas hasta `hasta` (incluida)."""
     desde = max(1, hasta - maximo + 1)
     return [(s, estado_parte(rut, s, dia_id, parte)["estado"]) for s in range(desde, hasta + 1)]
+
+
+def editar_texto_linea(rut: dict, lid: str, semana: int, ejercicio: str, presc: str, nota: str, solo_esta: bool) -> dict:
+    """Edición libre de una línea (WOD, conditioning, accessory): nombre y nota para siempre; el texto
+    solo esa semana o desde esa semana en adelante."""
+    import copy
+    rut = copy.deepcopy(rut)
+    l = _buscar_linea(rut, lid)
+    if l is None:
+        return rut
+    l["ejercicio"] = ejercicio.strip() or l["ejercicio"]
+    l["nota"] = nota.strip()
+    actual = prescripcion_semana(l, semana, rut.get("ajustes"))[0]
+    if presc.strip() != actual:
+        fijar_prescripcion(rut, lid, semana, presc.strip(), solo_esta)
+    return rut
+
+
+# ---------- biblioteca de WODs ----------
+import unicodedata
+
+CLAVE_BIBLIOTECA = "__biblioteca_wods__"
+CATEGORIAS_WOD = ["Todos", "Gym", "Barbell", "Dumbbell", "Cardio", "🎖️ Hero"]
+NOMBRES_HERO = ["murph", "dt", "jt", "randy", "michael", "nate", "josh", "danny", "badger", "jerry", "ryan",
+                "hansen", "glen", "holleyman", "nutts", "chad", "luce", "loredo", "whitten", "griff", "tommy v",
+                "the seven", "kalsu", "bull", "manion", "wittman", "zimmerman", "hero"]
+_PALABRAS = {
+    "Dumbbell": ["dumbbell", "dumbell", "db", "dbs", "mancuerna", "mancuernas", "devil press", "man maker"],
+    "Barbell": ["barbell", "barra", "thruster", "thrusters", "clean", "cleans", "snatch", "snatches", "jerk", "jerks",
+                "deadlift", "deadlifts", "peso muerto", "front squat", "back squat", "overhead squat", "ohs",
+                "push press", "sdhp", "c&j", "power clean", "power snatch", "hang clean", "hang snatch"],
+    "Cardio": ["run", "running", "correr", "carrera", "row", "remo", "bike", "echo", "assault", "ski", "skierg",
+               "swim", "nadar", "cal", "km", "z2", "zona 2", "double under", "double unders", "du", "comba"],
+    "Gym": ["pull up", "pull ups", "pullup", "pullups", "dominada", "dominadas", "chest to bar", "c2b", "ctb",
+            "toes to bar", "t2b", "ttb", "muscle up", "muscle ups", "mu", "bmu", "rmu", "handstand", "hspu", "pino",
+            "rope climb", "rope climbs", "cuerda", "ring", "rings", "anillas", "pistol", "pistols", "dips", "fondos",
+            "knees to elbow", "k2e", "double under", "double unders", "du", "dus", "burpee", "burpees", "push up",
+            "push ups", "flexiones", "box jump", "box jumps", "sit up", "sit ups", "abmat", "wall walk", "wall walks",
+            "lunges", "zancadas", "air squat", "air squats", "ghd", "l sit"],
+}
+
+
+def norm_busqueda(texto: str) -> str:
+    t = unicodedata.normalize("NFKD", str(texto or "")).encode("ascii", "ignore").decode().lower()
+    t = re.sub(r"[-_/·,.;:()\[\]+*']", " ", t)
+    return re.sub(r"\s+", " ", t).strip()
+
+
+def _contiene(texto_norm: str, palabra: str) -> bool:
+    return re.search(r"(?<![a-z0-9])" + re.escape(norm_busqueda(palabra)) + r"(?![a-z0-9])", texto_norm) is not None
+
+
+def es_hero(titulo: str) -> bool:
+    t = norm_busqueda(titulo)
+    return any(_contiene(t, n) for n in NOMBRES_HERO)
+
+
+def clasificar_wod(texto: str, titulo: str = "") -> list[str]:
+    t = norm_busqueda(texto)
+    cats = ["🎖️ Hero"] if es_hero(titulo or texto.splitlines()[0] if texto else titulo) else []
+    if any(_contiene(t, p) for p in _PALABRAS["Dumbbell"]):
+        cats.append("Dumbbell")
+    sin_db = re.sub(r"(?<![a-z0-9])(db|dbs|dumbbell|dumbell|mancuernas?)\s+[a-z]+(\s+[a-z]+)?", " ", t)
+    if any(_contiene(sin_db, p) for p in _PALABRAS["Barbell"]):
+        cats.append("Barbell")
+    if any(_contiene(t, p) for p in _PALABRAS["Gym"]):
+        cats.append("Gym")
+    if any(_contiene(t, p) for p in _PALABRAS["Cardio"]) or re.search(r"\d\s*m\b", t):
+        cats.append("Cardio")
+    return cats
+
+
+def coincide_busqueda(texto: str, consulta: str) -> bool:
+    """Todas las palabras buscadas aparecen (sin importar tildes, guiones ni espacios: pull-up = pullup = pull up)."""
+    t = norm_busqueda(texto)
+    t_junto = t.replace(" ", "")
+    for trozo in [x for x in re.split(r"\s*,\s*", consulta or "") if x.strip()] or [""]:
+        q = norm_busqueda(trozo)
+        if q and q not in t and q.replace(" ", "") not in t_junto:
+            return False
+    return True
+
+
+def _es_parte_wod(parte: str, ejercicio: str) -> bool:
+    p = norm_busqueda(parte)
+    if "accessor" in p or ("conditioning" in p and "wod" not in p):
+        return False
+    return any(k in p for k in ("wod", "gym", "metcon")) or es_metcon(ejercicio) and "conditioning" not in norm_busqueda(ejercicio)
+
+
+def _fecha_corta(f) -> str:
+    try:
+        return f"{a_fecha(f):%d/%m/%Y}"
+    except (TypeError, ValueError):
+        return str(f or "")
+
+
+CLAVES_BIBLIO = {"wod": "wods", "conditioning": "conditionings", "accessory": "accessories"}
+NOMBRE_BIBLIO = {"wod": "WODs", "conditioning": "Conditioning", "accessory": "Accessories"}
+
+
+def tipo_de_linea(parte: str, ejercicio: str) -> str | None:
+    """'wod', 'conditioning', 'accessory' o None (fuerza)."""
+    p, e = norm_busqueda(parte), norm_busqueda(ejercicio)
+    if "accessor" in p:
+        return "accessory"
+    if "conditioning" in p or "conditioning" in e:
+        return "conditioning"
+    if es_metcon(ejercicio) or any(k in p for k in ("wod", "gym", "metcon")):
+        return "wod"
+    return None
+
+
+def anadir_linea(rut: dict, dia_id: str, parte: str, ejercicio: str, presc: str, semana: int) -> dict:
+    """Nueva línea en una parte, que existe desde `semana` (no aparece en semanas anteriores)."""
+    import copy
+    import uuid
+    rut = copy.deepcopy(rut)
+    dia = next(d for d in rut["dias"] if d["id"] == dia_id)
+    for l, p in zip(dia["lineas"], partes_del_dia(dia)):
+        l.setdefault("parte", p)
+    nueva = {"id": uuid.uuid4().hex[:8], "ejercicio": ejercicio.strip() or "Sin nombre", "prescripcion": presc.strip(),
+             "sube": 0.0, "base": int(semana), "nota": "", "parte": parte, "desde": int(semana)}
+    ult = max((i for i, l in enumerate(dia["lineas"]) if l.get("parte") == parte), default=len(dia["lineas"]) - 1)
+    dia["lineas"].insert(ult + 1, nueva)
+    return rut
+
+
+def biblioteca(rutinas: dict, atletas: list[str], entrenos: list[dict], manual: dict | None, tipo: str) -> list[dict]:
+    """Junta lo hecho de un tipo ('wod', 'conditioning', 'accessory') en las rutinas, en los entrenos registrados
+    (solo WOD) y en la lista manual. Devuelve grupos {titulo, texto, categorias, veces:[...]}."""
+    veces = []
+    for atleta in atletas:
+        rut = rutinas.get(atleta)
+        if not rut:
+            continue
+        actual = int(rut.get("semana_actual") or 1)
+        for d in rut.get("dias", []):
+            for parte, lineas in agrupar_por_parte(d):
+                for l in lineas:
+                    if tipo_de_linea(parte, l["ejercicio"]) != tipo:
+                        continue
+                    for sem in range(1, actual + 1):
+                        txt = prescripcion_semana(l, sem, rut.get("ajustes"))[0]
+                        if not txt:
+                            continue
+                        estado = estado_parte(rut, sem, d["id"], parte)["estado"]
+                        if tipo == "accessory" and l.get("pausas") and sem in [int(x) for x in l["pausas"]]:
+                            estado = "no_hecho"
+                        generico = es_metcon(l["ejercicio"]) and norm(l["ejercicio"]) in (
+                            "wod", "gym / wod", "wod / gym", "gym", "metcon", "conditioning")
+                        veces.append({"atleta": atleta, "texto": txt,
+                                      "titulo": "" if generico else l["ejercicio"],
+                                      "cuando": f"Semana {sem} · {d['nombre']}", "orden": f"S{sem:03d}",
+                                      "estado": estado, "resultado": ""})
+    if tipo == "wod":
+        veces += _veces_de_entrenos(entrenos)
+    for item in (manual or {}).get(CLAVES_BIBLIO[tipo], []):
+        for q in item.get("quien") or [""]:
+            veces.append({"atleta": q, "texto": item.get("texto", ""), "titulo": item.get("nombre", ""),
+                          "cuando": "idea guardada" if item.get("idea") else _fecha_corta(item.get("fecha", "")),
+                          "orden": item.get("fecha", ""), "estado": "pendiente" if item.get("idea") else "hecho",
+                          "resultado": item.get("resultado", ""), "id": item.get("id")})
+    return _agrupar_veces(veces, por_titulo=(tipo == "accessory"))
+
+
+def _veces_de_entrenos(entrenos: list[dict]) -> list[dict]:
+    veces = []
+    for w in entrenos:
+        if w.get("type") != "wod":
+            continue
+        resultados = ", ".join(f"{e['name']} {fmt_valor(e.get('value'), e['unit'])}" for e in w.get("entries") or []
+                               if e.get("value") is not None)
+        texto = "\n".join(x for x in [w.get("notes") or "", ", ".join(e["name"] for e in w.get("entries") or [])] if x)
+        veces.append({"atleta": w["athlete"], "texto": texto or (w.get("title") or ""), "titulo": w.get("title") or "",
+                      "cuando": _fecha_corta(w["date"]), "orden": str(w["date"]), "estado": "hecho",
+                      "resultado": resultados})
+    return veces
+
+
+def _agrupar_veces(veces: list[dict], por_titulo: bool = False) -> list[dict]:
+    grupos: dict[str, dict] = {}
+    for v in veces:
+        k = norm_busqueda((v["titulo"] + " | " if por_titulo else "") + v["texto"]) or norm_busqueda(v["titulo"])
+        if not k:
+            continue
+        g = grupos.setdefault(k, {"titulo": "", "texto": v["texto"], "veces": [], "ids": set()})
+        g["titulo"] = g["titulo"] or v["titulo"]
+        g["veces"].append(v)
+        if v.get("id"):
+            g["ids"].add(v["id"])
+    out = []
+    for g in grupos.values():
+        primera = (g["texto"].split(":")[0] if ":" in g["texto"].splitlines()[0] else "") if g["texto"] else ""
+        g["categorias"] = clasificar_wod(g["titulo"] + "\n" + g["texto"], g["titulo"] or primera)
+        g["veces"].sort(key=lambda v: v["orden"], reverse=True)
+        g["ultimo"] = g["veces"][0]["orden"]
+        out.append(g)
+    out.sort(key=lambda g: g["ultimo"], reverse=True)
+    return out
+
+
+def wods_hechos(rutinas: dict, atletas: list[str], entrenos: list[dict], manual: dict | None) -> list[dict]:
+    return biblioteca(rutinas, atletas, entrenos, manual, "wod")
