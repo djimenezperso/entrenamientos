@@ -367,9 +367,11 @@ def marcar_parte(rut: dict, semana: int, dia_id: str, parte: str, estado: str | 
     k = clave_parte(semana, dia_id, parte)
     dia = next((d for d in rut["dias"] if d["id"] == dia_id), None)
     lineas = next((ls for p, ls in agrupar_por_parte(dia) if p == parte), []) if dia else []
-    for l in lineas:  # quitar la repetición que pudiera haber de antes
-        if semana in [int(x) for x in l.get("pausas") or []]:
-            l["pausas"] = [x for x in l["pausas"] if int(x) != semana]
+    previo = (estados.get(k) or {}).get("estado")
+    if previo == "no_hecho" or estado == "no_hecho":  # rehacer la repetición de toda la parte
+        for l in lineas:
+            if semana in [int(x) for x in l.get("pausas") or []]:
+                l["pausas"] = [x for x in l["pausas"] if int(x) != semana]
     if estado == "no_hecho":  # la semana siguiente repite pesos
         for l in lineas:
             if float(l.get("sube") or 0) > 0:
@@ -506,3 +508,24 @@ def cambiar_pesos(rut: dict, semana: int, cambios: dict, solo_esta: bool, propag
                         fijar_prescripcion(rut, l["id"], semana, progresar(actual, nuevo - viejo), solo_esta)
                         tocados.append(d["nombre"])
     return rut, sorted(set(tocados), key=tocados.index)
+
+
+def linea_no_hecha(linea: dict, semana: int) -> bool:
+    return int(semana) in [int(x) for x in linea.get("pausas") or []]
+
+
+def marcar_linea(rut: dict, lid: str, semana: int, no_hecha: bool) -> dict:
+    """Un ejercicio suelto no hecho: la semana siguiente repite su peso."""
+    import copy
+    rut = copy.deepcopy(rut)
+    l = _buscar_linea(rut, lid)
+    if l is not None:
+        pausas = [int(x) for x in l.get("pausas") or [] if int(x) != int(semana)]
+        if no_hecha:
+            pausas.append(int(semana))
+        l["pausas"] = sorted(pausas)
+    return rut
+
+
+def no_hechas_en(lineas: list[dict], semana: int) -> int:
+    return sum(1 for l in lineas if not es_metcon(l["ejercicio"]) and linea_no_hecha(l, semana))
