@@ -33,11 +33,11 @@ def _yo():
                 _l("y23", "Clean pull", "@100", base=b),
                 _metcon("y24", "Gym / WOD", base=b),
             ]},
-            {"id": "d3", "nombre": "Día 3", "lineas": [
-                _l("y31", "Back squat", "@125", base=b),
-                _l("y32", "Front squat", "@105", base=b),
-                _l("y33", "Push press", "@65", base=b),
-                _l("y34", "Bench press", "@50", base=b),
+            {"id": "d3", "nombre": "Día 3", "por_ejercicio": True, "lineas": [
+                _l("y31", "Back squat", "1x10 @125", base=b, nota="dinámico"),
+                _l("y32", "Front squat", "1x10 @105", base=b, nota="dinámico"),
+                _l("y33", "Push press", "1x10 @65", base=b, nota="dinámico"),
+                _l("y34", "Bench press", "1x10 @50", base=b, nota="dinámico"),
                 _metcon("y35", "Conditioning", base=b),
             ]},
             {"id": "d4", "nombre": "Día 4", "lineas": [
@@ -46,11 +46,11 @@ def _yo():
                 _l("y43", "Push press + push jerk + split jerk", "3x(1+1+1)", base=b),
                 _l("y44", "Snatch deadlift", "", base=b, parte="B) Accessory"),
             ]},
-            {"id": "d5", "nombre": "Día 5", "lineas": [
-                _l("y51", "Back squat", "@120", base=b),
-                _l("y52", "Front squat", "@100", base=b),
-                _l("y53", "Push press", "@60", base=b),
-                _l("y54", "Bench press", "", base=b),
+            {"id": "d5", "nombre": "Día 5", "por_ejercicio": True, "pasa_a": "d3", "lineas": [
+                _l("y51", "Back squat", "1x10 @125", base=b, nota="dinámico"),
+                _l("y52", "Front squat", "1x10 @105", base=b, nota="dinámico"),
+                _l("y53", "Push press", "1x10 @65", base=b, nota="dinámico"),
+                _l("y54", "Bench press", "1x10 @50", base=b, nota="dinámico"),
                 _metcon("y55", "Gym / WOD", base=b),
             ]},
             {"id": "d6", "nombre": "Día 6", "lineas": [
@@ -120,3 +120,34 @@ def rutinas_iniciales(atletas: list[str]) -> dict:
     """Asocia por posición: 0 = yo, 1 = Manu, 3 = pareja. El resto empieza sin rutina."""
     fabricas = {0: _yo, 1: _manu, 3: _pareja}
     return {a: fabricas[i]() for i, a in enumerate(atletas) if i in fabricas}
+
+
+# Cambios aplicados después de que alguien ya guardara su rutina (se aplican al cargar, solo una vez).
+DINAMICO_1X10 = {"y31", "y32", "y33", "y34", "y51", "y52", "y53", "y54"}
+
+
+def migrar(rut: dict, atleta: str, atletas: list[str]) -> dict:
+    if atletas and atleta == atletas[0]:
+        for d in rut.get("dias", []):
+            ids = {l["id"] for l in d["lineas"]}
+            if d["id"] in ("d3", "d5") and ids & DINAMICO_1X10:
+                d.setdefault("por_ejercicio", True)
+            if d["id"] == "d5" and ids & DINAMICO_1X10:
+                d.setdefault("pasa_a", "d3")  # si el día 5 no se hace, va al día 3 de la semana siguiente
+            for l in d["lineas"]:
+                if l["id"] in DINAMICO_1X10 and "x" not in (l.get("prescripcion") or "").lower():
+                    l["prescripcion"] = ("1x10 " + (l.get("prescripcion") or "")).strip()
+                    l["nota"] = l.get("nota") or "dinámico"
+                    for sem in (rut.get("ajustes") or {}).values():
+                        if l["id"] in sem and "x" not in sem[l["id"]].lower():
+                            sem[l["id"]] = "1x10 " + sem[l["id"]]
+        # El día 5 repite la fuerza del día 3 (mismos pesos y repes): se iguala una vez.
+        hechas = rut.setdefault("migraciones", [])
+        if "d5_igual_d3" not in hechas:
+            lineas = {l["id"]: l for d in rut.get("dias", []) for l in d["lineas"]}
+            for de, a in (("y31", "y51"), ("y32", "y52"), ("y33", "y53"), ("y34", "y54")):
+                if de in lineas and a in lineas:
+                    for campo in ("prescripcion", "base", "sube"):
+                        lineas[a][campo] = lineas[de].get(campo)
+            hechas.append("d5_igual_d3")
+    return rut
