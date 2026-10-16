@@ -44,7 +44,7 @@ def _yo():
                 _l("y41", "3 hang power snatch + 1 squat snatch", "@40", base=b),
                 _l("y42", "3 hang power clean + 1 squat clean", "", base=b),
                 _l("y43", "Push press + push jerk + split jerk", "3x(1+1+1)", base=b),
-                _l("y44", "Snatch deadlift", "", base=b, parte="B) Accessory"),
+                _l("y44", "Snatch deadlift", "", sube=0, base=b, parte="B) Accessory"),
             ]},
             {"id": "d5", "nombre": "Día 5", "por_ejercicio": True, "pasa_a": "d3", "lineas": [
                 _l("y51", "Back squat", "1x10 @125", base=b, nota="dinámico"),
@@ -56,8 +56,8 @@ def _yo():
             {"id": "d6", "nombre": "Día 6", "lineas": [
                 _l("y61", "Snatch", "3@40 2@45 1@50", base=b),
                 _l("y62", "Clean & jerk", "3@60 2@70 1@80", base=b),
-                _metcon("y63", "EMOM 40'", "5x (10 thrusters + 5 burpees)", base=b, nota="¿40 min?", parte="B) Conditioning"),
-                _l("y64", "Deadlift", "3x6 @140", base=b, parte="C) Accessory"),
+                _metcon("y63", "EMOM 40'", "5x (10 thrusters + 5 burpees)", base=b, nota="¿40 min?", parte="B) WOD"),
+                _l("y64", "Deadlift", "3x6 @140", sube=0, base=b, parte="C) Accessory"),
             ]},
         ],
     }
@@ -95,19 +95,19 @@ def _pareja():
         "semana_actual": 2,
         "ajustes": {},
         "dias": [
-            {"id": "d1", "nombre": "Día 1", "lineas": [
+            {"id": "d1", "nombre": "Día 1", "por_ejercicio": True, "lineas": [
                 _l("p11", "Squat snatch", "3x3 @20"),
                 _l("p12", "Snatch pull", "3x3 @45"),
                 _l("p13", "Back squat", "", nota="Semana 1: no hecho"),
                 _metcon("p14", "WOD"),
             ]},
-            {"id": "d2", "nombre": "Día 2", "lineas": [
+            {"id": "d2", "nombre": "Día 2", "por_ejercicio": True, "lineas": [
                 _l("p21", "Squat clean", "3x3 @30"),
                 _l("p22", "Clean pull", "3x3 @50"),
                 _l("p23", "Front squat", "", nota="Semana 1: no hecho"),
                 _metcon("p24", "WOD / Gym"),
             ]},
-            {"id": "d3", "nombre": "Día 3", "lineas": [
+            {"id": "d3", "nombre": "Día 3", "por_ejercicio": True, "lineas": [
                 _l("p31", "Jerk", "3x3 @20"),
                 _l("p32", "Push press", "3x3 @25"),
                 _metcon("p33", "Conditioning"),
@@ -127,6 +127,12 @@ DINAMICO_1X10 = {"y31", "y32", "y33", "y34", "y51", "y52", "y53", "y54"}
 
 
 def migrar(rut: dict, atleta: str, atletas: list[str]) -> dict:
+    if len(atletas) > 3 and atleta == atletas[3]:  # pareja: cada ejercicio de fuerza se puede marcar como no hecho
+        hechas = rut.setdefault("migraciones", [])
+        if "pareja_por_ejercicio" not in hechas:
+            for d in rut.get("dias", []):
+                d["por_ejercicio"] = True
+            hechas.append("pareja_por_ejercicio")
     if atletas and atleta == atletas[0]:
         for d in rut.get("dias", []):
             ids = {l["id"] for l in d["lineas"]}
@@ -150,4 +156,15 @@ def migrar(rut: dict, atleta: str, atletas: list[str]) -> dict:
                     for campo in ("prescripcion", "base", "sube"):
                         lineas[a][campo] = lineas[de].get(campo)
             hechas.append("d5_igual_d3")
+        if "accessory_y_wod_d6" not in hechas:
+            from logica import prescripcion_semana, rebasar, renombrar_parte
+            actual = int(rut.get("semana_actual") or 1)
+            for d in rut.get("dias", []):
+                for l in d["lineas"]:
+                    if l["id"] in ("y44", "y64") and float(l.get("sube") or 0):
+                        rebasar(l, actual, prescripcion_semana(l, actual, None)[0], 0)
+            d6 = next((d for d in rut.get("dias", []) if d["id"] == "d6"), None)
+            if d6 and any(l["id"] == "y63" and l.get("parte") == "B) Conditioning" for l in d6["lineas"]):
+                rut.update(renombrar_parte(rut, "d6", "B) Conditioning", "B) WOD"))
+            rut.setdefault("migraciones", []).append("accessory_y_wod_d6")
     return rut
