@@ -18,9 +18,12 @@ import streamlit as st
 from PIL import Image, ImageOps
 
 from logica import (
-    MENOS_ES_MEJOR, TIPOS, UNIDADES, a_fecha, cambio_pct, consejos, fmt_tiempo, fmt_valor,
-    ids_con_pr, mejor_punto, norm, parse_tiempo, parse_valor, series_ejercicios, sesiones_por_semana,
+    MENOS_ES_MEJOR, TIPOS, UNIDADES, a_fecha, aplicar_edicion, cambio_pct, consejos, es_metcon, fmt_num,
+    fmt_tiempo, fmt_valor, ids_con_pr, mejor_punto, norm, parse_tiempo, parse_valor, peso_principal,
+    prescripcion_semana, series_ejercicios, sesiones_por_semana,
+    destino_dia_siguiente, destino_semana_siguiente, estado_dia, marcar_dia, pendientes_para, sin_validar,
 )
+from rutinas_iniciales import rutinas_iniciales
 
 try:  # fotos HEIC del iPhone
     from pillow_heif import register_heif_opener
@@ -48,6 +51,16 @@ class LocalStore:
             c.execute("""create table if not exists workouts(
                 id text primary key, athlete text, date text, type text, title text,
                 duration_sec integer, entries text, notes text, photo_path text, created_at text)""")
+            c.execute("create table if not exists rutinas(athlete text primary key, data text, updated_at text)")
+
+    def rutinas(self) -> dict:
+        with sqlite3.connect(self.db) as c:
+            return {a: json.loads(d) for a, d in c.execute("select athlete, data from rutinas")}
+
+    def guardar_rutina(self, atleta: str, data: dict):
+        with sqlite3.connect(self.db) as c:
+            c.execute("insert or replace into rutinas values (?,?,?)",
+                      (atleta, json.dumps(data, ensure_ascii=False), dt.datetime.now().isoformat()))
 
     def listar(self) -> list[dict]:
         with sqlite3.connect(self.db) as c:
@@ -113,6 +126,14 @@ class SupabaseStore:
     def foto(self, w: dict):
         return self.c.storage.from_(self.BUCKET).get_public_url(w["photo_path"])
 
+    def rutinas(self) -> dict:
+        r = self.c.table("rutinas").select("athlete,data").execute()
+        return {f["athlete"]: f["data"] for f in (r.data or [])}
+
+    def guardar_rutina(self, atleta: str, data: dict):
+        self.c.table("rutinas").upsert({"athlete": atleta, "data": data,
+                                        "updated_at": dt.datetime.now(dt.timezone.utc).isoformat()}).execute()
+
 
 def secreto(nombre, defecto=None):
     try:
@@ -136,6 +157,16 @@ def cargar_todo() -> list[dict]:
 
 def refrescar():
     cargar_todo.clear()
+
+
+@st.cache_data(ttl=60, show_spinner=False)
+def cargar_rutinas() -> dict:
+    return store().rutinas()
+
+
+def guardar_rutina(atleta: str, data: dict):
+    store().guardar_rutina(atleta, data)
+    cargar_rutinas.clear()
 
 
 # ---------------------------------------------------------------- utilidades UI
@@ -183,22 +214,27 @@ def eje_tiempo(fig: go.Figure, valores: list[float], eje: str = "yaxis"):
 
 
 # ---------------------------------------------------------------- pestañas
-def tab_registrar(atleta: str, entrenos: list[dict]):
-    n = st.session_state.setdefault(f"form_n_{atleta}", 0)
+def formulario_entreno(atleta: str, entrenos: list[dict], clave: str, inicial: dict | None = None):
+    """Formulario de entreno. `inicial` = {tipo, titulo, filas:[{Ejercicio, Resultado, Unidad}]}."""
+    inicial = inicial or {}
+    n = st.session_state.setdefault(f"form_n_{clave}", 0)
     usados = sorted({e["name"].strip() for w in entrenos for e in (w.get("entries") or []) if e.get("name")}, key=str.lower)
+    filas = inicial.get("filas") or [{"Ejercicio": "", "Resultado": "", "Unidad": "tiempo"} for _ in range(3)]
+    tipos = list(TIPOS)
 
-    with st.form(f"nuevo_{atleta}_{n}"):
+    with st.form(f"form_{clave}_{n}"):
         c1, c2 = st.columns(2)
-        tipo = c1.selectbox("Tipo", list(TIPOS), format_func=lambda k: TIPOS[k][0])
+        tipo = c1.selectbox("Tipo", tipos, index=tipos.index(inicial.get("tipo", "fuerza")),
+                            format_func=lambda k: TIPOS[k][0])
         fecha = c2.date_input("Fecha", dt.date.today(), format="DD/MM/YYYY")
         c3, c4 = st.columns([2, 1])
-        titulo = c3.text_input("Título", placeholder="Fran, Pierna, 10K suave…")
+        titulo = c3.text_input("Título", value=inicial.get("titulo", ""), placeholder="Fran, Pierna, 10K suave…")
         duracion = c4.text_input("Duración total", placeholder="h:mm:ss o min")
 
         st.markdown("**Resultados**")
         tabla = st.data_editor(
-            pd.DataFrame({"Ejercicio": [""] * 3, "Resultado": [""] * 3, "Unidad": ["tiempo"] * 3}),
-            num_rows="dynamic", hide_index=True, use_container_width=True, key=f"tabla_{atleta}_{n}",
+            pd.DataFrame(filas, columns=["Ejercicio", "Resultado", "Unidad"]),
+            num_rows="dynamic", hide_index=True, use_container_width=True, key=f"tabla_{clave}_{n}",
             column_config={
                 "Ejercicio": st.column_config.TextColumn(width="medium"),
                 "Resultado": st.column_config.TextColumn(help="Tiempo como 4:35 o 1:02:10; el resto, un número"),
@@ -206,7 +242,7 @@ def tab_registrar(atleta: str, entrenos: list[dict]):
             },
         )
         st.caption("Tiempo como 4:35 o 1:02:10. Escribe cada ejercicio siempre igual para seguir su progresión."
-                   + (f" Ya usados: {', '.join(usados[:12])}." if usados else ""))
+                   + (f" Ya usados: {', '.join(usados[:12])}." if usados and not inicial else ""))
         notas = st.text_area("Notas", placeholder="Sensaciones, escalado, qué falló…")
         foto = st.file_uploader("Foto", type=["jpg", "jpeg", "png", "webp", "heic", "heif"])
         enviado = st.form_submit_button("Guardar entreno", type="primary", use_container_width=True)
@@ -248,9 +284,232 @@ def tab_registrar(atleta: str, entrenos: list[dict]):
         st.error(f"No se pudo guardar: {ex}")
         return
     refrescar()
-    st.session_state[f"form_n_{atleta}"] = n + 1
+    st.session_state[f"form_n_{clave}"] = n + 1
     st.session_state["aviso"] = "Entreno guardado"
     st.rerun()
+
+
+def tab_registrar(atleta: str, entrenos: list[dict]):
+    formulario_entreno(atleta, entrenos, f"libre_{atleta}")
+
+
+SQL_RUTINAS = """create table if not exists public.rutinas (
+  athlete    text primary key,
+  data       jsonb not null,
+  updated_at timestamptz not null default now()
+);
+alter table public.rutinas enable row level security;"""
+
+
+def _nuevo_id() -> str:
+    return uuid.uuid4().hex[:8]
+
+
+def _titulo_dia(semana: int, dia: dict) -> str:
+    return f"Semana {semana} · {dia['nombre']}"
+
+
+def _inicial_desde_dia(rut: dict, dia: dict, semana: int) -> dict:
+    filas, fuerza = [], False
+    for l in dia["lineas"]:
+        txt, _, _ = prescripcion_semana(l, semana, rut.get("ajustes"))
+        if es_metcon(l["ejercicio"]):
+            filas.append({"Ejercicio": l["ejercicio"], "Resultado": "", "Unidad": "tiempo"})
+        else:
+            fuerza = True
+            p = peso_principal(txt)
+            filas.append({"Ejercicio": l["ejercicio"], "Resultado": fmt_num(p) if p is not None else "", "Unidad": "kg"})
+    return {"tipo": "fuerza" if fuerza else "wod", "titulo": _titulo_dia(semana, dia), "filas": filas}
+
+
+def _cambiar_semana(atleta: str, rut: dict, nueva: int):
+    rut = dict(rut, semana_actual=nueva)
+    guardar_rutina(atleta, rut)
+    st.session_state[f"sem_{atleta}"] = nueva
+
+
+def _chip_estado(est: dict, semana: int, dias: dict) -> str:
+    if est["estado"] == "hecho":
+        return ":green[✓ hecho]"
+    if est["estado"] == "pospuesto":
+        s, did = est["destino"]
+        nombre = dias.get(did, {}).get("nombre", "otro día")
+        return f":orange[↷ pasado a {nombre}" + (f" (semana {s})]" if s != semana else "]")
+    return ":gray[○ sin validar]"
+
+
+def _lineas_dia(rut: dict, dia: dict, semana: int):
+    lineas = []
+    for l in dia["lineas"]:
+        txt, subio, ajuste = prescripcion_semana(l, semana, rut.get("ajustes"))
+        if txt:
+            linea = f"- **{l['ejercicio']}** · `{txt}`"
+        elif es_metcon(l["ejercicio"]):
+            linea = f"- **{l['ejercicio']}** · :gray[por definir]"
+        else:
+            linea = f"- **{l['ejercicio']}** · :orange[falta el peso]"
+        if ajuste:
+            linea += " :orange[(cambio solo esta semana)]"
+        elif subio and semana > int(l.get("base") or 1):
+            linea += f" :green[+{fmt_num((semana - int(l['base'])) * float(l['sube']))}]"
+        if l.get("nota"):
+            linea += f" — _{l['nota']}_"
+        lineas.append(linea)
+    st.markdown("\n".join(lineas) if lineas else ":gray[Sin ejercicios. Añádelos en Editar.]")
+
+
+def _marcar(atleta: str, rut: dict, semana: int, dia_id: str, estado, destino=None, aviso: str = ""):
+    guardar_rutina(atleta, marcar_dia(rut, semana, dia_id, estado, destino))
+    if aviso:
+        st.session_state["aviso"] = aviso
+
+
+def _botones_estado(atleta: str, rut: dict, semana: int, dia: dict, est: dict, k: str,
+                    desde: tuple[int, str] | None = None):
+    """`desde` = (semana, día) donde se está mostrando, si es un pendiente traído de otro día."""
+    if est["estado"] == "hecho":
+        if est.get("registrado"):
+            st.caption("Validado al registrar el entreno.")
+        else:
+            st.button("Deshacer", key=f"undo_{k}", on_click=_marcar, args=(atleta, rut, semana, dia["id"], None))
+        return
+    sem_aqui, dia_aqui = desde or (semana, dia["id"])
+    sig = destino_dia_siguiente(rut, sem_aqui, dia_aqui)
+    sem_sig = destino_semana_siguiente(sem_aqui, dia["id"])
+    nombre_sig = next(d["nombre"] for d in rut["dias"] if d["id"] == sig[1])
+    b1, b2, b3 = st.columns(3)
+    b1.button("✓ Hecho", key=f"ok_{k}", type="primary", use_container_width=True,
+              on_click=_marcar, args=(atleta, rut, semana, dia["id"], "hecho", None, f"{dia['nombre']} validado"))
+    b2.button(f"No lo hice → {nombre_sig}" + (f" (sem. {sig[0]})" if sig[0] != sem_aqui else ""),
+              key=f"next_{k}", use_container_width=True,
+              on_click=_marcar, args=(atleta, rut, semana, dia["id"], "pospuesto", sig, f"Pasado a {nombre_sig}"))
+    b3.button(f"No lo hice → semana {sem_sig[0]}", key=f"week_{k}", use_container_width=True,
+              on_click=_marcar, args=(atleta, rut, semana, dia["id"], "pospuesto", sem_sig,
+                                      f"Pasado a la semana {sem_sig[0]}"))
+
+
+def tab_rutina(atleta: str, entrenos: list[dict]):
+    try:
+        guardadas = cargar_rutinas()
+    except Exception as ex:
+        st.warning("Falta crear la tabla de rutinas en Supabase. Ve a **SQL Editor**, pega esto y pulsa **Run**; "
+                   "luego recarga la página.")
+        st.code(SQL_RUTINAS, language="sql")
+        st.caption(f"Detalle: {ex}")
+        return
+
+    rut = guardadas.get(atleta) or rutinas_iniciales(ATLETAS).get(atleta)
+    if not rut:
+        st.info(f"{atleta} aún no tiene rutina.")
+        if st.button("Crear rutina", key=f"crear_rut_{atleta}", type="primary"):
+            guardar_rutina(atleta, {"semana_actual": 1, "ajustes": {},
+                                    "dias": [{"id": _nuevo_id(), "nombre": "Día 1", "lineas": []}]})
+            st.rerun()
+        return
+
+    actual = int(rut.get("semana_actual") or 1)
+    clave_sem = f"sem_{atleta}"
+    if clave_sem not in st.session_state:
+        st.session_state[clave_sem] = actual
+    c1, c2 = st.columns([1, 2], vertical_alignment="bottom")
+    semana = int(c1.number_input("Semana", min_value=1, step=1, key=clave_sem))
+    if semana == actual:
+        c2.button(f"Terminé la semana {actual} → pasar a la {actual + 1}", key=f"sig_{atleta}",
+                  on_click=_cambiar_semana, args=(atleta, rut, actual + 1), use_container_width=True)
+    else:
+        c2.button(f"Marcar la semana {semana} como la actual", key=f"act_{atleta}",
+                  on_click=_cambiar_semana, args=(atleta, rut, semana), use_container_width=True)
+    momento = "esta semana" if semana == actual else ("semana pasada" if semana < actual else "semana que viene")
+    st.caption(f"Semana {semana} ({momento}). Los pesos tras @ suben lo indicado en «Sube» cada semana "
+               "(2,5 kg por defecto). Cámbialo o haz excepciones en «Editar».")
+
+    registrados = {w.get("title") for w in entrenos}
+    faltan = sin_validar(rut, semana, registrados)
+    if semana <= actual and faltan:
+        st.warning(f"Sin validar en la semana {semana}: {', '.join(faltan)}. "
+                   "Márcalos como hechos o pásalos a otro día.")
+
+    nombres = {d["id"]: d for d in rut["dias"]}
+    for dia in rut["dias"]:
+        with st.container(border=True):
+            est = estado_dia(rut, semana, dia["id"], _titulo_dia(semana, dia) in registrados)
+            st.markdown(f"#### {dia['nombre']}  {_chip_estado(est, semana, nombres)}")
+            _lineas_dia(rut, dia, semana)
+            _botones_estado(atleta, rut, semana, dia, est, f"{dia['id']}_{semana}")
+            with st.expander("Registrar este día"):
+                formulario_entreno(atleta, entrenos, f"rut_{atleta}_{dia['id']}_{semana}",
+                                   _inicial_desde_dia(rut, dia, semana))
+
+            for so, did in pendientes_para(rut, semana, dia["id"], registrados):
+                origen = nombres[did]
+                st.divider()
+                st.markdown(f"##### :orange[↷ Pendiente: semana {so} · {origen['nombre']}]")
+                _lineas_dia(rut, origen, so)
+                est_o = estado_dia(rut, so, did)
+                _botones_estado(atleta, rut, so, origen, est_o, f"pend_{did}_{so}_{dia['id']}_{semana}",
+                                desde=(semana, dia["id"]))
+                with st.expander(f"Registrar {origen['nombre']} (semana {so})"):
+                    formulario_entreno(atleta, entrenos, f"rutp_{atleta}_{did}_{so}",
+                                       _inicial_desde_dia(rut, origen, so))
+
+            with st.expander("Editar"):
+                editar_dia(atleta, rut, dia, semana)
+
+    if st.button("+ Añadir día", key=f"add_dia_{atleta}"):
+        rut2 = dict(rut, dias=rut["dias"] + [{"id": _nuevo_id(), "nombre": f"Día {len(rut['dias']) + 1}", "lineas": []}])
+        guardar_rutina(atleta, rut2)
+        st.rerun()
+
+
+def editar_dia(atleta: str, rut: dict, dia: dict, semana: int):
+    col = f"Semana {semana}"
+    base = f"{atleta}_{dia['id']}_{semana}"
+    df = pd.DataFrame(
+        [{"id": l["id"], "Ejercicio": l["ejercicio"], col: prescripcion_semana(l, semana, rut.get("ajustes"))[0],
+          "Sube (kg)": float(l.get("sube") or 0), "Nota": l.get("nota", "")} for l in dia["lineas"]],
+        columns=["id", "Ejercicio", col, "Sube (kg)", "Nota"],
+    )
+    nombre = st.text_input("Nombre del día", dia["nombre"], key=f"nom_{base}")
+    tabla = st.data_editor(
+        df, num_rows="dynamic", hide_index=True, use_container_width=True, key=f"edr_{base}",
+        column_order=["Ejercicio", col, "Sube (kg)", "Nota"],
+        column_config={
+            "Ejercicio": st.column_config.TextColumn(width="medium"),
+            col: st.column_config.TextColumn(help="Series, reps y peso tras @: 3x3 @50, 3@40 2@45 1@50, 10 @25"),
+            "Sube (kg)": st.column_config.NumberColumn(min_value=0.0, step=1.25, default=2.5, format="%.2f",
+                                                       help="Kg que sube cada semana. 0 = no sube"),
+            "Nota": st.column_config.TextColumn(),
+        },
+    )
+    st.caption("Escribe el peso tras una @ para que suba solo. Para WOD o conditioning deja «Sube» en 0.")
+    modo = st.radio("Si cambias un peso, aplicarlo a…", ["Esta semana y las siguientes", "Solo esta semana"],
+                    horizontal=True, key=f"modo_{base}")
+    b1, b2 = st.columns(2)
+    if b1.button("Guardar cambios", type="primary", key=f"save_{base}", use_container_width=True):
+        filas = [{"id": r.get("id"), "ejercicio": r.get("Ejercicio"), "presc": r.get(col),
+                  "sube": r.get("Sube (kg)"), "nota": r.get("Nota")} for r in tabla.to_dict("records")]
+        nueva = aplicar_edicion(rut, dia["id"], filas, semana, modo == "Solo esta semana", _nuevo_id)
+        for d in nueva["dias"]:
+            if d["id"] == dia["id"]:
+                d["nombre"] = nombre.strip() or d["nombre"]
+        guardar_rutina(atleta, nueva)
+        st.session_state["aviso"] = "Rutina guardada"
+        st.rerun()
+
+    confirmar = f"conf_borrar_dia_{base}"
+    if st.session_state.get(confirmar):
+        b2.warning("¿Borrar este día de la rutina?")
+        s1, s2 = b2.columns(2)
+        if s1.button("Sí, borrar", key=f"si_{base}"):
+            guardar_rutina(atleta, dict(rut, dias=[d for d in rut["dias"] if d["id"] != dia["id"]]))
+            st.session_state.pop(confirmar, None)
+            st.rerun()
+        if s2.button("Cancelar", key=f"no_{base}"):
+            st.session_state.pop(confirmar, None)
+            st.rerun()
+    elif b2.button("Borrar día", key=f"del_{base}", use_container_width=True):
+        st.session_state[confirmar] = True
+        st.rerun()
 
 
 def tab_historial(atleta: str, entrenos: list[dict]):
@@ -459,7 +718,9 @@ def main():
         st.stop()
     mios = [w for w in todos if w["athlete"] == atleta]
 
-    t1, t2, t3, t4 = st.tabs(["Registrar", "Historial", "Progreso", "Grupo"])
+    t0, t1, t2, t3, t4 = st.tabs(["Rutina", "Registrar", "Historial", "Progreso", "Grupo"])
+    with t0:
+        tab_rutina(atleta, mios)
     with t1:
         tab_registrar(atleta, mios)
     with t2:
