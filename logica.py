@@ -1406,3 +1406,19 @@ def referencias_elite(titulo_y_texto: str, elite: dict) -> list[dict]:
     """Referencias de atletas de élite si el WOD es un benchmark conocido (Fran, Grace, Open 24.1…)."""
     t = norm_busqueda(titulo_y_texto[:200])
     return [r for clave, refs in elite.items() if _contiene(t, clave) for r in refs]
+
+
+# ---------- formatos: EMOM / For time / AMRAP ----------
+FORMATOS = {"emom": "⏱️ EMOM", "fortime": "🏁 For time", "amrap": "🔁 AMRAP"}
+
+
+def formato_de(texto: str) -> set[str]:
+    t = norm_busqueda(texto)
+    out = set()
+    if es_emom(texto):
+        out.add("emom")
+    if re.search(r"\bfor time\b|\bft\b|\brft\b|\bpour le temps\b|\bpor tiempo\b|\bchrono\b", t):
+        out.add("fortime")
+    if re.search(r"\bamrap\b", t):
+        out.add("amrap")
+    return out
