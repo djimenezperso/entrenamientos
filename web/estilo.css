@@ -450,3 +450,6 @@ main { padding: 4px 16px 0; display: flex; flex-direction: column; gap: 12px; }
 .lista-evol div { display: flex; justify-content: space-between; padding: 10px 14px; font-size: 14px; border-top: 1px solid var(--linea); }
 .lista-evol div:first-child { border-top: none; }
 .quien small svg { display: inline; vertical-align: -3px; }
+
+.ultimo { display: inline-flex; align-items: center; gap: 6px; align-self: flex-start; background: #E9F6EF; color: #137A44; border-radius: 999px; padding: 4px 10px; font-size: 12px; }
+.ultimo b { font-weight: 800; }
