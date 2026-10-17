@@ -233,8 +233,15 @@ def control_contrasena():
     st.title("Djimenez Prog")
     intento = st.text_input("Contraseña / Mot de passe", type="password").strip()  # el móvil a veces añade espacios
     personales = {nombre: str(c).strip() for nombre, c in (secreto("accesos_personales") or {}).items()}
-    otras = str(secreto("CONTRASENA_INVITADOS") or "").strip()  # otra llave de entrada, con el mismo acceso
-    if intento and (intento == str(clave).strip() or (otras and intento == otras)):
+    archchana = str(secreto("CONTRASENA_ARCHCHANA") or "").strip()
+    if archchana:
+        personales["Archchana"] = archchana
+    invitados = str(secreto("CONTRASENA_INVITADOS") or "").strip()
+    if st.session_state.get("invitado_ok") or (invitados and intento == invitados):
+        st.session_state.invitado_ok = True
+        _entrar_como_invitado()
+        st.stop()
+    if intento and intento == str(clave).strip():
         st.session_state.dentro, st.session_state.solo = True, None
         st.rerun()
     elif intento and intento in personales.values():
@@ -272,9 +279,19 @@ def _entrar_como_invitado():
         st.error("PIN incorrecto para ese nombre. · Code incorrect.")
         return
     if not existente:
+        plantillas = {"Rutina de Salatti": "Salatti", "Rutina de Dario": "Dario"}
+        eleccion = st.radio("¿Con qué rutina empiezas? · Quel programme ?", list(plantillas), key="inv_plantilla")
+        if not st.button("Empezar · Commencer", type="primary", key="inv_ok"):
+            return
         existente = nombre
-        registro[existente] = {"pin": _hash(existente, pin), "alta": dt.date.today().isoformat()}
+        registro[existente] = {"pin": _hash(existente, pin), "alta": dt.date.today().isoformat(),
+                               "plantilla": plantillas[eleccion]}
         guardar_rutina(CLAVE_INVITADOS, registro)
+        base = _rutina_de(plantillas[eleccion])
+        if base:
+            nueva = copiar_rutina(base, _nuevo_id)
+            nueva["nivel"] = base.get("nivel") or "Inter"
+            guardar_rutina(existente, nueva)
     st.session_state.dentro, st.session_state.solo = True, existente
     st.session_state.invitado_ok = False
     st.session_state.lang = IDIOMA_DEFECTO.get(existente, st.session_state.get("lang") or "es")
@@ -588,7 +605,7 @@ def _titulo_grupo(g: dict) -> str:
 def _elegir_contenido(tipo: str, k: str, atleta: str | None = None):
     """✍️ Nuevo / 📚 Ya hechos / 💡 Repertorio / ✨ IA / 🔒 Coach. Devuelve (modo, (nombre, texto) | None)."""
     con_coach = atleta in ACCESO_COACH and not solo() and bool(secreto("COACH_PIN"))
-    con_diego = atleta in ALUMNOS and tipo in TIPOS_WOD_UI
+    con_diego = es_alumno(atleta) and tipo in TIPOS_WOD_UI
     modos = (["🎓 De Diego"] if con_diego else []) + ["✍️ Nuevo", "📚 Ya hechos", "💡 Repertorio", "✨ IA"] + (
         ["🔒 Coach"] if con_coach else [])
     formato = tipo if tipo in FORMATOS else None
@@ -710,6 +727,10 @@ _SUG_RUN: dict = {}
 TIPOS_WOD_UI = ("wod", "emom", "fortime", "amrap")
 
 
+def es_alumno(atleta: str | None) -> bool:
+    return bool(atleta) and (atleta in ALUMNOS or atleta in _invitados())
+
+
 def material_de(atleta: str | None) -> str:
     rut = _rutina_de(atleta) if atleta else None
     return ((rut or {}).get("material") or "").strip()
@@ -742,7 +763,7 @@ def wods_de_diego() -> list[dict]:
 def _preparar_sugerencias(atleta: str, rut: dict, semana: int):
     """A cada WOD vacío del alumno esa semana, uno de Diego (el primero al primero, el segundo al segundo…)."""
     _SUG_RUN.clear()
-    if atleta not in ALUMNOS:
+    if not es_alumno(atleta):
         return
     de_diego = wods_de_diego()
     if not de_diego:
@@ -853,7 +874,7 @@ def _linea_texto_editable(atleta: str, rut: dict, l: dict, txt: str, semana: int
     if txt and escalable and tipo in ("wod", "emom", "fortime", "amrap", "conditioning", "accessory"):
         if nivel != "RX":
             st.caption(f"Versión {nivel} · el RX está en 🎚️ Versiones")
-        if atleta in ALUMNOS:
+        if es_alumno(atleta):
             _tabla_versiones(txt)
         _reto_elite(txt, l["ejercicio"])
         _versiones(txt, l["ejercicio"], k)
@@ -2214,6 +2235,11 @@ def main():
     cab.title(t("Djimenez Prog"))
     idi.segmented_control(t("Idioma"), ["es", "fr"], key="lang", default="es", label_visibility="collapsed",
                           format_func=lambda x: {"es": "🇪🇸 ES", "fr": "🇫🇷 FR"}[x])
+
+    if solo():
+        saludo = {"Archchana": "¡Bienvenida, Archchana! · Bienvenue ! 👋"}.get(
+            solo(), f"¡Bienvenido/a, {nv(solo())}! 👋" if lang() == "es" else f"Bienvenue, {nv(solo())} ! 👋")
+        st.success(saludo)
 
     if isinstance(store(), LocalStore):
         st.caption("Modo local: los datos se guardan en la carpeta `data/`. Configura Supabase para usarla online.")
