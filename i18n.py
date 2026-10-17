@@ -46,7 +46,7 @@ FR = {
     "Notas": "Notes", "Foto": "Photo", "Guardar entreno": "Enregistrer la séance",
     "Partes que has hecho (se validan al guardar)": "Parties faites (validées à l'enregistrement)",
     # biblioteca
-    "Quién": "Qui", "Todos": "Tous", "Solo los hechos": "Seulement ceux faits",
+    "Quién": "Qui", "Todos": "Tous", "Solo los hechos": "Seulement ceux faits", "Solo hechos y guardados": "Faits et enregistrés",
     "Cadera": "Hanches", "Hombros": "Épaules", "Tobillos": "Chevilles", "Espalda": "Dos", "Isquios": "Ischios",
     "📲 Importar de WhatsApp": "📲 Importer depuis WhatsApp", "✨ Inventar con IA": "✨ Inventer avec l'IA",
     "💡 Ideas del repertorio": "💡 Idées du répertoire", "Cambiar tipo": "Changer le type",
