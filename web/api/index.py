@@ -46,6 +46,9 @@ class handler(BaseHTTPRequestHandler):
                                                            q.get("dia")))
             if ruta == "registrar" and metodo == "POST":
                 return self._responder(200, servicio.registrar(self._sesion(), self._cuerpo()))
+            if ruta == "ideas" and metodo == "GET":
+                self._sesion()
+                return self._responder(200, servicio.ideas())
             if ruta == "coach" and metodo == "POST":
                 return self._responder(200, servicio.modo_coach(self._sesion(), self._cuerpo()))
             if ruta == "resolver" and metodo == "POST":
