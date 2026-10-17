@@ -274,7 +274,7 @@ def _igual(a: str, b: str) -> bool:
     return bool(a) and bool(b) and hmac.compare_digest(a.encode(), b.encode())
 
 
-VERSION = "2.5"
+VERSION = "2.6"
 CLAVES_NECESARIAS = ["SUPABASE_URL", "SUPABASE_KEY", "APP_PASSWORD", "CONTRASENA_ARCHCHANA", "CONTRASENA_INVITADOS", "COACH_PIN",
                      "APP_ANTIGUA_URL"]
 
@@ -492,7 +492,8 @@ def _linea(rut: dict, l: dict, semana: int, parte: str, nivel: str, alumno: bool
     tipo = _tipo_ui(parte, l["ejercicio"])
     out = {"id": l["id"], "ejercicio": l["ejercicio"], "nota": l.get("nota") or "", "texto": txt,
            "extra": _etiqueta_extra(l, txt, semana, ajuste, subio), "tipo": tipo,
-           "ciclo": l.get("plan") is not None}
+           "ciclo": l.get("plan") is not None,
+           "texto_sig": prescripcion_semana(l, semana + 1, rut.get("ajustes"))[0]}
     if tipo_de_linea(parte, l["ejercicio"]) is None and l.get("plan") is None:  # fuerza: pesos que se tocan
         pesos = [float(x.replace(",", ".")) for x in NUM_PESO.findall(txt)]
         out.update(kind="peso", pesos=pesos, esquema=NUM_PESO.sub("", txt).replace("  ", " ").strip(" -"))
@@ -500,7 +501,6 @@ def _linea(rut: dict, l: dict, semana: int, parte: str, nivel: str, alumno: bool
             out["no_hecha"] = linea_no_hecha(l, semana)
         return out
     out["kind"] = "texto"
-    out["texto_sig"] = prescripcion_semana(l, semana + 1, rut.get("ajustes"))[0]
     if not txt and sug:
         txt = sug["texto"]
         out["sugerencia"] = {"semana": sug["semana"], "dia": sug["dia"], "texto": sug["texto"]}
