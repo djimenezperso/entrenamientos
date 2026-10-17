@@ -363,3 +363,23 @@ main { padding: 4px 16px 0; display: flex; flex-direction: column; gap: 12px; }
 .card.warmup { background: linear-gradient(135deg, #fff 60%, #FFF1E4); border: 1.5px dashed #FFB37A; box-shadow: none; }
 .card.warmup .letra { background: var(--ambar); color: var(--tinta); }
 .card.warmup .letra.hecho { background: var(--verde); color: #fff; }
+
+/* ---------- ajustar y cambiar partes ---------- */
+.acciones-linea { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.mini-btn { height: 32px; padding: 0 12px; border-radius: 999px; border: 1.5px solid var(--borde); background: #fff; font-weight: 600; font-size: 12.5px; color: var(--brasa-osc); }
+.mas-op { width: 36px; height: 36px; border-radius: 50%; border: none; background: transparent; display: flex; align-items: center; justify-content: center; flex: none; margin-left: 2px; }
+.mas-op:active { background: var(--crema2); }
+.btn-punteado { border: 2px dashed #E8B48C; background: rgba(255,255,255,.55); color: var(--brasa-osc); }
+.hoja .area.grande { height: 120px; }
+.ideas { display: flex; flex-direction: column; gap: 8px; }
+.idea { text-align: left; background: #fff; border: 1.5px solid var(--linea); border-radius: 16px; padding: 10px 12px; display: flex; flex-direction: column; gap: 3px; }
+.idea b { font-size: 14px; } .idea span { font-size: 12.5px; color: var(--medio); white-space: pre-line; line-height: 1.4; }
+.idea:active { border-color: var(--fuego); }
+.novedad { background: linear-gradient(150deg, #1F1208, #3A1A08 70%, #7A2A00); color: #fff; border-radius: 24px; padding: 16px; display: flex; flex-direction: column; gap: 10px; box-shadow: var(--sombra); }
+.nov-cab { display: flex; gap: 10px; align-items: center; }
+.nov-cab small { display: block; color: var(--ambar); font-size: 11px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; }
+.nov-cab b { font-size: 17px; }
+.novedad .texto-wod { color: #fff; }
+.nov-botones { display: grid; grid-template-columns: 1fr 1.4fr; gap: 8px; }
+.nov-botones .btn:not(.btn-fuego) { background: rgba(255,255,255,.1); border-color: rgba(255,255,255,.25); color: #fff; }
+.sol-texto { background: var(--crema); border-radius: 14px; padding: 10px 12px; font-size: 14px; white-space: pre-line; line-height: 1.45; }
