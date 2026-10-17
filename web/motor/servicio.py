@@ -85,7 +85,7 @@ class Supabase:
                 txt = r.read().decode() or "null"
                 return json.loads(txt)
         except urllib.error.HTTPError as e:
-            raise Error(f"Supabase {e.code}: {e.read().decode()[:300]}", 502)
+            raise Error(f"Supabase {e.code} en {self.base}{ruta.split('?')[0]}: {e.read().decode()[:300]}", 502)
 
     def rutinas(self, nombres: list[str]) -> dict:
         lista = ",".join('"' + n.replace('"', '') + '"' for n in nombres)
@@ -203,13 +203,14 @@ def _igual(a: str, b: str) -> bool:
     return bool(a) and bool(b) and hmac.compare_digest(a.encode(), b.encode())
 
 
+VERSION = "1.3"
 CLAVES_NECESARIAS = ["SUPABASE_URL", "SUPABASE_KEY", "APP_PASSWORD", "CONTRASENA_ARCHCHANA", "CONTRASENA_INVITADOS",
                      "APP_ANTIGUA_URL"]
 
 
 def estado() -> dict:
     """Qué variables le llegan al servidor (nunca su valor) y si los datos responden."""
-    out = {}
+    out = {"version": VERSION}
     for k in CLAVES_NECESARIAS:
         crudo = os.environ.get(k)
         if crudo is None:
@@ -221,6 +222,8 @@ def estado() -> dict:
         if crudo.strip()[:1] in "\"'" and crudo.strip()[-1:] == crudo.strip()[:1]:
             avisos.append("tiene comillas")
         out[k] = "ok" + (" · " + ", ".join(avisos) if avisos else "")
+    if isinstance(datos(), Supabase):
+        out["SUPABASE_URL"] += " · se usa " + datos().base
     try:
         n = len(datos().rutinas(ATLETAS))
         out["datos"] = f"ok · {n} rutinas en {'Supabase' if isinstance(datos(), Supabase) else 'modo local (faltan claves de Supabase)'}"
