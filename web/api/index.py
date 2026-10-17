@@ -77,4 +77,3 @@ class handler(BaseHTTPRequestHandler):
 
     def do_POST(self):
         self._manejar("POST")
-    
