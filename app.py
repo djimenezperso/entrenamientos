@@ -54,8 +54,18 @@ except Exception:
 # ===== Cambia aquí los nombres =====
 ATLETAS = ["Yo", "Manu Anel", "Salatti", "Mi esposa", "Dario", "Archchana", "Juan"]
 IDIOMA_DEFECTO = {"Archchana": "fr"}  # el resto, español
+# Nombre que se ve (por dentro «Yo» sigue siendo la misma persona, con todos sus datos)
+NOMBRE_VISIBLE = {"Yo": "Diego"}
+ICONO = {"Yo": "💪"}  # icono junto al nombre en el selector de personas
+# Orden en el que salen las personas arriba
+ORDEN_VISTA = ["Yo", "Mi esposa", "Manu Anel", "Salatti", "Dario", "Archchana", "Juan"]
+
+
+def nv(atleta: str) -> str:
+    """Nombre visible de una persona."""
+    return NOMBRE_VISIBLE.get(atleta, atleta)
 # Nombres que un invitado NO puede usar (para que nadie entre como «Yo» con la contraseña de invitados)
-PROTEGIDOS = ["Yo", "Manu Anel", "Salatti", "Mi esposa", "Dario", "Juan"]
+PROTEGIDOS = ["Yo", "Diego", "Manu Anel", "Salatti", "Mi esposa", "Dario", "Juan"]
 CLAVE_INVITADOS = "__invitados__"
 COLORES_ATLETA = ["#16202b", "#d6312b", "#1f5fbf", "#2a8c4a", "#d9a200", "#8e44ad", "#e67e22", "#7f8994"]
 # ===================================
@@ -285,7 +295,8 @@ def _invitados() -> dict:
 
 def atletas() -> list[str]:
     """Las personas fijas más los invitados que se han dado de alta."""
-    return ATLETAS + [n for n in _invitados() if n not in ATLETAS]
+    base = [a for a in ORDEN_VISTA if a in ATLETAS] + [a for a in ATLETAS if a not in ORDEN_VISTA]
+    return base + [n for n in _invitados() if n not in ATLETAS]
 
 
 def visibles() -> list[str]:
@@ -510,7 +521,7 @@ def _ia_panel(tipo: str, k: str, atleta: str | None = None):
     estilos = ["Como los nuestros", "Competición (tipo Open)", "Hero WOD"] if tipo == "wod" else ["Como los nuestros"]
     estilo = c2.selectbox(t("Estilo"), estilos, key=f"ie_{k}")
     persona = c3.selectbox(t("Al estilo de"), (["Todos"] if not solo() else []) + visibles(), key=f"ip_{k}",
-                           format_func=t)
+                           format_func=lambda x: t(nv(x)))
     hay_coach = bool(_datos_coach())
     con_coach = st.checkbox("Inspirarse también en el coach", value=hay_coach, key=f"ic_{k}") if hay_coach else False
     if st.button(t("✨ Inventar uno") if not st.session_state.get(f"ir_{k}") else t("✨ Otro"), key=f"ib_{k}"):
@@ -632,7 +643,7 @@ def _elegir_contenido(tipo: str, k: str, atleta: str | None = None):
                          format_func=lambda i: f"{_titulo_grupo(ops[i])[:70]} ({len(ops[i]['veces'])}x)")
         g = ops[min(i, len(ops) - 1)]
         st.caption(g["texto"].replace("\n", "  \n") + "  \n" +
-                   "Hecho por: " + ", ".join(sorted({v['atleta'] for v in g['veces'] if v['atleta']})))
+                   "Hecho por: " + ", ".join(sorted({nv(v['atleta']) for v in g['veces'] if v['atleta']})))
         return modo, (g["titulo"], g["texto"])
     if modo == "💡 Repertorio":
         q = st.text_input(t("Buscar por movimiento"), key=f"rq_{k}", placeholder="thruster, row, pull up…")
@@ -1275,7 +1286,7 @@ def inventar_rutina_con_ia(atleta: str, dias: int, enfoque: str, con_coach: bool
         muestra = random.sample(_datos_coach()["items"], min(15, len(_datos_coach()["items"])))
         ejemplos += [f"[coach · {i['tipo']}] {i['texto'][:300]}" for i in muestra]
     prompt = (
-        f"Diseña una semana de entrenamiento de CrossFit de {dias} días para {atleta}.\n"
+        f"Diseña una semana de entrenamiento de CrossFit de {dias} días para {nv(atleta)}.\n"
         + (f"Lo que ha hecho hasta ahora (copia su estilo, nivel y movimientos):\n" + "\n".join(ejemplos[:40]) + "\n"
            if ejemplos else "No hay historial: haz algo equilibrado para nivel intermedio.\n")
         + (f"Lo que pide: {enfoque}\n" if enfoque else "")
@@ -1295,13 +1306,13 @@ def inventar_rutina_con_ia(atleta: str, dias: int, enfoque: str, con_coach: bool
 
 
 def crear_rutina(atleta: str, guardadas: dict):
-    st.info(f"{atleta} aún no tiene rutina." if lang() == "es" else f"{atleta} n'a pas encore de programme.")
+    st.info(f"{nv(atleta)} aún no tiene rutina." if lang() == "es" else f"{nv(atleta)} n'a pas encore de programme.")
     otras = {a: (guardadas.get(a) or rutinas_iniciales(ATLETAS).get(a)) for a in visibles() if a != atleta}
     otras = {a: r for a, r in otras.items() if r}
     opciones = ["Vacía"] + (["Copiar la de otra persona"] if otras else []) + (["✨ Con IA según su estilo"] if ia_disponible() else [])
     modo = st.radio("Cómo crearla", opciones, key=f"cr_modo_{atleta}", horizontal=True)
     if modo == "Copiar la de otra persona":
-        origen = st.selectbox("Copiar de", list(otras), key=f"cr_origen_{atleta}")
+        origen = st.selectbox("Copiar de", list(otras), key=f"cr_origen_{atleta}", format_func=nv)
         st.caption("Se copian los días, los ejercicios y los pesos actuales; empieza en la semana 1 y luego "
                    "ajustas los pesos tocándolos.")
         if st.button("Crear rutina", type="primary", key=f"cr_ok_{atleta}"):
@@ -1525,7 +1536,7 @@ def tab_grupo(todos: list[dict]):
         tipos30 = [w["type"] for w in ws if (hoy - a_fecha(w["date"])).days <= 30]
         fav = max(set(tipos30), key=tipos30.count) if tipos30 else None
         filas.append({
-            "Atleta": a,
+            "Atleta": nv(a),
             "Sesiones (30 días)": len(tipos30),
             "Media semanal": round(sum(1 for w in ws if 0 <= (hoy - a_fecha(w["date"])).days < 28) / 4, 1),
             "Último entreno": fecha_larga(ws[0]["date"]) if ws else "—",
@@ -1537,7 +1548,7 @@ def tab_grupo(todos: list[dict]):
     lunes, cuentas = sesiones_por_semana(todos, clave="athlete")
     fig = go.Figure()
     for i, a in enumerate(atletas()):
-        fig.add_trace(go.Bar(x=[f"{l:%d/%m}" for l in lunes], y=cuentas.get(a, [0] * len(lunes)), name=a,
+        fig.add_trace(go.Bar(x=[f"{l:%d/%m}" for l in lunes], y=cuentas.get(a, [0] * len(lunes)), name=nv(a),
                              marker_color=COLORES_ATLETA[i % len(COLORES_ATLETA)]))
     fig.update_layout(barmode="group", height=300, margin=dict(l=10, r=10, t=10, b=10),
                       legend=dict(orientation="h", y=-0.2), yaxis=dict(dtick=1))
@@ -1566,12 +1577,12 @@ def tab_grupo(todos: list[dict]):
             continue
         ys = [p["v"] for p in s["pts"]]
         todos_y += ys
-        fig.add_trace(go.Scatter(x=[p["date"] for p in s["pts"]], y=ys, mode="lines+markers", name=a,
+        fig.add_trace(go.Scatter(x=[p["date"] for p in s["pts"]], y=ys, mode="lines+markers", name=nv(a),
                                  line=dict(color=COLORES_ATLETA[i % len(COLORES_ATLETA)], width=2.5),
                                  text=[fmt_valor(v, unidad) for v in ys],
                                  hovertemplate=a + " · %{x|%d/%m}: %{text}<extra></extra>"))
         b = mejor_punto(s)
-        marcas.append({"Atleta": a, "Mejor marca": fmt_valor(b["v"], unidad), "Fecha": f"{b['date']:%d/%m/%Y}",
+        marcas.append({"Atleta": nv(a), "Mejor marca": fmt_valor(b["v"], unidad), "Fecha": f"{b['date']:%d/%m/%Y}",
                        "Registros": len(s["pts"]), "_v": b["v"]})
     fig.update_layout(height=320, margin=dict(l=10, r=10, t=10, b=10), legend=dict(orientation="h", y=-0.2))
     if unidad == "tiempo":
@@ -1614,7 +1625,8 @@ def seccion_biblio(tipo: str, todos: list[dict]):
     tramo = (st.segmented_control("Duración", TRAMOS_EMOM, key=f"{k}_tramo")
              if cat == "⏱️ EMOM" else None)
     c1, c2 = st.columns([2, 1], vertical_alignment="bottom")
-    quien = [solo()] if solo() else c1.multiselect(t("Quién"), atletas(), placeholder=t("Todos"), key=f"{k}_quien")
+    quien = [solo()] if solo() else c1.multiselect(t("Quién"), atletas(), placeholder=t("Todos"), key=f"{k}_quien",
+                                                    format_func=nv)
     solo_h = c2.toggle(t("Solo hechos y guardados"), value=True, key=f"{k}_solo")
 
     filtrados, por_cat = [], {c: 0 for c in cats_tipo}
@@ -1670,7 +1682,7 @@ def seccion_biblio(tipo: str, todos: list[dict]):
                 _versiones(g["texto"], g["titulo"], g["clave"][:40])
             lineas = []
             for v in veces:
-                linea = f"- **{v['atleta'] or '—'}** · {v['cuando']} {SIMBOLO.get(v['estado'], '')}"
+                linea = f"- **{nv(v['atleta']) if v['atleta'] else '—'}** · {v['cuando']} {SIMBOLO.get(v['estado'], '')}"
                 if v["resultado"]:
                     linea += f" · `{v['resultado']}`"
                 lineas.append(linea)
@@ -1688,7 +1700,7 @@ def seccion_biblio(tipo: str, todos: list[dict]):
             nombre = st.text_input("Nombre", placeholder="Fran, Cindy, DT…")
             texto = st.text_area("Qué es", placeholder="21-15-9: thrusters @42,5 + pull ups", height=100)
             c1, c2 = st.columns(2)
-            quien_n = c1.multiselect("Quién lo hizo", visibles(), key=f"{k}_nq",
+            quien_n = c1.multiselect("Quién lo hizo", visibles(), key=f"{k}_nq", format_func=nv,
                                      default=[solo()] if solo() else [])
             fecha = c2.date_input("Fecha", dt.date.today(), format="DD/MM/YYYY")
             resultado = st.text_input("Resultado", placeholder="5:41, 18 rondas + 3…")
@@ -2118,7 +2130,7 @@ def seccion_ciclos():
             for c in ciclos_en_marcha(rut or {}):
                 hay = True
                 c1, c2 = st.columns([4, 1], vertical_alignment="center")
-                c1.markdown(f"**{a}** · {c['parte'].split(') ', 1)[-1]} · semanas {c['desde']}–{c['hasta']} · "
+                c1.markdown(f"**{nv(a)}** · {c['parte'].split(') ', 1)[-1]} · semanas {c['desde']}–{c['hasta']} · "
                             f"{', '.join(c['dias'])}")
                 if c2.button("Quitar", key=f"quitar_{a}_{c['id']}"):
                     guardar_rutina(a, quitar_ciclo(rut, c["id"]))
@@ -2154,7 +2166,7 @@ def _empezar_ciclo_ui(c: dict, n_sesiones: int):
     if not quienes:
         return
     with st.popover("▶️ Empezar este ciclo"):
-        atleta = st.selectbox("Para", quienes, key=f"cp_{c['id']}")
+        atleta = st.selectbox("Para", quienes, key=f"cp_{c['id']}", format_func=nv)
         rut = _rutina_de(atleta)
         if not rut or not rut.get("dias"):
             st.caption(f"{atleta} todavía no tiene rutina: créala primero en su pestaña Rutina.")
@@ -2175,7 +2187,7 @@ def _empezar_ciclo_ui(c: dict, n_sesiones: int):
         st.caption(f"Irá de la semana {int(inicio)} a la {fin}.")
         if st.button("Empezar", type="primary", key=f"ce_{c['id']}_{atleta}"):
             guardar_rutina(atleta, empezar_ciclo(rut, c, int(inicio), dias, letra, _nuevo_id))
-            st.session_state["aviso"] = f"Ciclo añadido a la rutina de {atleta} (semanas {int(inicio)}–{fin})"
+            st.session_state["aviso"] = f"Ciclo añadido a la rutina de {nv(atleta)} (semanas {int(inicio)}–{fin})"
             st.rerun()
 
 
@@ -2215,6 +2227,7 @@ def main():
             atleta = solo()
         else:
             atleta = st.segmented_control("Atleta", atletas(), default=ATLETAS[0], key="atleta",
+                                          format_func=lambda a: f"{ICONO[a]} {nv(a)}" if a in ICONO else nv(a),
                                           label_visibility="collapsed", on_change=_idioma_de_atleta) or ATLETAS[0]
     else:
         atleta = vista
