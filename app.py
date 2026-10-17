@@ -1288,8 +1288,20 @@ def tab_rutina(atleta: str, entrenos: list[dict]):
     for d in rut["dias"]:
         pend = " •" if pendientes_para(rut, semana, d["id"]) else ""
         etiquetas.append(f"{d['nombre']}{icono[resumen_dia(rut, semana, d)]}{pend}")
-    for pestana, dia in zip(st.tabs(etiquetas), rut["dias"]):
-        with pestana:
+    # Por defecto, el primer día que queda por hacer (o con algo pendiente); se puede cambiar tocando otro
+    ids_dias = [d["id"] for d in rut["dias"]]
+    por_hacer = next((d["id"] for d in rut["dias"] if resumen_dia(rut, semana, d) != "hecho"
+                      or pendientes_para(rut, semana, d["id"])), ids_dias[0] if ids_dias else None)
+    etiqueta_de = dict(zip(ids_dias, etiquetas))
+    clave_dia = f"dia_sel_{atleta}_{semana}"
+    if st.session_state.get(clave_dia) not in ids_dias:
+        st.session_state[clave_dia] = por_hacer
+    elegido = st.segmented_control("Día", ids_dias, key=clave_dia, label_visibility="collapsed",
+                                   format_func=lambda i: etiqueta_de[i]) or por_hacer
+    for dia in rut["dias"]:
+        if dia["id"] != elegido:
+            continue
+        with st.container():
             st.markdown(f"#### {dia['nombre']}  {t(CHIP_DIA[resumen_dia(rut, semana, dia)])}")
             grupos = agrupar_por_parte(dia, semana)
             if not grupos:
@@ -2268,41 +2280,41 @@ def _idioma_de_atleta():
 
 ESTILO = """<style>
 @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;800&display=swap');
-:root { --fuego: #FF6A00; --fuego2: #FFB400; --brasa: #FF3D00; --carbon: #0B0B0D; --panel: #16161B; }
+:root { --fuego: #FF6A00; --fuego2: #FFB400; --brasa: #D93A00; --tinta: #1F1208; }
 html, body, [class*="css"], .stMarkdown, button, input, textarea { font-family: 'Poppins', system-ui, sans-serif; }
-.stApp { background: radial-gradient(ellipse at top, #24120a 0%, #0B0B0D 55%) fixed; }
+.stApp { background: linear-gradient(180deg, #FF7A1A 0px, #FFA45C 170px, #FFE6CF 420px, #FFF1E4 100%) fixed;
+  color: var(--tinta); }
 /* cabecera */
 .dj-cabecera { display:flex; align-items:center; gap:.6rem; margin:.2rem 0 .1rem; }
-.dj-llama { font-size:2.4rem; filter: drop-shadow(0 0 12px rgba(255,106,0,.8)); }
+.dj-llama { font-size:2.4rem; filter: drop-shadow(0 0 10px rgba(255,255,255,.7)); }
 .dj-titulo { font-weight:800; font-size:2rem; letter-spacing:.04em; text-transform:uppercase; line-height:1;
-  background: linear-gradient(90deg, var(--fuego2), var(--fuego) 45%, var(--brasa));
-  -webkit-background-clip:text; background-clip:text; color:transparent; }
-.dj-lema { color:#c9c3bd; font-size:.85rem; margin-top:.15rem; }
-.dj-pill { display:inline-block; padding:.45rem 1.1rem; border-radius:999px; border:1.5px solid var(--fuego);
-  box-shadow: 0 0 14px rgba(255,106,0,.45), inset 0 0 10px rgba(255,106,0,.15); font-weight:600; margin:.3rem 0 .6rem; }
+  color:#fff; text-shadow: 0 2px 0 #B83200, 0 0 18px rgba(255,255,255,.35); }
+.dj-lema { color:#fff; opacity:.95; font-size:.85rem; margin-top:.15rem; font-weight:600; }
+.dj-pill { display:inline-block; padding:.45rem 1.1rem; border-radius:999px; background:#1F1208; color:#fff;
+  box-shadow: 0 4px 14px rgba(150,50,0,.35); font-weight:600; margin:.3rem 0 .6rem; }
 .dj-pill b { color: var(--fuego2); text-transform:uppercase; letter-spacing:.03em; }
 /* botones */
-.stButton > button, .stDownloadButton > button, [data-testid="stFormSubmitButton"] > button, [data-testid="stPopover"] > button {
-  border-radius: 999px !important; border: 1px solid rgba(255,106,0,.45) !important; transition: all .15s ease; }
-.stButton > button:hover, [data-testid="stPopover"] > button:hover { border-color: var(--fuego) !important;
-  box-shadow: 0 0 14px rgba(255,106,0,.5); }
+.stButton > button, [data-testid="stFormSubmitButton"] > button, [data-testid="stPopover"] > button {
+  border-radius: 999px !important; border: 1.5px solid rgba(217,58,0,.45) !important; background:#fff !important;
+  color: var(--tinta) !important; font-weight:600; transition: all .15s ease; }
+.stButton > button:hover, [data-testid="stPopover"] > button:hover { border-color: var(--brasa) !important;
+  box-shadow: 0 0 0 3px rgba(255,106,0,.18); }
 button[kind="primary"], [data-testid="stFormSubmitButton"] > button[kind="primaryFormSubmit"] {
-  background: linear-gradient(135deg, var(--fuego2), var(--fuego) 50%, var(--brasa)) !important; color:#120800 !important;
-  font-weight:700 !important; border:none !important; box-shadow: 0 0 18px rgba(255,106,0,.55); }
+  background: linear-gradient(135deg, #FF8A1F, var(--fuego) 50%, var(--brasa)) !important; color:#fff !important;
+  font-weight:700 !important; border:none !important; box-shadow: 0 4px 14px rgba(217,58,0,.45); }
 /* tarjetas */
 [data-testid="stVerticalBlockBorderWrapper"] { border-radius: 18px !important; }
 div[data-testid="stVerticalBlockBorderWrapper"]:has(> div > [data-testid="stVerticalBlock"]) {
-  border-color: rgba(255,106,0,.35) !important; box-shadow: 0 0 22px rgba(255,106,0,.08); background: rgba(22,22,27,.7); }
+  border: 1.5px solid rgba(217,58,0,.30) !important; background: #fff; box-shadow: 0 6px 20px rgba(160,60,0,.12); }
 /* pestañas */
-.stTabs [data-baseweb="tab"] { font-weight:600; }
-.stTabs [aria-selected="true"] { color: var(--fuego2) !important; }
-.stTabs [data-baseweb="tab-highlight"] { background: linear-gradient(90deg, var(--fuego2), var(--brasa)) !important; height:3px; }
+.stTabs [data-baseweb="tab"] { font-weight:600; color: var(--tinta); }
+.stTabs [aria-selected="true"] { color: var(--brasa) !important; }
+.stTabs [data-baseweb="tab-highlight"] { background: var(--brasa) !important; height:3px; }
 /* números */
-[data-testid="stMetricValue"] { font-variant-numeric: tabular-nums; color: var(--fuego2); font-weight:800; }
-h1, h2, h3, h4 { letter-spacing:.02em; }
-h4 { color: #fff; }
-code { color: var(--fuego2) !important; background: rgba(255,106,0,.12) !important; }
-[data-testid="stExpander"] details { border-radius: 14px; border-color: rgba(255,255,255,.08); }
+[data-testid="stMetricValue"] { font-variant-numeric: tabular-nums; color: var(--brasa); font-weight:800; }
+h1, h2, h3, h4 { letter-spacing:.02em; color: var(--tinta); }
+code { color: #B83200 !important; background: #FFE3CC !important; font-weight:600; }
+[data-testid="stExpander"] details { border-radius: 14px; background: #FFF8F2; border-color: rgba(217,58,0,.2); }
 </style>"""
 
 
