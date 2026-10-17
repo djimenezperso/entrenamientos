@@ -1488,3 +1488,17 @@ def prs_de_entrenos(entrenos: list[dict]) -> list[dict]:
             out.append({"categoria": cat, "movimiento": mov, "unidad": unidad, "valor": float(e["value"]), "reps": 1,
                         "fecha": str(w["date"])[:10], "nota": w.get("title") or "", "origen": "registro"})
     return out
+
+
+def versiones_por_movimiento(texto: str, niveles=("RX", "Inter", "Scaled")) -> list[dict]:
+    """Cada movimiento del WOD con su versión en cada nivel: [{RX: …, Inter: …, Scaled: …}].
+    Los trozos que no cambian (descansos, rondas…) salen solo una vez."""
+    out = []
+    for linea in (texto or "").split("\n"):
+        for trozo in re.split(r",\s+|\s\+\s|;\s*|\s/\s", linea):
+            trozo = trozo.strip()
+            if not trozo:
+                continue
+            fila = {n: escalar(trozo, n).split("\n")[0].strip() for n in niveles}
+            out.append(fila)
+    return out
