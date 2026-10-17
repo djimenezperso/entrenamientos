@@ -55,7 +55,7 @@ const FR = {
   "Ej.: la semana pasada me salió fácil": "Ex. : la semaine dernière c'était facile", "Enviar a Diego para que lo apruebe": "Envoyer à Diego pour approbation",
   "pendiente": "en attente", "Solicitudes": "Demandes", "Modo coach": "Mode coach", "Activar": "Activer",
   "Cambios que te piden": "Changements demandés", "Rechazar": "Refuser", "Aprobar": "Approuver", "No hay nada pendiente.": "Rien en attente.",
-  "Solo esa semana": "Seulement cette semaine-là", "Ajustar": "Ajuster", "Semana que viene": "Semaine prochaine",
+  "Solo esa semana": "Seulement cette semaine-là", "¿Eres Diego? Mete tu PIN de coach y lo cambias directamente": "Tu es Diego ? Mets ton PIN de coach", "Ajustar": "Ajuster", "Ajustar reps": "Ajuster les reps", "Semana que viene": "Semaine prochaine",
   "Cambiar esta parte": "Changer cette partie", "Añadir parte": "Ajouter une partie", "Novedad de Diego": "Nouveauté de Diego",
   "Diego se lo ha puesto. ¿Te viene bien hoy?": "Diego l'a fait. Ça te va aujourd'hui ?", "Hoy no": "Pas aujourd'hui",
   "Ponérmelo hoy": "Je le fais aujourd'hui", "Lo programa tu coach": "C'est ton coach qui programme",
@@ -337,6 +337,7 @@ function linea(l, p, k) {
       ${p.lineas.length > 1 || extra ? `<div class="linea-cab"><b>${p.lineas.length > 1 ? esc(l.ejercicio) : ""}${extra}</b></div>` : ""}
       ${l.esquema ? `<div class="esquema">${esc(l.esquema)}</div>` : ""}
       <div class="pesos">${pesos}</div>${nota}
+      ${p.origen ? "" : `<div class="acciones-linea"><button class="mini-btn" data-editar="${k}">${ic.lapiz} ${t("Ajustar reps")}</button>${l.texto_sig && l.texto_sig !== l.texto ? `<span class="mini">${t("Semana que viene")}: ${esc(l.texto_sig.slice(0, 60))}</span>` : ""}</div>`}
       ${l.no_hecha !== undefined ? `<label class="check"><input type="checkbox" data-nh="${k}" ${l.no_hecha ? "checked" : ""}> ${t("No lo hice (repite peso la semana que viene)")}</label>` : ""}
     </div>`;
   }
@@ -468,7 +469,7 @@ function hojaPeso(k, foco) {
   const pend = (v.mis_solicitudes || {})[l.id];
   abrirHoja(`${cabHoja(`${p.letra ? p.letra + " · " : ""}${libre ? t("Cambiar peso") : t("Proponer un cambio")}`, l.ejercicio)}
     ${libre ? "" : `<div class="aviso-coach">${ic.candado}<div><b>${t("Los pesos los pone tu coach")}</b>
-      <span>${t("¿Le has preguntado a Diego si este cambio es pertinente? Si se lo envías, lo aprueba él y se cambia solo.")}</span></div></div>`}
+      <span>${t("¿Le has preguntado a Diego si este cambio es pertinente? Si se lo envías, lo aprueba él y se cambia solo.")}</span></div></div>${pinInline(v)}`}
     ${pend ? `<div class="alerta"><b>${t("Pendiente de aprobar")}:</b> ${esc(pend.antes.map(num).join(" · ") || "—")} → ${esc(pend.valores.map(num).join(" · "))} kg</div>` : ""}
     ${valores.map((w, i) => `<div><div class="paso-etq" style="margin:0 4px 6px">${esc(etiqueta(i))}</div>
       <div class="paso"><button data-d="-2.5" data-i="${i}" aria-label="Menos 2,5">−2,5</button>
@@ -479,6 +480,7 @@ function hojaPeso(k, foco) {
     ${libre ? "" : `<div><label class="paso-etq" for="c-msg" style="display:block;margin:0 4px 6px">${t("Mensaje para Diego (opcional)")}</label>
       <textarea class="campo area" id="c-msg" placeholder="${t("Ej.: la semana pasada me salió fácil")}"></textarea></div>`}
     <button class="btn btn-fuego" id="b-guardar-peso">${libre ? t("Guardar") : t("Enviar a Diego para que lo apruebe")}</button>`, (h) => {
+    enlazarPin(h, () => hojaPeso(k, foco));
     const inputs = [...h.querySelectorAll("input[data-i]")];
     const leer = (inp) => parseFloat(String(inp.value).replace(",", "."));
     h.querySelectorAll("button[data-d]").forEach((b) => b.onclick = () => {
@@ -556,9 +558,30 @@ function hojaAjustes() {
   });
 }
 
+function pinInline(v) {
+  // Diego sin el modo coach activado: lo activa aquí mismo y sigue cambiando
+  if (v.coach || v.solo) return "";
+  return `<div class="pin-inline"><span>${t("¿Eres Diego? Mete tu PIN de coach y lo cambias directamente")}</span>
+    <div style="display:flex;gap:8px"><input class="campo" id="pin-in" type="password" inputmode="numeric" placeholder="PIN" style="height:46px;background:#fff">
+    <button type="button" class="btn btn-negro" id="pin-ok">${t("Activar")}</button></div></div>`;
+}
+function enlazarPin(h, reabrir) {
+  const b = h.querySelector("#pin-ok");
+  if (!b) return;
+  const ir = async () => {
+    b.disabled = true;
+    try {
+      const r = await api("coach", { metodo: "POST", cuerpo: { pin: h.querySelector("#pin-in").value } });
+      E.token = r.token; mem.set("token", r.token);
+      cerrarHoja(); await cargar(); aviso(t("Modo coach activado")); reabrir();
+    } catch (e) { aviso(e.message, true); b.disabled = false; }
+  };
+  b.onclick = ir;
+  h.querySelector("#pin-in").onkeydown = (ev) => { if (ev.key === "Enter") { ev.preventDefault(); ir(); } };
+}
 function avisoCoach(v) {
   return v.puede_pesos === false ? `<div class="aviso-coach">${ic.candado}<div><b>${t("Lo programa tu coach")}</b>
-    <span>${t("¿Le has preguntado a Diego si este cambio es pertinente? Si se lo envías, lo aprueba él y se cambia solo.")}</span></div></div>` : "";
+    <span>${t("¿Le has preguntado a Diego si este cambio es pertinente? Si se lo envías, lo aprueba él y se cambia solo.")}</span></div></div>` + pinInline(v) : "";
 }
 const msgCoach = (v) => v.puede_pesos === false ? `<div><label class="paso-etq" for="c-msg" style="display:block;margin:0 4px 6px">${t("Mensaje para Diego (opcional)")}</label>
   <textarea class="campo area" id="c-msg" placeholder="${t("Ej.: no llegaba a 8+8, he hecho 8+5")}"></textarea></div>` : "";
@@ -589,6 +612,7 @@ function hojaTexto(k) {
     ${msgCoach(v)}
     <button class="btn btn-fuego" id="t-guardar">${v.puede_pesos === false ? t("Enviar a Diego para que lo apruebe") : t("Guardar")}</button>`, (h) => {
     enlazarAlcance(h, est);
+    enlazarPin(h, () => hojaTexto(k));
     h.querySelector("#t-con-sig").onchange = (ev) => { h.querySelector("#t-sig-caja").hidden = !ev.target.checked; };
     h.querySelector("#t-guardar").onclick = (ev) => {
       const texto = h.querySelector("#t-texto").value.trim();
@@ -607,6 +631,7 @@ const TIPOS_DEF = ["WOD", "EMOM", "For time", "AMRAP", "Conditioning", "Conditio
 
 async function hojaParte(p) {
   const v = E.vista;
+  const kParte = p ? "p" + v.partes.indexOf(p) : null;
   const cambiar = !!p;
   const est = { tipo: cambiar ? "Conditioning" : "Conditioning & Volume", solo: true };
   if (!E.ideas) { try { E.ideas = await api("ideas"); } catch { E.ideas = {}; } }
@@ -635,6 +660,7 @@ async function hojaParte(p) {
     <button class="btn btn-fuego" id="p-guardar">${v.puede_pesos === false ? t("Enviar a Diego para que lo apruebe") : cambiar ? t("Cambiar") : t("Añadir")}</button>
     <div><div class="paso-etq" style="margin:6px 4px 8px">${t("Ideas")} · <span id="p-tipo-ideas">${esc(est.tipo)}</span></div><div class="ideas" id="p-ideas"></div></div>`, (h) => {
     enlazarAlcance(h, est);
+    enlazarPin(h, () => hojaParte(kParte && kParte !== "p-1" ? parteDe(kParte) : null));
     pintarIdeas(h);
     h.querySelectorAll("[data-tp]").forEach((b) => b.onclick = () => {
       est.tipo = b.dataset.tp;
