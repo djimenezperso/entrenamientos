@@ -55,7 +55,14 @@ const FR = {
   "Ej.: la semana pasada me salió fácil": "Ex. : la semaine dernière c'était facile", "Enviar a Diego para que lo apruebe": "Envoyer à Diego pour approbation",
   "pendiente": "en attente", "Solicitudes": "Demandes", "Modo coach": "Mode coach", "Activar": "Activer",
   "Cambios que te piden": "Changements demandés", "Rechazar": "Refuser", "Aprobar": "Approuver", "No hay nada pendiente.": "Rien en attente.",
-  "Solo esa semana": "Seulement cette semaine-là", "Tiempo total": "Temps total",
+  "Solo esa semana": "Seulement cette semaine-là", "Ajustar": "Ajuster", "Semana que viene": "Semaine prochaine",
+  "Cambiar esta parte": "Changer cette partie", "Añadir parte": "Ajouter une partie", "Novedad de Diego": "Nouveauté de Diego",
+  "Diego se lo ha puesto. ¿Te viene bien hoy?": "Diego l'a fait. Ça te va aujourd'hui ?", "Hoy no": "Pas aujourd'hui",
+  "Ponérmelo hoy": "Je le fais aujourd'hui", "Lo programa tu coach": "C'est ton coach qui programme",
+  "Ej.: no llegaba a 8+8, he hecho 8+5": "Ex. : je n'arrivais pas à 8+8, j'ai fait 8+5", "Esta y las siguientes": "Celle-ci et les suivantes",
+  "Nombre": "Nom", "Esta semana": "Cette semaine", "Ajustar también la semana que viene": "Ajuster aussi la semaine prochaine",
+  "ciclo": "cycle", "Escribe qué toca": "Écris le programme", "Volver a lo que había": "Revenir à l'original", "opcional": "optionnel",
+  "Qué toca": "Au programme", "Ideas": "Idées", "Sin ideas guardadas para este tipo todavía.": "Pas encore d'idées pour ce type.", "Tiempo total": "Temps total",
 };
 const t = (s) => (E.lang === "fr" && FR[s]) || s;
 
@@ -76,6 +83,8 @@ const ic = {
   copa: `<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M8 4h8v5a4 4 0 0 1-8 0zM12 13v4M8 20h8M6 5H4a2 2 0 0 0 2 4M18 5h2a2 2 0 0 1-2 4"/></svg>`,
   libros: `<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" aria-hidden="true"><path d="M5 4h4v16H5zM10 4h4v16h-4zM15.5 4.5l3.8 1-3.6 14.6-3.8-1z"/></svg>`,
   estrella: `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#1F1208" stroke-width="2" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l2.6 5.4 5.9.8-4.3 4.1 1 5.8L12 16.4 6.8 19.1l1-5.8L3.5 9.2l5.9-.8z"/></svg>`,
+  lapiz: `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="display:inline;vertical-align:-2px"><path d="M4 20h4L19 9l-4-4L4 16zM14 6l4 4"/></svg>`,
+  puntos: `<svg width="22" height="22" viewBox="0 0 24 24" fill="#8A6A52" aria-hidden="true"><circle cx="5" cy="12" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="19" cy="12" r="2"/></svg>`,
   candado: `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true" style="display:inline;vertical-align:-3px"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg>`,
   campana: `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#1F1208" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 16V11a6 6 0 0 1 12 0v5l2 2H4zM10 21h4"/></svg>`,
   reloj: `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="13" r="8"/><path d="M12 9v4l2.5 2M9 2h6M12 2v3"/></svg>`,
@@ -227,9 +236,17 @@ function pintar() {
   <main>
     <div class="titulo-dia"><h2>${esc(v.dia.nombre)}</h2><span>${total ? `${hechas} ${t("de")} ${total} ${t("partes hechas")}` : ""}</span></div>
     <div class="barra"><i style="width:${total ? Math.round(hechas / total * 100) : 0}%"></i></div>
+    ${(v.novedades || []).map((n) => `<section class="novedad">
+      <div class="nov-cab">${ic.llama("#FFB400", 22)}<div><small>${t("Novedad de Diego")} · ${esc(n.etiqueta)}</small><b>${esc(n.nombre)}</b></div></div>
+      <div class="texto-wod">${esc(n.texto)}</div>
+      <div class="mini" style="color:#FFD9BD">${t("Diego se lo ha puesto. ¿Te viene bien hoy?")}</div>
+      <div class="nov-botones"><button class="btn" data-nov-no="${esc(n.id)}">${t("Hoy no")}</button>
+        <button class="btn btn-fuego" data-nov-si="${esc(n.id)}" style="height:50px">${t("Ponérmelo hoy")}</button></div>
+    </section>`).join("")}
     ${v.faltan.length && v.semana < v.actual ? `<div class="alerta"><b>${t("Sin validar")} · S${v.semana}:</b> ${esc(v.faltan.join("; "))}. ${t("Marca cada parte como hecha o pásala a otro día.")}</div>` : ""}
     ${v.partes.length ? v.partes.map((p, i) => tarjeta(p, "p" + i)).join("") : `<div class="vacio">${t("Sin ejercicios este día.")}</div>`}
     ${v.pendientes.length ? `<div class="seccion">${ic.ciclo} ${t("Pendiente de")}…</div>` + v.pendientes.map((p, i) => tarjeta(p, "q" + i)).join("") : ""}
+    <button class="btn btn-punteado" id="b-anadir-parte">+ ${t("Añadir parte")}</button>
     ${v.partes.length ? `<button class="btn btn-fuego" id="b-registrar-dia">${ic.mas} ${t("Registrar resultados")}</button>` : ""}
     ${finSemana(v)}
   </main>` + nav();
@@ -288,6 +305,7 @@ function tarjeta(p, k) {
         <div class="nombre">${esc(nombreTit)}</div>
       </div>
       ${p.historial.length ? `<div class="hist" title="Semanas anteriores">${p.historial.map(([s, e]) => `<i class="${e}" title="S${s}"></i>`).join("")}</div>` : ""}
+      ${p.origen ? "" : `<button class="mas-op" data-menu="${k}" aria-label="${t("Cambiar esta parte")}">${ic.puntos}</button>`}
     </div>
     ${p.ciclo ? `<div class="mini" style="padding-left:48px">${ic.ciclo.replace("<svg", '<svg style="display:inline;vertical-align:-2px"')} ${t("Ciclo · semana")} ${p.ciclo.semana}/${p.ciclo.total}</div>` : ""}
     <div class="lineas">${p.lineas.map((l, j) => linea(l, p, k + "_" + j)).join("")}</div>
@@ -335,6 +353,7 @@ function linea(l, p, k) {
         : `<tr><td>${esc(f.RX)}</td><td>${esc(f.Inter)}</td><td>${esc(f.Scaled)}</td></tr>`).join("")}</tbody></table></details>`;
   else if (l.versiones_nivel) html += `<details class="desplegable"><summary>${t("Versiones")} RX · Inter · Scaled · Elite ${ic.abajo}</summary>
     <div class="versiones">${Object.entries(l.versiones_nivel).map(([n, txt]) => `<div><b>${esc(n)}</b><span class="texto-wod">${esc(txt)}</span></div>`).join("")}</div></details>`;
+  if (!p.origen) html += `<div class="acciones-linea"><button class="mini-btn" data-editar="${k}">${ic.lapiz} ${t("Ajustar")}</button>${l.texto_sig && l.texto_sig !== l.texto ? `<span class="mini">${t("Semana que viene")}: ${esc(l.texto_sig.split("\n")[0].slice(0, 60))}</span>` : ""}</div>`;
   if (l.crono && visto) html += `<button class="btn-crono" data-crono="${k}">${ic.reloj}<span>${t("Cronómetro")}<small>${esc(etiquetaCrono(l.crono))}</small></span>${ic.der.replace(/#FFB400/g, "currentColor")}</button>`;
   if (l.elite) html += `<div class="elite"><span class="ico">${ic.estrella}</span><span><b>${esc(l.elite.quien)}: ${esc(l.elite.marca)}</b> · ${esc(l.elite.detalle)}</span></div>`;
   return html + "</div>";
@@ -412,6 +431,11 @@ function enlazar() {
   $app.querySelectorAll("[data-reg]").forEach((b) => b.onclick = () => {
     const p = parteDe(b.dataset.reg); abrirRegistrar(p.registro, [p.parte]);
   });
+  $app.querySelectorAll("[data-editar]").forEach((b) => b.onclick = () => hojaTexto(b.dataset.editar));
+  $app.querySelectorAll("[data-menu]").forEach((b) => b.onclick = () => hojaParte(parteDe(b.dataset.menu)));
+  on("b-anadir-parte", () => hojaParte(null));
+  $app.querySelectorAll("[data-nov-si]").forEach((b) => b.onclick = () => hacer({ tipo: "ponerme_novedad", id: b.dataset.novSi, dia: E.dia, semana: E.semana }, b));
+  $app.querySelectorAll("[data-nov-no]").forEach((b) => b.onclick = () => hacer({ tipo: "descartar_novedad", id: b.dataset.novNo }, b));
   $app.querySelectorAll("[data-crono]").forEach((b) => b.onclick = () => { const { p, l } = lineaDe(b.dataset.crono); abrirCrono(p, l); });
 }
 
@@ -532,13 +556,111 @@ function hojaAjustes() {
   });
 }
 
+function avisoCoach(v) {
+  return v.puede_pesos === false ? `<div class="aviso-coach">${ic.candado}<div><b>${t("Lo programa tu coach")}</b>
+    <span>${t("¿Le has preguntado a Diego si este cambio es pertinente? Si se lo envías, lo aprueba él y se cambia solo.")}</span></div></div>` : "";
+}
+const msgCoach = (v) => v.puede_pesos === false ? `<div><label class="paso-etq" for="c-msg" style="display:block;margin:0 4px 6px">${t("Mensaje para Diego (opcional)")}</label>
+  <textarea class="campo area" id="c-msg" placeholder="${t("Ej.: no llegaba a 8+8, he hecho 8+5")}"></textarea></div>` : "";
+const alcanceHtml = (solo) => `<div class="fila-chips"><button type="button" class="chip ${solo ? "on" : ""}" data-alc="1">${t("Solo esta semana")}</button>
+  <button type="button" class="chip ${solo ? "" : "on"}" data-alc="0">${t("Esta y las siguientes")}</button></div>`;
+function enlazarAlcance(h, estado) {
+  h.querySelectorAll("[data-alc]").forEach((b) => b.onclick = () => {
+    estado.solo = b.dataset.alc === "1";
+    h.querySelectorAll("[data-alc]").forEach((x) => x.classList.toggle("on", x === b));
+  });
+}
+
+function hojaTexto(k) {
+  const v = E.vista;
+  const { p, l } = lineaDe(k);
+  const est = { solo: ["wod", "emom", "fortime", "amrap", "conditioning"].includes(l.tipo) && !l.ciclo };
+  const abrirSig = !!l.ciclo || (l.texto_sig && l.texto_sig !== l.texto);
+  abrirHoja(`${cabHoja(`${p.letra ? p.letra + " · " : ""}${etqParte(p.etiqueta)}`, t("Ajustar"))}
+    ${avisoCoach(v)}
+    <div><label class="paso-etq" for="t-nombre" style="display:block;margin:0 4px 6px">${t("Nombre")}</label>
+      <input class="campo" id="t-nombre" value="${esc(l.ejercicio)}" style="background:#fff"></div>
+    <div><label class="paso-etq" for="t-texto" style="display:block;margin:0 4px 6px">${t("Esta semana")} (S${p.semana})</label>
+      <textarea class="campo area grande" id="t-texto">${esc(l.texto || "")}</textarea></div>
+    ${alcanceHtml(est.solo)}
+    <label class="interruptor"><span>${t("Ajustar también la semana que viene")}${l.ciclo ? ` <small class="mini">(${t("ciclo")})</small>` : ""}</span><input type="checkbox" id="t-con-sig" ${abrirSig ? "checked" : ""}></label>
+    <div id="t-sig-caja" ${abrirSig ? "" : "hidden"}><label class="paso-etq" for="t-sig" style="display:block;margin:0 4px 6px">${t("Semana que viene")} (S${p.semana + 1})</label>
+      <textarea class="campo area grande" id="t-sig">${esc(l.texto_sig || l.texto || "")}</textarea></div>
+    ${msgCoach(v)}
+    <button class="btn btn-fuego" id="t-guardar">${v.puede_pesos === false ? t("Enviar a Diego para que lo apruebe") : t("Guardar")}</button>`, (h) => {
+    enlazarAlcance(h, est);
+    h.querySelector("#t-con-sig").onchange = (ev) => { h.querySelector("#t-sig-caja").hidden = !ev.target.checked; };
+    h.querySelector("#t-guardar").onclick = (ev) => {
+      const texto = h.querySelector("#t-texto").value.trim();
+      if (!texto) return aviso(t("Escribe qué toca"), true);
+      const conSig = h.querySelector("#t-con-sig").checked;
+      const cuerpo = { tipo: "editar_texto", semana: p.semana, linea: l.id, nombre: h.querySelector("#t-nombre").value, texto,
+        solo_esta: est.solo, texto_sig: conSig ? h.querySelector("#t-sig").value : undefined, mensaje: (h.querySelector("#c-msg") || {}).value };
+      ev.currentTarget.disabled = true; cerrarHoja(); hacer(cuerpo);
+    };
+  });
+}
+
+const TIPO_IDEAS = { "Conditioning & Volume": "volumen", "Conditioning": "conditioning", "Accessory": "accessory", "Mobility": "mobility",
+  "Fuerza": "accessory", "WOD": "wod", "EMOM": "wod", "For time": "wod", "AMRAP": "wod", "Gym": "wod" };
+const TIPOS_DEF = ["WOD", "EMOM", "For time", "AMRAP", "Conditioning", "Conditioning & Volume", "Accessory", "Mobility", "Fuerza", "Gym"];
+
+async function hojaParte(p) {
+  const v = E.vista;
+  const cambiar = !!p;
+  const est = { tipo: cambiar ? "Conditioning" : "Conditioning & Volume", solo: true };
+  if (!E.ideas) { try { E.ideas = await api("ideas"); } catch { E.ideas = {}; } }
+  const tipos = (E.ideas && E.ideas.tipos) || TIPOS_DEF;
+  const pintarIdeas = (h) => {
+    const lista = (E.ideas[TIPO_IDEAS[est.tipo]] || []).slice(0, 30);
+    h.querySelector("#p-ideas").innerHTML = lista.length ? lista.map((x, i) => `<button type="button" class="idea" data-idea="${i}"><b>${esc(x.nombre || x.texto.split("\n")[0])}</b><span>${esc(x.texto)}</span></button>`).join("")
+      : `<div class="mini">${t("Sin ideas guardadas para este tipo todavía.")}</div>`;
+    h.querySelectorAll("[data-idea]").forEach((b) => b.onclick = () => {
+      const x = lista[+b.dataset.idea];
+      h.querySelector("#p-nombre").value = x.nombre || ""; h.querySelector("#p-texto").value = x.texto;
+      h.querySelector("#p-texto").scrollIntoView({ block: "center", behavior: "smooth" });
+    });
+  };
+  abrirHoja(`${cabHoja(cambiar ? `${p.letra ? p.letra + " · " : ""}${etqParte(p.etiqueta)}` : esc(v.dia.nombre), cambiar ? t("Cambiar esta parte") : t("Añadir parte"))}
+    ${avisoCoach(v)}
+    ${cambiar && p.es_cambio ? `<button class="btn btn-negro" id="p-volver">↩ ${t("Volver a lo que había")}</button>` : ""}
+    <div><div class="paso-etq" style="margin:0 4px 8px">${t("Tipo")}</div>
+      <div class="fila-chips">${tipos.map((x) => `<button type="button" class="chip ${x === est.tipo ? "on" : ""}" data-tp="${esc(x)}">${esc(x)}</button>`).join("")}</div></div>
+    <div><label class="paso-etq" for="p-nombre" style="display:block;margin:0 4px 6px">${t("Nombre")} (${t("opcional")})</label>
+      <input class="campo" id="p-nombre" style="background:#fff" placeholder="5 x 400 m"></div>
+    <div><label class="paso-etq" for="p-texto" style="display:block;margin:0 4px 6px">${t("Qué toca")}</label>
+      <textarea class="campo area grande" id="p-texto" placeholder="5 x 400 m run every 3'"></textarea></div>
+    ${alcanceHtml(est.solo)}
+    ${msgCoach(v)}
+    <button class="btn btn-fuego" id="p-guardar">${v.puede_pesos === false ? t("Enviar a Diego para que lo apruebe") : cambiar ? t("Cambiar") : t("Añadir")}</button>
+    <div><div class="paso-etq" style="margin:6px 4px 8px">${t("Ideas")} · <span id="p-tipo-ideas">${esc(est.tipo)}</span></div><div class="ideas" id="p-ideas"></div></div>`, (h) => {
+    enlazarAlcance(h, est);
+    pintarIdeas(h);
+    h.querySelectorAll("[data-tp]").forEach((b) => b.onclick = () => {
+      est.tipo = b.dataset.tp;
+      h.querySelectorAll("[data-tp]").forEach((x) => x.classList.toggle("on", x === b));
+      h.querySelector("#p-tipo-ideas").textContent = est.tipo; pintarIdeas(h);
+    });
+    const volver = h.querySelector("#p-volver");
+    if (volver) volver.onclick = () => { cerrarHoja(); hacer({ tipo: "deshacer_parte", dia: p.dia_id, parte: p.parte, semana: p.semana, mensaje: (h.querySelector("#c-msg") || {}).value }); };
+    h.querySelector("#p-guardar").onclick = (ev) => {
+      const texto = h.querySelector("#p-texto").value.trim();
+      if (!texto) return aviso(t("Escribe qué toca"), true);
+      const cuerpo = { tipo: cambiar ? "cambiar_parte" : "anadir_parte", dia: cambiar ? p.dia_id : E.dia, parte: cambiar ? p.parte : undefined,
+        semana: cambiar ? p.semana : E.semana, etiqueta: est.tipo, nombre: h.querySelector("#p-nombre").value, texto, solo_esta: est.solo,
+        mensaje: (h.querySelector("#c-msg") || {}).value };
+      ev.currentTarget.disabled = true; cerrarHoja(); hacer(cuerpo);
+    };
+  });
+}
+
 function hojaSolicitudes() {
   const v = E.vista;
   const fecha = (iso) => { try { return new Date(iso).toLocaleDateString(E.lang === "fr" ? "fr-FR" : "es-ES", { day: "numeric", month: "short" }); } catch { return ""; } };
   abrirHoja(`${cabHoja(t("Modo coach"), t("Cambios que te piden"))}
     ${v.solicitudes.length ? v.solicitudes.map((x) => `<div class="solicitud">
       <div class="sol-cab"><span class="avatar">${esc(inicial(x.nombre))}</span><div><b>${esc(x.nombre)}</b><small>${esc(x.ejercicio)} · S${x.semana} · ${fecha(x.fecha)}</small></div></div>
-      <div class="sol-pesos"><span>${esc(x.antes.map(num).join(" · ") || "—")}</span>${ic.der.replace(/#FFB400/g, "#D93A00")}<b>${esc(x.valores.map(num).join(" · "))} kg</b></div>
+      ${x.kind ? `<div class="sol-texto">${esc(x.resumen || "")}</div>` : `<div class="sol-pesos"><span>${esc(x.antes.map(num).join(" · ") || "—")}</span>${ic.der.replace(/#FFB400/g, "#D93A00")}<b>${esc(x.valores.map(num).join(" · "))} kg</b></div>`}
       ${x.solo_semana ? `<div class="mini">${t("Solo esa semana")}</div>` : ""}
       ${x.mensaje ? `<div class="sol-msg">«${esc(x.mensaje)}»</div>` : ""}
       <div class="dos"><button class="btn" data-rechazar="${esc(x.id)}">${t("Rechazar")}</button><button class="btn btn-fuego" data-aprobar="${esc(x.id)}" style="height:50px">${t("Aprobar")}</button></div>
