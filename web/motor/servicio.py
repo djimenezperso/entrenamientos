@@ -34,7 +34,8 @@ from logica import (
     parametros_semana, partes_del_dia, pendientes_para, poner_pesos, prescripcion_semana, referencias_elite,
     resumen_dia, se_repite, semanas_que_sube, sin_validar, tipo_de_linea, versiones_por_movimiento,
     TIPOS, UNIDADES, duracion_emom, formato_de, mejores_prs, parse_tiempo, parse_valor, peso_principal, fmt_valor,
-    prs_de_entrenos, anadir_parte, sustituir_parte, deshacer_sustitucion, CLAVE_BIBLIOTECA, CLAVES_BIBLIO,
+    prs_de_entrenos, series_ejercicios, mejor_punto, cambio_pct, ids_con_pr, consejos, sesiones_por_semana,
+    CATALOGO_PR, movimiento_pr, fmt_tiempo, a_fecha, anadir_parte, sustituir_parte, deshacer_sustitucion, CLAVE_BIBLIOTECA, CLAVES_BIBLIO,
 )
 from repertorio import ELITE, REPERTORIO
 from rutinas_iniciales import migrar, rutinas_iniciales
@@ -119,6 +120,20 @@ class Supabase:
     def insertar_entreno(self, w: dict):
         self._pedir("POST", "/workouts", w, {"Prefer": "return=minimal"})
 
+    def borrar_entreno(self, w: dict):
+        self._pedir("DELETE", "/workouts?id=eq." + urllib.parse.quote(str(w["id"])), None, {"Prefer": "return=minimal"})
+        if w.get("photo_path"):
+            host = self.base.rsplit("/rest/v1", 1)[0]
+            try:
+                req = urllib.request.Request(f"{host}/storage/v1/object/fotos/{urllib.parse.quote(w['photo_path'])}",
+                                             method="DELETE", headers=self.h)
+                urllib.request.urlopen(req, timeout=15).read()
+            except Exception:  # noqa: BLE001
+                pass
+
+    def url_foto(self, ruta: str) -> str:
+        return self.base.rsplit("/rest/v1", 1)[0] + "/storage/v1/object/public/fotos/" + urllib.parse.quote(ruta)
+
     def subir_foto(self, ruta: str, jpg: bytes) -> str:
         host = self.base.rsplit("/rest/v1", 1)[0]
         req = urllib.request.Request(f"{host}/storage/v1/object/fotos/{urllib.parse.quote(ruta)}", data=jpg,
@@ -161,6 +176,14 @@ class Local:
         t = self._todo()
         t.setdefault("__workouts__", []).append(w)
         self.ruta.write_text(json.dumps(t, ensure_ascii=False))
+
+    def borrar_entreno(self, w: dict):
+        t = self._todo()
+        t["__workouts__"] = [x for x in t.get("__workouts__", []) if x["id"] != w["id"]]
+        self.ruta.write_text(json.dumps(t, ensure_ascii=False))
+
+    def url_foto(self, ruta: str) -> str:
+        return ""
 
     def subir_foto(self, ruta: str, jpg: bytes) -> str:
         carpeta = self.ruta.parent / "fotos-local"
@@ -274,7 +297,7 @@ def _igual(a: str, b: str) -> bool:
     return bool(a) and bool(b) and hmac.compare_digest(a.encode(), b.encode())
 
 
-VERSION = "2.6"
+VERSION = "3.0"
 CLAVES_NECESARIAS = ["SUPABASE_URL", "SUPABASE_KEY", "APP_PASSWORD", "CONTRASENA_ARCHCHANA", "CONTRASENA_INVITADOS", "COACH_PIN",
                      "APP_ANTIGUA_URL"]
 
@@ -977,3 +1000,173 @@ def resolver_solicitud(sesion: dict, c: dict) -> dict:
     v = vista(sesion, c.get("atleta"), c.get("ver_semana"), c.get("ver_dia"))
     v["aviso"] = aviso
     return v
+
+
+# ===== historial, progreso y PRs =====
+DIAS_ES = ["lun", "mar", "mié", "jue", "vie", "sáb", "dom"]
+MESES_ES = ["ene", "feb", "mar", "abr", "may", "jun", "jul", "ago", "sep", "oct", "nov", "dic"]
+COLOR_TIPO = {"wod": "#2a78d6", "fuerza": "#eb6834", "endurance": "#1baf7a", "gym": "#eda100", "otro": "#e87ba4"}
+ORDEN_TIPO = ["wod", "fuerza", "endurance", "gym", "otro"]
+
+
+def _fecha_txt(d) -> str:
+    d = a_fecha(d)
+    return f"{DIAS_ES[d.weekday()]} {d.day} {MESES_ES[d.month - 1]} {d.year}"
+
+
+def _entrenos_de(sesion: dict, atleta: str) -> list[dict]:
+    puede_ver(sesion, atleta)
+    if atleta not in todas_las_personas():
+        raise Error("Persona desconocida")
+    return datos().entrenos(atleta)
+
+
+def historial(sesion: dict, atleta: str) -> dict:
+    ws = _entrenos_de(sesion, atleta)
+    prs = ids_con_pr(ws)
+    out = []
+    for w in ws:
+        out.append({"id": w["id"], "fecha": str(w["date"])[:10], "fecha_txt": _fecha_txt(w["date"]), "tipo": w["type"],
+                    "tipo_txt": TIPOS.get(w["type"], TIPOS["otro"])[0], "titulo": w.get("title") or "",
+                    "duracion": fmt_tiempo(w["duration_sec"]) if w.get("duration_sec") else "",
+                    "notas": w.get("notes") or "",
+                    "foto": datos().url_foto(w["photo_path"]) if w.get("photo_path") else "",
+                    "resultados": [{"nombre": e.get("name", ""), "valor": fmt_valor(e.get("value"), e.get("unit", "")),
+                                    "pr": (w["id"], norm(e.get("name", "")) + "|" + e.get("unit", "")) in prs}
+                                   for e in w.get("entries") or []]})
+    return {"atleta": atleta, "nombre": nv(atleta), "entrenos": out,
+            "tipos": {k: TIPOS[k][0] for k in ORDEN_TIPO}, "colores": COLOR_TIPO}
+
+
+def borrar_entreno(sesion: dict, c: dict) -> dict:
+    atleta = c.get("atleta")
+    ws = _entrenos_de(sesion, atleta)
+    w = next((x for x in ws if str(x["id"]) == str(c.get("id"))), None)
+    if not w:
+        raise Error("Ese entreno ya no está")
+    datos().borrar_entreno(w)
+    h = historial(sesion, atleta)
+    h["aviso"] = "Entreno borrado"
+    return h
+
+
+def _semanas_seguidas(ws: list[dict]) -> int:
+    from logica import inicio_semana
+    semanas = {inicio_semana(w["date"]) for w in ws}
+    n, lunes = 0, inicio_semana(dt.date.today())
+    if lunes not in semanas:  # esta semana aún puede no tener entreno: se cuenta desde la anterior
+        lunes -= dt.timedelta(weeks=1)
+    while lunes in semanas:
+        n += 1
+        lunes -= dt.timedelta(weeks=1)
+    return n
+
+
+def _pct_partes(atleta: str) -> int | None:
+    """% de partes hechas en las 4 últimas semanas de la rutina (hasta la actual)."""
+    rut = rutina(atleta)
+    if not rut or not rut.get("dias"):
+        return None
+    actual = int(rut.get("semana_actual") or 1)
+    total = hechas = 0
+    for sem in range(max(1, actual - 3), actual + 1):
+        for d in rut["dias"]:
+            for p_, ls in agrupar_por_parte(d, sem):
+                e = estado_parte(rut, sem, d["id"], p_)["estado"]
+                if sem == actual and e == "pendiente":
+                    continue  # lo que aún no toca no cuenta
+                total += 1
+                hechas += e == "hecho"
+    return round(hechas / total * 100) if total else None
+
+
+def progreso(sesion: dict, atleta: str) -> dict:
+    ws = _entrenos_de(sesion, atleta)
+    hoy = dt.date.today()
+    series = []
+    for s_ in series_ejercicios(ws)[:60]:
+        best, ult, pct = mejor_punto(s_), s_["pts"][-1], cambio_pct(s_)
+        series.append({"key": s_["key"], "nombre": s_["name"], "unidad": s_["unit"], "n": len(s_["pts"]),
+                       "mejor": {"txt": fmt_valor(best["v"], s_["unit"]), "fecha": best["date"].isoformat()},
+                       "ultima": {"txt": fmt_valor(ult["v"], s_["unit"]), "fecha": ult["date"].isoformat()},
+                       "pct": None if pct is None else round(pct, 1),
+                       "pts": [{"f": p_["date"].isoformat(), "v": p_["v"], "txt": fmt_valor(p_["v"], s_["unit"])}
+                               for p_ in s_["pts"]]})
+    lunes, cuentas = sesiones_por_semana(ws, 8)
+    return {"atleta": atleta, "nombre": nv(atleta),
+            "kpis": {"mes": sum(1 for w in ws if (hoy - a_fecha(w["date"])).days < 30),
+                     "partes": _pct_partes(atleta), "seguidas": _semanas_seguidas(ws), "total": len(ws)},
+            "consejos": [{"nivel": c_["nivel"], "titulo": c_["titulo"], "detalle": c_["detalle"]} for c_ in consejos(ws)],
+            "series": series,
+            "semanas": {"lunes": [f"{l.day}/{l.month}" for l in lunes],
+                        "tipos": [{"tipo": k, "nombre": TIPOS[k][0], "color": COLOR_TIPO[k], "n": cuentas.get(k, [0] * len(lunes))}
+                                  for k in ORDEN_TIPO if k in cuentas]}}
+
+
+def _prs_guardados() -> dict:
+    return datos().rutinas([CLAVE_PRS]).get(CLAVE_PRS) or {}
+
+
+def prs(sesion: dict, atleta: str) -> dict:
+    ws = _entrenos_de(sesion, atleta)
+    if atleta in SIN_PRS:
+        return {"atleta": atleta, "sin_prs": True}
+    todos = _prs_guardados().get(atleta, []) + prs_de_entrenos(ws)
+    mejores = mejores_prs(todos)
+    hace_30 = (dt.date.today() - dt.timedelta(days=30)).isoformat()
+    cats = []
+    for cat in CATALOGO_PR:
+        filas = [(k, r) for k, r in mejores.items() if r.get("categoria") == cat
+                 or (r.get("categoria") is None and movimiento_pr(k[0]) and movimiento_pr(k[0])[0] == cat)]
+        if not filas:
+            continue
+        orden = [m for m, _ in CATALOGO_PR[cat]]
+        filas.sort(key=lambda x: (orden.index(x[0][0]) if x[0][0] in orden else 99, x[0][1]))
+        hist = [r for r in todos if r.get("categoria") == cat or (movimiento_pr(r["movimiento"]) or ("",))[0] == cat]
+        cats.append({"cat": cat, "filas": [{
+            "mov": mov, "reps": reps if r["unidad"] == "kg" else None, "valor": _fmt_pr(r["valor"], r["unidad"]),
+            "fecha": _fecha_txt(r["fecha"]), "nuevo": str(r["fecha"]) >= hace_30, "registro": r.get("origen") == "registro",
+            "nota": r.get("nota") or "",
+            "evol": [{"f": str(x["fecha"])[:10], "v": x["valor"], "txt": _fmt_pr(x["valor"], x["unidad"])}
+                     for x in sorted(hist, key=lambda x: str(x["fecha"])) if x["movimiento"] == mov
+                     and (x["unidad"] != "kg" or int(x.get("reps") or 1) == (reps or 1))],
+            "unidad": r["unidad"]} for (mov, reps), r in filas]})
+    ultimo = max(mejores.values(), key=lambda r: str(r["fecha"]), default=None)
+    return {"atleta": atleta, "nombre": nv(atleta), "categorias": cats,
+            "ultimo": {"mov": ultimo["movimiento"], "valor": _fmt_pr(ultimo["valor"], ultimo["unidad"]),
+                       "fecha": _fecha_txt(ultimo["fecha"]), "reps": ultimo.get("reps") if ultimo["unidad"] == "kg" else None}
+            if ultimo else None,
+            "catalogo": {cat: [{"mov": m, "unidad": u} for m, u in movs] for cat, movs in CATALOGO_PR.items()}}
+
+
+def guardar_pr(sesion: dict, c: dict) -> dict:
+    atleta = c.get("atleta")
+    ws = _entrenos_de(sesion, atleta)
+    if atleta in SIN_PRS:
+        raise Error("Este perfil no tiene PRs")
+    cat = c.get("cat") if c.get("cat") in CATALOGO_PR else None
+    if not cat:
+        raise Error("Elige el tipo")
+    nombre = str(c.get("mov") or "").strip()[:80]
+    unidad = dict(CATALOGO_PR[cat]).get(nombre) or ("kg" if "Halter" in cat or "Fuerza" in cat else
+                                                    "tiempo" if "Carrera" in cat else "reps")
+    valor = parse_tiempo(c.get("valor")) if unidad == "tiempo" else parse_valor(c.get("valor"), "kg")
+    if not valor or not nombre:
+        raise Error("Pon el movimiento y la marca (los tiempos como 21:30).")
+    reps = max(1, min(20, int(c.get("reps") or 1))) if unidad == "kg" else 1
+    try:
+        fecha = dt.date.fromisoformat(str(c.get("fecha") or dt.date.today().isoformat())[:10])
+    except ValueError:
+        raise Error("La fecha no es válida")
+    todos = _prs_guardados()
+    previo = mejores_prs(todos.get(atleta, []) + prs_de_entrenos(ws)).get((nombre, reps if unidad == "kg" else 0))
+    mejora = previo is None or (valor < previo["valor"] if unidad == "tiempo" else valor > previo["valor"])
+    todos = dict(todos)
+    todos[atleta] = todos.get(atleta, []) + [{"categoria": cat, "movimiento": nombre, "unidad": unidad, "valor": float(valor),
+                                              "reps": reps, "fecha": fecha.isoformat(),
+                                              "nota": str(c.get("nota") or "").strip()[:200], "origen": "manual"}]
+    datos().guardar(CLAVE_PRS, todos)
+    r = prs(sesion, atleta)
+    r["aviso"] = "¡Nuevo PR!" if mejora and previo is not None else ("PR apuntado" if mejora else "Marca guardada (no supera tu PR)")
+    r["pr"] = mejora and previo is not None
+    return r
