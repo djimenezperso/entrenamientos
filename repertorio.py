@@ -142,3 +142,33 @@ ELITE = {
     "murph": [{"quien": "Josh Bridges y Kari Pearce", "marca": "ganaron Murph", "detalle": "CrossFit Games 2016",
                "fuente": "https://en.wikipedia.org/wiki/2016_CrossFit_Games"}],
 }
+
+# Para entrenar en casa con poco material: mancuernas ligeras, gomas, elíptica y peso corporal.
+CASA = {
+    "wod": [
+        ("Maison 1", "AMRAP 15' : 10 DB thrusters, 10 fentes alternées, 10 pompes (genoux si besoin), 200 m elliptique"),
+        ("Maison 2", "For time 5 tours : 15 DB swings, 15 air squats, 15 sit ups, 1' elliptique"),
+        ("Maison 3", "EMOM 16' : 1) 12 DB snatch alternés 2) 15 squats sautés 3) 12 rowing élastique 4) repos"),
+        ("Maison 4", "21-15-9 : DB thrusters + burpees"),
+        ("Maison 5", "AMRAP 12' : 8 DB devil press, 12 fentes sautées, 16 mountain climbers"),
+        ("Maison 6", "4 tours : 2' elliptique rapide, 15 DB push press, 20 glute bridges, R 1'"),
+        ("Maison 7", "EMOM 20' : 1) 15 kettlebell-style DB swings 2) 12 burpees 3) 40'' planche 4) 20 cal elliptique"),
+    ],
+    "conditioning": [
+        ("Elliptique Z2", "30' elliptique zone 2 (tu peux parler)"),
+        ("Elliptique intervalles", "10x 1' rapide / 1' lent elliptique"),
+        ("Pyramide elliptique", "1-2-3-4-3-2-1' rapide, même temps lent entre chaque"),
+        ("Tabata maison", "Tabata : elliptique, squats sautés, mountain climbers, burpees (4' chacun, 1' entre)"),
+    ],
+    "accessory": [
+        ("Rowing élastique", "3x15"),
+        ("Face pull élastique", "3x15"),
+        ("Glute bridge (1 jambe)", "3x12 par jambe"),
+        ("Bulgarian split squat DB", "3x10 par jambe"),
+        ("DB curl + press", "3x12"),
+        ("Monster walk élastique", "3x15 pas par côté"),
+        ("Hollow hold", "3x30''"),
+        ("Pallof press élastique", "3x10 par côté"),
+        ("DB romanian deadlift", "3x12"),
+    ],
+}
