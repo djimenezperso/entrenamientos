@@ -1,26 +1,77 @@
-<!doctype html>
-<html lang="es">
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Djimenez Prog</title>
-<meta name="theme-color" content="#FF7A1F">
-<meta name="apple-mobile-web-app-capable" content="yes">
-<meta name="mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<meta name="apple-mobile-web-app-title" content="Djimenez">
-<link rel="manifest" href="manifest.webmanifest">
-<link rel="icon" href="icono.svg" type="image/svg+xml">
-<link rel="apple-touch-icon" href="icono-180.png">
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@700;800&family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="estilo.css?v=10">
-</head>
-<body>
-<div id="app" class="cargando"><div class="cargador" aria-label="Cargando"></div></div>
-<div id="hoja" class="hoja-fondo" hidden></div>
-<div id="aviso" class="aviso" role="status" aria-live="polite" hidden></div>
-<script src="app.js?v=11"></script>
-</body>
-</html>
+"""Punto de entrada de Vercel: /api/login, /api/vista, /api/accion."""
+import json
+import sys
+import traceback
+from http.server import BaseHTTPRequestHandler
+from pathlib import Path
+from urllib.parse import parse_qs, urlparse
+
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "motor"))
+
+import servicio  # noqa: E402
+
+
+class handler(BaseHTTPRequestHandler):
+    def _responder(self, codigo: int, cuerpo: dict):
+        datos = json.dumps(cuerpo, ensure_ascii=False).encode()
+        self.send_response(codigo)
+        self.send_header("Content-Type", "application/json; charset=utf-8")
+        self.send_header("Cache-Control", "no-store")
+        self.send_header("Content-Length", str(len(datos)))
+        self.end_headers()
+        self.wfile.write(datos)
+
+    def _sesion(self) -> dict:
+        auth = self.headers.get("Authorization", "")
+        return servicio.leer_sesion(auth.removeprefix("Bearer ").strip())
+
+    def _cuerpo(self) -> dict:
+        n = int(self.headers.get("Content-Length") or 0)
+        if n > 4_500_000:
+            raise servicio.Error("Demasiado grande", 413)
+        return json.loads(self.rfile.read(n) or b"{}") if n else {}
+
+    def _manejar(self, metodo: str):
+        url = urlparse(self.path)
+        q = {k: v[0] for k, v in parse_qs(url.query).items()}
+        ruta = q.get("r") or url.path.rstrip("/").split("/")[-1]
+        try:
+            if ruta == "estado" and metodo == "GET":
+                return self._responder(200, servicio.estado())
+            if ruta == "login" and metodo == "POST":
+                return self._responder(200, servicio.login(self._cuerpo()))
+            if ruta == "vista" and metodo == "GET":
+                return self._responder(200, servicio.vista(self._sesion(), q.get("atleta"),
+                                                           int(q["semana"]) if q.get("semana") else None,
+                                                           q.get("dia")))
+            if ruta == "registrar" and metodo == "POST":
+                return self._responder(200, servicio.registrar(self._sesion(), self._cuerpo()))
+            if ruta in ("historial", "progreso", "prs") and metodo == "GET":
+                return self._responder(200, getattr(servicio, ruta)(self._sesion(), q.get("atleta")))
+            if ruta == "borrar_entreno" and metodo == "POST":
+                return self._responder(200, servicio.borrar_entreno(self._sesion(), self._cuerpo()))
+            if ruta == "guardar_pr" and metodo == "POST":
+                return self._responder(200, servicio.guardar_pr(self._sesion(), self._cuerpo()))
+            if ruta == "limpiar_biblioteca" and metodo == "POST":
+                return self._responder(200, servicio.limpiar_biblioteca(self._sesion(), self._cuerpo()))
+            if ruta == "ideas" and metodo == "GET":
+                self._sesion()
+                return self._responder(200, servicio.ideas())
+            if ruta == "coach" and metodo == "POST":
+                return self._responder(200, servicio.modo_coach(self._sesion(), self._cuerpo()))
+            if ruta == "resolver" and metodo == "POST":
+                return self._responder(200, servicio.resolver_solicitud(self._sesion(), self._cuerpo()))
+            if ruta == "accion" and metodo == "POST":
+                return self._responder(200, servicio.accion(self._sesion(), self._cuerpo()))
+            return self._responder(404, {"error": "No existe"})
+        except servicio.Error as e:
+            return self._responder(e.codigo, {"error": str(e)})
+        except Exception as e:  # noqa: BLE001
+            traceback.print_exc()
+            return self._responder(500, {"error": f"Error del servidor: {e}"})
+
+    def do_GET(self):
+        self._manejar("GET")
+
+    def do_POST(self):
+        self._manejar("POST")
