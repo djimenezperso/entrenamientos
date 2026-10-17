@@ -55,7 +55,22 @@ const FR = {
   "Ej.: la semana pasada me salió fácil": "Ex. : la semaine dernière c'était facile", "Enviar a Diego para que lo apruebe": "Envoyer à Diego pour approbation",
   "pendiente": "en attente", "Solicitudes": "Demandes", "Modo coach": "Mode coach", "Activar": "Activer",
   "Cambios que te piden": "Changements demandés", "Rechazar": "Refuser", "Aprobar": "Approuver", "No hay nada pendiente.": "Rien en attente.",
-  "Solo esa semana": "Seulement cette semaine-là", "¿Eres Diego? Mete tu PIN de coach y lo cambias directamente": "Tu es Diego ? Mets ton PIN de coach", "Ajustar": "Ajuster", "Ajustar reps": "Ajuster les reps", "Semana que viene": "Semaine prochaine",
+  "Solo esa semana": "Seulement cette semaine-là", "Mis récords": "Mes records", "Resumen": "Résumé", "Historial": "Historique",
+  "Evolución": "Évolution", "mejor marca": "meilleure marque", "Entrenos por semana": "Séances par semaine", "sin entrenos": "aucune séance",
+  "Semana del": "Semaine du", "entrenos en 30 días": "séances en 30 jours", "partes hechas (4 sem.)": "parties faites (4 sem.)",
+  "semana seguida": "semaine d'affilée", "semanas seguidas": "semaines d'affilée", "Dónde mejorar": "Où progresser",
+  "Progresión por ejercicio": "Progression par exercice", "Mejor": "Meilleure", "Última": "Dernière", "Desde el inicio": "Depuis le début",
+  "registros": "enregistrements", "En tiempos, arriba es más rápido. El punto negro es tu mejor marca.": "Pour les temps, en haut = plus rapide. Le point noir est ta meilleure marque.",
+  "Arriba es mejor. El punto negro es tu mejor marca.": "En haut = mieux. Le point noir est ta meilleure marque.",
+  "Cuando registres resultados (kg, tiempos, reps…) verás aquí tu progresión.": "Quand tu enregistres des résultats, ta progression apparaît ici.",
+  "Aún no hay entrenos. Pulsa + para guardar el primero.": "Pas encore de séances. Appuie sur + pour la première.", "Todos": "Tous",
+  "entrenos": "séances", "Ver foto": "Voir la photo", "¿Seguro? Pulsa otra vez": "Sûr ? Appuie encore", "Borrar": "Supprimer",
+  "Este perfil no tiene récords.": "Ce profil n'a pas de records.", "Último PR": "Dernier record", "Apuntar un PR": "Noter un record",
+  "este mes": "ce mois-ci", "Todavía no hay PRs. Apunta el primero.": "Pas encore de records.", "Récord": "Record",
+  "de un registro": "d'un enregistrement", "Cuando tengas más marcas de este movimiento verás aquí su evolución.": "Avec plus de marques, tu verras l'évolution ici.",
+  "Movimiento": "Mouvement", "Otro…": "Autre…", "¿Cuál?": "Lequel ?", "Marca": "Marque", "Reps (1 = 1RM)": "Reps (1 = 1RM)",
+  "Nota": "Note", "con cinturón…": "avec ceinture…", "Guardar PR": "Enregistrer le record",
+  "Salen solos de lo que registras si el ejercicio se llama igual (por ejemplo «Back squat», «RMU» o «5 km run»).": "Ils viennent aussi de tes séances si l'exercice a le même nom.", "¿Eres Diego? Mete tu PIN de coach y lo cambias directamente": "Tu es Diego ? Mets ton PIN de coach", "Ajustar": "Ajuster", "Ajustar reps": "Ajuster les reps", "Semana que viene": "Semaine prochaine",
   "Cambiar esta parte": "Changer cette partie", "Añadir parte": "Ajouter une partie", "Novedad de Diego": "Nouveauté de Diego",
   "Diego se lo ha puesto. ¿Te viene bien hoy?": "Diego l'a fait. Ça te va aujourd'hui ?", "Hoy no": "Pas aujourd'hui",
   "Ponérmelo hoy": "Je le fais aujourd'hui", "Lo programa tu coach": "C'est ton coach qui programme",
@@ -222,8 +237,11 @@ async function hacer(cuerpo, boton) {
 
 function pintar() {
   const v = E.vista;
+  const tip = document.getElementById("tip");
+  if (tip) tip.hidden = true;
   $app.className = "";
   if (E.pantalla === "registrar") return pintarRegistrar();
+  if (E.pantalla === "progreso" || E.pantalla === "prs") return pintarPantalla();
   if (v.sin_rutina) {
     $app.innerHTML = cabecera(v) + `<main><div class="vacio"><p><b>${esc(v.nombre)}</b> todavía no tiene rutina.</p>
       <p class="mini">Créala en la app de siempre y aparecerá aquí.</p></div></main>` + nav();
@@ -375,8 +393,8 @@ function nav(activo = "rutina") {
   return `<nav class="nav" aria-label="Secciones">
     ${b("rutina", ic.calendario, t("Rutina"), 'data-ir="rutina"')}
     ${b("registrar", ic.mas, t("Registrar"), 'data-ir="registrar"')}
-    <button data-pronto="${t("Progreso")}" aria-label="${t("Progreso")}">${ic.grafica}</button>
-    <button data-pronto="${t("Récords")}" aria-label="${t("Récords")}">${ic.copa}</button>
+    ${b("progreso", ic.grafica, t("Progreso"), 'data-ir="progreso"')}
+    ${E.vista && E.vista.con_prs === false ? "" : b("prs", ic.copa, t("Récords"), 'data-ir="prs"')}
     <button data-pronto="${t("Biblioteca")}" aria-label="${t("Biblioteca")}">${ic.libros}</button>
   </nav>`;
 }
@@ -426,7 +444,10 @@ function enlazar() {
   });
   $app.querySelectorAll("[data-pronto]").forEach((b) => b.onclick = () => hojaPronto(b.dataset.pronto));
   $app.querySelectorAll("[data-ir]").forEach((b) => b.onclick = () => {
-    if (b.dataset.ir === "registrar") abrirRegistrar(null); else { E.pantalla = "rutina"; pintar(); window.scrollTo(0, 0); }
+    const ir = b.dataset.ir;
+    if (ir === "registrar") abrirRegistrar(null);
+    else if (ir === "progreso" || ir === "prs") irA(ir);
+    else { E.pantalla = "rutina"; pintar(); window.scrollTo(0, 0); }
   });
   on("b-registrar-dia", () => abrirRegistrar(v.registro, v.partes.filter((p) => p.estado !== "hecho").map((p) => p.parte)));
   $app.querySelectorAll("[data-reg]").forEach((b) => b.onclick = () => {
@@ -1149,6 +1170,293 @@ function guardarDesdeCrono() {
   cerrarCrono();
   abrirRegistrar(reg, marcadas, { filas, duracion: fmtSeg(seg), tipo: "wod" });
   if (s.nivel && s.nivel !== "RX") setTimeout(() => { const n = document.getElementById("r-notas"); if (n && !n.value) n.value = `Versión ${s.nivel}`; }, 0);
+}
+
+// ---------- progreso, historial y PRs ----------
+async function irA(pantalla, extra = {}) {
+  E.pantalla = pantalla;
+  if (extra.sub) E.sub = extra.sub;
+  window.scrollTo(0, 0);
+  $app.innerHTML = cabeceraPantalla(pantalla) + `<main><div class="vacio"><div class="cargador oscuro"></div></div></main>` + nav(pantalla);
+  enlazar();
+  const ruta = pantalla === "prs" ? "prs" : (E.sub === "historial" ? "historial" : "progreso");
+  try {
+    E.datos = await api(ruta, { q: { atleta: E.atleta } });
+    if (E.pantalla === pantalla) pintar();
+  } catch (e) { aviso(e.message, true); }
+}
+
+function cabeceraPantalla(pantalla) {
+  const v = E.vista || {};
+  const titulo = pantalla === "prs" ? t("Mis récords") : t("Progreso");
+  const varias = (v.personas || []).length > 1;
+  return `<header class="cabecera registro-cab">
+    <div class="fila-cab">
+      <button class="quien" id="b-persona" ${varias ? "" : "disabled"} aria-label="${t("Personas")}">
+        <span class="avatar">${esc(inicial(v.nombre))}</span>
+        <span><small>${esc(v.nombre || "")} ${varias ? ic.abajo : ""}</small><strong class="titulo-pant">${titulo}</strong></span>
+      </button>
+      <button class="redondo" id="b-reloj" aria-label="${t("Reloj")}">${ic.reloj.replace("currentColor", "#1F1208")}</button>
+    </div>
+    ${pantalla === "progreso" ? `<div class="pestanas pest-cab"><button class="${E.sub !== "historial" ? "on" : ""}" data-sub="resumen">${t("Resumen")}</button>
+      <button class="${E.sub === "historial" ? "on" : ""}" data-sub="historial">${t("Historial")}</button></div>` : ""}
+  </header>`;
+}
+
+function pintarPantalla() {
+  const d = E.datos;
+  const p = E.pantalla;
+  let cuerpo = "";
+  if (!d || d.atleta !== E.atleta) return irA(p);
+  if (p === "prs") cuerpo = pintarPrs(d);
+  else if (E.sub === "historial") { if (!d.entrenos) return irA(p); cuerpo = pintarHistorial(d); }
+  else { if (!d.kpis) return irA(p); cuerpo = pintarProgreso(d); }
+  $app.innerHTML = cabeceraPantalla(p) + `<main>${cuerpo}</main>` + nav(p);
+  enlazar();
+  enlazarPantalla();
+}
+
+// --- gráficas (SVG a mano: línea fina, puntos ≥8px, rejilla tenue, una sola escala) ---
+const fechaCorta = (iso) => { const [y, m, d] = iso.split("-"); return `${+d}/${+m}`; };
+
+function graficaLinea(pts, unidad, mejorF) {
+  if (!pts.length) return "";
+  const W = 326, H = 170, L = 44, R = 12, T = 16, B = 26;
+  const vs = pts.map((p) => p.v);
+  let lo = Math.min(...vs), hi = Math.max(...vs);
+  if (lo === hi) { lo -= 1; hi += 1; }
+  const pad = (hi - lo) * 0.12; lo -= pad; hi += pad;
+  const inv = unidad === "tiempo"; // en tiempos menos es mejor: arriba = más rápido
+  const x = (i) => pts.length === 1 ? (L + W - R) / 2 : L + i * (W - L - R) / (pts.length - 1);
+  const y = (v) => { const r = (v - lo) / (hi - lo); return T + (inv ? r : 1 - r) * (H - T - B); };
+  const etq = (v) => unidad === "tiempo" ? fmtSeg(v) : num(Math.round(v * 10) / 10);
+  const ticks = [lo + pad, (lo + hi) / 2, hi - pad];
+  const linea = pts.map((p, i) => `${i ? "L" : "M"}${x(i).toFixed(1)},${y(p.v).toFixed(1)}`).join(" ");
+  const area = `${linea} L${x(pts.length - 1).toFixed(1)},${H - B} L${x(0).toFixed(1)},${H - B} Z`;
+  return `<svg class="graf" viewBox="0 0 ${W} ${H}" role="img" aria-label="${t("Evolución")}">
+    <defs><linearGradient id="ga" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#eb6834" stop-opacity=".22"/><stop offset="1" stop-color="#eb6834" stop-opacity="0"/></linearGradient></defs>
+    ${ticks.map((v) => `<line x1="${L}" x2="${W - R}" y1="${y(v)}" y2="${y(v)}" class="rejilla"/><text x="${L - 6}" y="${y(v) + 4}" class="eje" text-anchor="end">${etq(v)}</text>`).join("")}
+    <path d="${area}" fill="url(#ga)"/>
+    <path d="${linea}" fill="none" stroke="#D93A00" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>
+    ${pts.map((p, i) => {
+      const best = p.f === mejorF;
+      return `<g class="pt" data-tip="${esc(fechaCorta(p.f))}: ${esc(p.txt)}${best ? " · " + t("mejor marca") : ""}">
+        <circle cx="${x(i)}" cy="${y(p.v)}" r="16" fill="transparent"/>
+        <circle cx="${x(i)}" cy="${y(p.v)}" r="${best ? 7 : 4.5}" fill="${best ? "#1F1208" : "#D93A00"}" stroke="#fff" stroke-width="2"/></g>`;
+    }).join("")}
+    <text x="${x(0)}" y="${H - 6}" class="eje" text-anchor="${pts.length === 1 ? "middle" : "start"}">${fechaCorta(pts[0].f)}</text>
+    ${pts.length > 1 ? `<text x="${x(pts.length - 1)}" y="${H - 6}" class="eje" text-anchor="end">${fechaCorta(pts[pts.length - 1].f)}</text>` : ""}
+  </svg>`;
+}
+
+function graficaSemanas(sem) {
+  const W = 326, H = 150, L = 6, R = 6, T = 20, B = 24;
+  const n = sem.lunes.length;
+  const tot = sem.lunes.map((_, i) => sem.tipos.reduce((a, tp) => a + tp.n[i], 0));
+  const max = Math.max(1, ...tot);
+  const ancho = (W - L - R) / n, bw = Math.min(26, ancho * 0.62);
+  const alto = (c) => c / max * (H - T - B);
+  return `<svg class="graf" viewBox="0 0 ${W} ${H}" role="img" aria-label="${t("Entrenos por semana")}">
+    <line x1="${L}" x2="${W - R}" y1="${H - B}" y2="${H - B}" class="base"/>
+    ${sem.lunes.map((lu, i) => {
+      const cx = L + ancho * i + ancho / 2;
+      let yAc = H - B;
+      const seg = sem.tipos.filter((tp) => tp.n[i]).map((tp, j, arr) => {
+        const h = alto(tp.n[i]);
+        const ultimo = j === arr.length - 1;
+        yAc -= h;
+        const gap = j ? 2 : 0; // separación de 2px entre tramos
+        const r = ultimo ? 4 : 0;
+        const y0 = yAc, h0 = h - gap;
+        return ultimo
+          ? `<path d="M${cx - bw / 2},${y0 + h0} V${y0 + r} Q${cx - bw / 2},${y0} ${cx - bw / 2 + r},${y0} H${cx + bw / 2 - r} Q${cx + bw / 2},${y0} ${cx + bw / 2},${y0 + r} V${y0 + h0} Z" fill="${tp.color}"/>`
+          : `<rect x="${cx - bw / 2}" y="${y0}" width="${bw}" height="${Math.max(0, h0)}" fill="${tp.color}"/>`;
+      }).join("");
+      const detalle = sem.tipos.filter((tp) => tp.n[i]).map((tp) => `${tp.n[i]} ${tp.nombre}`).join(", ") || t("sin entrenos");
+      return `<g class="pt" data-tip="${t("Semana del")} ${lu}: ${esc(detalle)}">
+        <rect x="${cx - ancho / 2}" y="${T - 10}" width="${ancho}" height="${H - T - B + 10}" fill="transparent"/>
+        ${seg}${tot[i] ? `<text x="${cx}" y="${H - B - alto(tot[i]) - 5}" class="eje fuerte" text-anchor="middle">${tot[i]}</text>` : ""}
+        <text x="${cx}" y="${H - 7}" class="eje ${i === n - 1 ? "fuerte" : ""}" text-anchor="middle">${lu}</text></g>`;
+    }).join("")}
+  </svg>
+  <div class="leyenda">${sem.tipos.map((tp) => `<span><i style="background:${tp.color}"></i>${esc(tp.nombre)}</span>`).join("")}</div>`;
+}
+
+const ICONO_NIVEL = { bueno: ["ok", "bien"], malo: ["x", "mal"], aviso: ["aviso", "aviso"], info: ["info", "info"], tipo: ["info", "info"] };
+
+function pintarProgreso(d) {
+  const k = d.kpis;
+  const sel = d.series.find((s) => s.key === E.serie) || d.series[0];
+  if (sel) E.serie = sel.key;
+  return `
+  <div class="kpis">
+    <div class="kpi"><b>${k.mes}</b><span>${t("entrenos en 30 días")}</span></div>
+    <div class="kpi oscuro"><b>${k.partes == null ? "—" : k.partes + "%"}</b><span>${t("partes hechas (4 sem.)")}</span></div>
+    <div class="kpi"><b>${k.seguidas}</b><span>${k.seguidas === 1 ? t("semana seguida") : t("semanas seguidas")}</span></div>
+  </div>
+  ${k.total ? `<section class="card"><div class="lbl" style="margin:0">${t("Entrenos por semana")}</div>${graficaSemanas(d.semanas)}</section>` : ""}
+  ${d.consejos.length ? `<section class="card"><div class="lbl" style="margin:0">${t("Dónde mejorar")}</div>
+    <div class="consejos">${d.consejos.map((c) => `<div class="consejo ${ICONO_NIVEL[c.nivel][1]}"><span class="c-ico">${icNivel(c.nivel)}</span>
+      <div><b>${esc(c.titulo)}</b><span>${esc(c.detalle)}</span></div></div>`).join("")}</div></section>` : ""}
+  ${sel ? `<section class="card">
+    <div class="lbl" style="margin:0">${t("Progresión por ejercicio")}</div>
+    <select class="campo sel-serie" id="sel-serie" aria-label="${t("Ejercicio")}">${d.series.map((s) => `<option value="${esc(s.key)}" ${s.key === sel.key ? "selected" : ""}>${esc(s.nombre)} (${esc(s.unidad)}) · ${s.n}</option>`).join("")}</select>
+    <div class="stats">
+      <div><small>${t("Mejor")}</small><b>${esc(sel.mejor.txt)}</b><span>${fechaCorta(sel.mejor.fecha)}</span></div>
+      <div><small>${t("Última")}</small><b>${esc(sel.ultima.txt)}</b><span>${fechaCorta(sel.ultima.fecha)}</span></div>
+      <div><small>${t("Desde el inicio")}</small><b class="${sel.pct > 0 ? "sube" : sel.pct < 0 ? "baja" : ""}">${sel.pct == null ? "—" : (sel.pct > 0 ? "+" : "") + num(sel.pct) + "%"}</b><span>${sel.n} ${t("registros")}</span></div>
+    </div>
+    ${graficaLinea(sel.pts, sel.unidad, sel.mejor.fecha)}
+    <div class="mini">${sel.unidad === "tiempo" ? t("En tiempos, arriba es más rápido. El punto negro es tu mejor marca.") : t("Arriba es mejor. El punto negro es tu mejor marca.")}</div>
+  </section>` : `<div class="vacio">${t("Cuando registres resultados (kg, tiempos, reps…) verás aquí tu progresión.")}</div>`}`;
+}
+
+function icNivel(n) {
+  if (n === "bueno") return ic.ok;
+  if (n === "malo") return ic.x.replace("#1F1208", "currentColor");
+  return `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true">${n === "aviso" ? '<path d="M12 4l9 16H3zM12 10v4M12 17v.5"/>' : '<circle cx="12" cy="12" r="9"/><path d="M12 11v5M12 8v.5"/>'}</svg>`;
+}
+
+function pintarHistorial(d) {
+  const tipos = [...new Set(d.entrenos.map((w) => w.tipo))];
+  const lista = d.entrenos.filter((w) => !E.filtroTipo || w.tipo === E.filtroTipo);
+  if (!d.entrenos.length) return `<div class="vacio">${t("Aún no hay entrenos. Pulsa + para guardar el primero.")}</div>`;
+  return `
+  <div class="fila-chips">${[["", t("Todos")], ...tipos.map((k) => [k, d.tipos[k] || k])].map(([k, n]) =>
+    `<button class="chip ${(E.filtroTipo || "") === k ? "on" : ""}" data-filtro="${k}">${k ? `<i class="punto-tipo" style="background:${d.colores[k] || "#999"}"></i>` : ""}${esc(n)}</button>`).join("")}</div>
+  <div class="mini" style="padding:0 4px">${lista.length} ${t("de")} ${d.entrenos.length} ${t("entrenos")}</div>
+  ${lista.map((w) => `<article class="card entreno">
+    <div class="ent-cab"><span class="etq-tipo" style="--c:${d.colores[w.tipo] || "#999"}">${esc(w.tipo_txt)}</span>
+      <span class="mini">${esc(w.fecha_txt)}${w.duracion ? " · " + esc(w.duracion) : ""}</span></div>
+    <div class="ent-cuerpo">
+      ${w.foto ? `<button class="ent-foto" data-foto="${esc(w.foto)}" style="background-image:url('${esc(w.foto)}')" aria-label="${t("Ver foto")}"></button>` : ""}
+      <div style="flex:1;min-width:0">
+        ${w.titulo ? `<b class="ent-tit">${esc(w.titulo)}</b>` : ""}
+        ${w.resultados.length ? `<ul class="ent-res">${w.resultados.map((r) => `<li><span>${esc(r.nombre)}</span><b>${esc(r.valor)}</b>${r.pr ? `<i class="pr">PR</i>` : ""}</li>`).join("")}</ul>` : ""}
+        ${w.notas ? `<div class="mini">${esc(w.notas)}</div>` : ""}
+      </div>
+    </div>
+    <div class="ent-pie"><button class="mini-btn" data-borrar="${esc(w.id)}">${E.confirmar === w.id ? t("¿Seguro? Pulsa otra vez") : t("Borrar")}</button></div>
+  </article>`).join("")}`;
+}
+
+function pintarPrs(d) {
+  if (d.sin_prs) return `<div class="vacio">${t("Este perfil no tiene récords.")}</div>`;
+  const cats = d.categorias;
+  const cat = cats.find((c) => c.cat === E.catPr) || cats[0];
+  return `
+  ${d.ultimo ? `<section class="pr-hero"><span class="pr-ico">${ic.copa.replace("currentColor", "#1F1208")}</span>
+    <div><small>${t("Último PR")} · ${esc(d.ultimo.fecha)}</small><b>${esc(d.ultimo.mov)}${d.ultimo.reps && d.ultimo.reps > 1 ? ` · ${d.ultimo.reps}RM` : ""}</b><span>${esc(d.ultimo.valor)}</span></div></section>` : ""}
+  <button class="btn btn-fuego" id="b-nuevo-pr">+ ${t("Apuntar un PR")}</button>
+  ${cats.length ? `<div class="fila-chips">${cats.map((c) => `<button class="chip ${c === cat ? "on" : ""}" data-cat="${esc(c.cat)}">${esc(c.cat.replace(/^\S+\s/, ""))}</button>`).join("")}</div>
+  <div class="prs">${cat.filas.map((f, i) => `<button class="pr-card" data-pr="${i}">
+    <span class="n">${esc(f.mov)}${f.reps && f.reps > 1 ? ` · ${f.reps}RM` : ""}</span>
+    <span class="v">${esc(f.valor)}</span>
+    <span class="d">${f.nuevo ? `<i class="nuevo">${t("este mes")}</i>` : ""}${esc(f.fecha.replace(/^\S+ /, ""))}</span>
+  </button>`).join("")}</div>
+  <div class="mini" style="padding:0 4px">${t("Salen solos de lo que registras si el ejercicio se llama igual (por ejemplo «Back squat», «RMU» o «5 km run»).")}</div>`
+  : `<div class="vacio">${t("Todavía no hay PRs. Apunta el primero.")}</div>`}`;
+}
+
+function enlazarPantalla() {
+  const d = E.datos;
+  $app.querySelectorAll("[data-sub]").forEach((b) => b.onclick = () => { if ((E.sub || "resumen") !== b.dataset.sub) irA("progreso", { sub: b.dataset.sub }); });
+  const sel = document.getElementById("sel-serie");
+  if (sel) sel.onchange = () => { E.serie = sel.value; pintar(); };
+  $app.querySelectorAll("[data-filtro]").forEach((b) => b.onclick = () => { E.filtroTipo = b.dataset.filtro || null; pintar(); });
+  $app.querySelectorAll("[data-borrar]").forEach((b) => b.onclick = async () => {
+    if (E.confirmar !== b.dataset.borrar) { E.confirmar = b.dataset.borrar; pintar(); return; }
+    E.confirmar = null; b.disabled = true;
+    try { E.datos = await api("borrar_entreno", { metodo: "POST", cuerpo: { atleta: E.atleta, id: b.dataset.borrar } }); pintar(); aviso(E.datos.aviso); }
+    catch (e) { aviso(e.message, true); b.disabled = false; }
+  });
+  $app.querySelectorAll("[data-foto]").forEach((b) => b.onclick = () => abrirHoja(`${cabHoja(t("Foto"), "")}<img class="foto-grande" src="${esc(b.dataset.foto)}" alt="">`));
+  $app.querySelectorAll("[data-cat]").forEach((b) => b.onclick = () => { E.catPr = b.dataset.cat; pintar(); });
+  $app.querySelectorAll("[data-pr]").forEach((b) => b.onclick = () => {
+    const cat = d.categorias.find((c) => c.cat === E.catPr) || d.categorias[0];
+    hojaPr(cat.filas[+b.dataset.pr]);
+  });
+  const np = document.getElementById("b-nuevo-pr");
+  if (np) np.onclick = hojaNuevoPr;
+  // toque en un punto o barra: muestra su valor
+  $app.querySelectorAll(".graf .pt").forEach((g) => g.onclick = (ev) => mostrarTip(ev, g.dataset.tip));
+}
+
+function mostrarTip(ev, txt) {
+  let tip = document.getElementById("tip");
+  if (!tip) { tip = document.createElement("div"); tip.id = "tip"; tip.className = "tip"; document.body.appendChild(tip); }
+  tip.textContent = txt;
+  tip.hidden = false;
+  const x = Math.min(window.innerWidth - 12, Math.max(12, ev.clientX));
+  tip.style.left = x + "px"; tip.style.top = (ev.clientY - 14) + "px";
+  clearTimeout(mostrarTip._t);
+  mostrarTip._t = setTimeout(() => { tip.hidden = true; }, 2600);
+}
+
+function hojaPr(f) {
+  abrirHoja(`${cabHoja(t("Récord"), f.mov + (f.reps && f.reps > 1 ? ` · ${f.reps}RM` : ""))}
+    <div class="pr-grande">${esc(f.valor)}<small>${esc(f.fecha)}${f.registro ? " · " + t("de un registro") : ""}</small></div>
+    ${f.nota ? `<div class="mini">${esc(f.nota)}</div>` : ""}
+    ${f.evol.length > 1 ? `<div class="card" style="box-shadow:none">${graficaLinea(f.evol, f.unidad, f.evol.reduce((b, x) => (f.unidad === "tiempo" ? x.v < b.v : x.v > b.v) ? x : b, f.evol[0]).f)}</div>
+      <div class="lista-evol">${[...f.evol].reverse().map((x) => `<div><span>${fechaCorta(x.f)}</span><b>${esc(x.txt)}</b></div>`).join("")}</div>`
+      : `<div class="mini">${t("Cuando tengas más marcas de este movimiento verás aquí su evolución.")}</div>`}`, (h) => {
+    h.querySelectorAll(".graf .pt").forEach((g) => g.onclick = (ev) => mostrarTip(ev, g.dataset.tip));
+  });
+}
+
+function hojaNuevoPr() {
+  const d = E.datos;
+  const cats = Object.keys(d.catalogo);
+  const est = { cat: E.catPr && d.catalogo[E.catPr] ? E.catPr : cats[1] || cats[0] };
+  const unidadDe = (cat, mov) => (d.catalogo[cat].find((m) => m.mov === mov) || {}).unidad
+    || (/Halter|Fuerza/.test(cat) ? "kg" : /Carrera/.test(cat) ? "tiempo" : "reps");
+  const pintarForm = (h) => {
+    const movs = d.catalogo[est.cat];
+    h.querySelector("#pr-movs").innerHTML = movs.map((m, i) => `<option ${i === 0 ? "selected" : ""}>${esc(m.mov)}</option>`).join("") + `<option value="__otro">${t("Otro…")}</option>`;
+    actualizar(h);
+  };
+  const actualizar = (h) => {
+    const mov = h.querySelector("#pr-movs").value;
+    h.querySelector("#pr-otro-caja").hidden = mov !== "__otro";
+    const u = unidadDe(est.cat, mov);
+    h.querySelector("#pr-valor").placeholder = { kg: "120", reps: "15", tiempo: "21:30" }[u];
+    h.querySelector("#pr-unidad").textContent = { kg: "kg", reps: "reps", tiempo: "min:seg" }[u];
+    h.querySelector("#pr-reps-caja").hidden = u !== "kg";
+  };
+  abrirHoja(`${cabHoja(t("Récords"), t("Apuntar un PR"))}
+    <div class="fila-chips">${cats.map((c) => `<button type="button" class="chip ${c === est.cat ? "on" : ""}" data-pc="${esc(c)}">${esc(c.replace(/^\S+\s/, ""))}</button>`).join("")}</div>
+    <div><label class="paso-etq" for="pr-movs" style="display:block;margin:0 4px 6px">${t("Movimiento")}</label>
+      <select class="campo" id="pr-movs" style="background:#fff"></select></div>
+    <div id="pr-otro-caja" hidden><input class="campo" id="pr-otro" placeholder="${t("¿Cuál?")}" style="background:#fff"></div>
+    <div class="dos">
+      <div><label class="paso-etq" for="pr-valor" style="display:block;margin:0 4px 6px">${t("Marca")} (<span id="pr-unidad"></span>)</label>
+        <input class="campo campo-v" id="pr-valor" inputmode="decimal" style="background:#fff"></div>
+      <div id="pr-reps-caja"><label class="paso-etq" for="pr-reps" style="display:block;margin:0 4px 6px">${t("Reps (1 = 1RM)")}</label>
+        <input class="campo campo-v" id="pr-reps" type="number" min="1" max="20" value="1" style="background:#fff"></div>
+    </div>
+    <div class="dos">
+      <div><label class="paso-etq" for="pr-fecha" style="display:block;margin:0 4px 6px">${t("Fecha")}</label><input class="campo" type="date" id="pr-fecha" value="${hoyISO()}" max="${hoyISO()}" style="background:#fff"></div>
+      <div><label class="paso-etq" for="pr-nota" style="display:block;margin:0 4px 6px">${t("Nota")}</label><input class="campo" id="pr-nota" placeholder="${t("con cinturón…")}" style="background:#fff"></div>
+    </div>
+    <button class="btn btn-fuego" id="pr-guardar">${t("Guardar PR")}</button>`, (h) => {
+    pintarForm(h);
+    h.querySelector("#pr-movs").onchange = () => actualizar(h);
+    h.querySelectorAll("[data-pc]").forEach((b) => b.onclick = () => {
+      est.cat = b.dataset.pc; h.querySelectorAll("[data-pc]").forEach((x) => x.classList.toggle("on", x === b)); pintarForm(h);
+    });
+    h.querySelector("#pr-guardar").onclick = async (ev) => {
+      const boton = ev.currentTarget;
+      const sel = h.querySelector("#pr-movs").value;
+      const mov = sel === "__otro" ? h.querySelector("#pr-otro").value.trim() : sel;
+      boton.disabled = true;
+      try {
+        const r = await api("guardar_pr", { metodo: "POST", cuerpo: { atleta: E.atleta, cat: est.cat, mov, valor: h.querySelector("#pr-valor").value,
+          reps: h.querySelector("#pr-reps").value, fecha: h.querySelector("#pr-fecha").value, nota: h.querySelector("#pr-nota").value } });
+        cerrarHoja(); E.datos = r; E.catPr = est.cat; pintar();
+        aviso((r.pr ? "🎉 " : "") + r.aviso); if (r.pr) confeti();
+      } catch (e) { aviso(e.message, true); boton.disabled = false; }
+    };
+  });
 }
 
 // ---------- arranque ----------
