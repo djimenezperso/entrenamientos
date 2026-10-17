@@ -959,3 +959,99 @@ def emparejar_autor(autor: str, atletas: list[str]) -> str | None:
         if a == n or (a and (a in n.split() or n.split()[0] == a.split()[0])):
             return at
     return None
+
+
+# ---------- copiar rutina y rutina desde IA ----------
+def copiar_rutina(origen: dict, nuevo_id) -> dict:
+    """Copia la estructura y los pesos actuales de otra rutina, empezando en la semana 1 y sin marcas."""
+    actual = int(origen.get("semana_actual") or 1)
+    dias = []
+    for d in origen.get("dias", []):
+        lineas = []
+        for l, p in zip(d["lineas"], partes_del_dia(d)):
+            if actual < int(l.get("desde") or 0):
+                continue
+            lineas.append({"id": nuevo_id(), "ejercicio": l["ejercicio"],
+                           "prescripcion": prescripcion_semana(l, actual, origen.get("ajustes"))[0],
+                           "sube": float(l.get("sube") or 0), "base": 1, "nota": l.get("nota", ""), "parte": p})
+        dias.append({"id": nuevo_id(), "nombre": d["nombre"], "lineas": lineas,
+                     "por_ejercicio": bool(d.get("por_ejercicio"))})
+    return {"semana_actual": 1, "ajustes": {}, "dias": dias}
+
+
+def rutina_desde_json(data: dict, nuevo_id) -> dict:
+    """Convierte la propuesta de la IA ({dias:[{nombre, lineas:[{parte, ejercicio, prescripcion, sube?}]}]})."""
+    dias = []
+    for i, d in enumerate(data.get("dias") or [], start=1):
+        lineas = []
+        for l in d.get("lineas") or []:
+            ejercicio = str(l.get("ejercicio") or "").strip()
+            presc = str(l.get("prescripcion") or "").strip()
+            if not ejercicio and not presc:
+                continue
+            parte = str(l.get("parte") or "A) Fuerza").strip()
+            tipo = tipo_de_linea(parte, ejercicio)
+            sube = l.get("sube")
+            sube = float(sube) if isinstance(sube, (int, float)) else (2.5 if tipo is None and NUM_PESO.search(presc) else 0.0)
+            lineas.append({"id": nuevo_id(), "ejercicio": ejercicio or "Sin nombre", "prescripcion": presc,
+                           "sube": sube, "base": 1, "nota": str(l.get("nota") or ""), "parte": parte})
+        dias.append({"id": nuevo_id(), "nombre": str(d.get("nombre") or f"Día {i}"), "lineas": lineas})
+    return {"semana_actual": 1, "ajustes": {}, "dias": dias}
+
+
+def carga_maxima(texto: str) -> float | None:
+    """La carga más alta escrita en un bloque (tras @ o antes de kg), para ver progresiones."""
+    nums = []
+    for grupo in re.findall(r"@\s*([\d.,]+(?:\s*[-/]\s*[\d.,]+)*)", texto):
+        nums += re.findall(r"[\d]+(?:[.,]\d+)?", grupo)
+    nums += re.findall(r"(\d+(?:[.,]\d+)?)\s*kg", texto, flags=re.I)
+    vals = [float(n.replace(",", ".")) for n in nums]
+    vals = [v for v in vals if 20 <= v <= 350]
+    return max(vals) if vals else None
+
+
+# ---------- EMOMs por duración ----------
+TRAMOS_EMOM = ["≤10'", "11-20'", "21-30'", "31-40'", "40'+"]
+
+
+def es_emom(texto: str) -> bool:
+    t = norm_busqueda(texto)
+    return bool(re.search(r"\be\d*mom\b|\bevery\s*\d|\btoutes les\s*\d|\bcada\s*\d+\s*(min|')", t))
+
+
+def duracion_emom(texto: str) -> int | None:
+    """Minutos totales de un EMOM/E2MOM/Every: «EMOM 12'», «E2MOM x8» (16), «Every 2' x7» (14), «Every 1:30 x8» (12)."""
+    t = (texto or "").lower().replace("’", "'").replace("′", "'")
+    m = re.search(r"\be(\d)\s*mom\s*(?:for\s*)?(x\s*)?(\d+)", t)
+    if m:
+        n = int(m.group(3))
+        return int(m.group(1)) * n if m.group(2) else n
+    m = re.search(r"\bemom\s*(?:for\s*)?(\d+)\s*(?:'|min|’)?", t)
+    if m and not re.search(r"\bemom\s*x", t):
+        return int(m.group(1))
+    m = re.search(r"\b(?:every|toutes les|cada)\s*(\d+)(?::(\d{2}))?\s*(?:'|min|minutes?|mn)?\s*(?:x|for)\s*(\d+)\s*('|min)?", t)
+    if m:
+        intervalo = int(m.group(1)) + (int(m.group(2)) / 60 if m.group(2) else 0)
+        n = int(m.group(3))
+        return n if m.group(4) else round(intervalo * n)
+    m = re.search(r"\((\d+)\s*(?:'|min)\)", t)  # «SNATCH (19')»: total escrito por el coach
+    if m:
+        return int(m.group(1))
+    bloques = re.findall(r"\bemom\s*x\s*(\d+)", t)  # varios «EMOM x4» seguidos: se suman
+    if bloques:
+        return sum(int(n) for n in bloques)
+    return None
+
+
+def tramo_emom(minutos: int | None) -> str | None:
+    if not minutos:
+        return None
+    if minutos <= 10:
+        return TRAMOS_EMOM[0]
+    if minutos <= 20:
+        return TRAMOS_EMOM[1]
+    if minutos <= 30:
+        return TRAMOS_EMOM[2]
+    if minutos <= 40:
+        return TRAMOS_EMOM[3]
+    return TRAMOS_EMOM[4]
