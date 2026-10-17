@@ -304,6 +304,15 @@ def migrar(rut: dict, atleta: str, atletas: list[str]) -> dict:
                         ajustes.setdefault("2", {})[l["id"]] = hechos_s2[l["id"]]
                         estados.setdefault(f"2|{d['id']}|{p}", {"estado": "hecho"})
             rut["migraciones"].append("wods_diego_s2")
+        if "diego_s2_dias_1a5" not in rut.setdefault("migraciones", []):
+            # Diego ya hizo los días 1 a 5 de la semana 2: se marcan como hechos (lo que ya estuviera marcado se respeta)
+            from logica import agrupar_por_parte
+            estados = rut.setdefault("estados", {})
+            for d in rut.get("dias", []):
+                if d["id"] in ("d1", "d2", "d3", "d4", "d5"):
+                    for p, _ in agrupar_por_parte(d, 2):
+                        estados.setdefault(f"2|{d['id']}|{p}", {"estado": "hecho"})
+            rut["migraciones"].append("diego_s2_dias_1a5")
         # El día 5 repite la fuerza del día 3 (mismos pesos y repes): se iguala una vez.
         hechas = rut.setdefault("migraciones", [])
         if "d5_igual_d3" not in hechas:
