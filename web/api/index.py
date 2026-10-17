@@ -46,6 +46,12 @@ class handler(BaseHTTPRequestHandler):
                                                            q.get("dia")))
             if ruta == "registrar" and metodo == "POST":
                 return self._responder(200, servicio.registrar(self._sesion(), self._cuerpo()))
+            if ruta in ("historial", "progreso", "prs") and metodo == "GET":
+                return self._responder(200, getattr(servicio, ruta)(self._sesion(), q.get("atleta")))
+            if ruta == "borrar_entreno" and metodo == "POST":
+                return self._responder(200, servicio.borrar_entreno(self._sesion(), self._cuerpo()))
+            if ruta == "guardar_pr" and metodo == "POST":
+                return self._responder(200, servicio.guardar_pr(self._sesion(), self._cuerpo()))
             if ruta == "ideas" and metodo == "GET":
                 self._sesion()
                 return self._responder(200, servicio.ideas())
