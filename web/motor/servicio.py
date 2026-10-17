@@ -297,7 +297,7 @@ def _igual(a: str, b: str) -> bool:
     return bool(a) and bool(b) and hmac.compare_digest(a.encode(), b.encode())
 
 
-VERSION = "3.3"
+VERSION = "3.4"
 CLAVES_NECESARIAS = ["SUPABASE_URL", "SUPABASE_KEY", "APP_PASSWORD", "CONTRASENA_ARCHCHANA", "CONTRASENA_INVITADOS", "COACH_PIN",
                      "APP_ANTIGUA_URL"]
 
@@ -839,13 +839,19 @@ def puede_programar(sesion: dict, rut: dict) -> bool:
     return es_coach(sesion) or bool(rut.get("permiso_pesos"))
 
 
-CAMBIOS_PROGRAMA = ("editar_texto", "cambiar_parte", "anadir_parte", "deshacer_parte")
+CAMBIOS_PROGRAMA = ("editar_texto", "cambiar_parte", "anadir_parte", "deshacer_parte", "quitar_ajuste")
 
 
 def aplicar_programa(rut: dict, tipo: str, c: dict, semana: int, atleta: str) -> tuple[dict, str]:
     """Cambios en lo programado (texto de un WOD, cambiar/añadir/volver una parte). Devuelve (rutina, aviso)."""
     texto = str(c.get("texto") or "").strip()[:3000]
     solo = bool(c.get("solo_esta"))
+    if tipo == "quitar_ajuste":  # deshace el cambio «solo esta semana» de una línea
+        rut = copy.deepcopy(rut)
+        aj = (rut.get("ajustes") or {}).get(str(semana)) or {}
+        aj.pop(c.get("linea"), None)
+        rut["ajustes"] = {k: v for k, v in (rut.get("ajustes") or {}).items() if v}
+        return rut, "Quitado el cambio de esta semana: vuelve lo que había"
     if tipo == "editar_texto":
         l = next((x for d in rut["dias"] for x in d["lineas"] if x["id"] == c.get("linea")), None)
         if not l:
@@ -894,6 +900,8 @@ def _resumen_cambio(tipo: str, c: dict, rut: dict) -> str:
         return f"{l.get('ejercicio', 'WOD')}: {c.get('texto', '')}"
     if tipo == "deshacer_parte":
         return f"Volver a lo que había en {c.get('parte', '')}"
+    if tipo == "quitar_ajuste":
+        return "Quitar el cambio de esta semana"
     return f"{'Cambiar' if tipo == 'cambiar_parte' else 'Añadir'} {c.get('etiqueta', '')}: {c.get('texto', '')}"
 
 
