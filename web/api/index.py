@@ -36,6 +36,8 @@ class handler(BaseHTTPRequestHandler):
         q = {k: v[0] for k, v in parse_qs(url.query).items()}
         ruta = q.get("r") or url.path.rstrip("/").split("/")[-1]
         try:
+            if metodo == "POST" and ruta != "login":
+                servicio.solo_lectura(self._sesion())  # la demo no puede guardar nada
             if ruta == "estado" and metodo == "GET":
                 return self._responder(200, servicio.estado())
             if ruta == "login" and metodo == "POST":
@@ -75,3 +77,4 @@ class handler(BaseHTTPRequestHandler):
 
     def do_POST(self):
         self._manejar("POST")
+    
