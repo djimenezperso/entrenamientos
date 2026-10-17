@@ -251,3 +251,115 @@ main { padding: 4px 16px 0; display: flex; flex-direction: column; gap: 12px; }
 .hoja.muchos .paso button { width: 46px; height: 46px; border-radius: 15px; font-size: 14px; }
 .hoja.muchos .paso input { font-size: 30px; }
 .hoja.muchos .paso { padding: 6px; }
+
+/* ---------- registrar ---------- */
+.registro-cab { padding-bottom: 4px; }
+.sobre { display: block; color: #fff; font-weight: 600; font-size: 13px; }
+.titulo-pant { margin: 0; font-family: var(--titulo); font-weight: 800; font-size: 38px; text-transform: uppercase; color: #fff;
+  line-height: 1; text-shadow: 0 2px 0 var(--brasa-osc); }
+.registro { display: flex; flex-direction: column; gap: 18px; }
+.lbl { display: block; font-size: 12px; font-weight: 700; letter-spacing: .05em; text-transform: uppercase; color: var(--medio); margin: 0 4px 7px; }
+.registro .campo { height: 50px; font-size: 16px; background: #fff; border-color: var(--borde); }
+.registro .area { height: 96px; padding: 12px 16px; resize: vertical; line-height: 1.45; font-family: inherit; }
+.dos { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.resultados { display: flex; flex-direction: column; gap: 8px; }
+.fila-res { background: #fff; border-radius: 20px; padding: 8px; display: flex; flex-direction: column; gap: 6px; box-shadow: 0 4px 14px rgba(150,50,0,.07); }
+.fila-res .campo { height: 44px; border: 1.5px solid var(--linea); background: var(--crema); font-size: 15px; }
+.fila-res .campo-n { font-weight: 600; }
+.fila-res-b { display: flex; gap: 6px; align-items: center; }
+.campo-v { flex: 1; min-width: 0; font-family: var(--titulo); font-size: 22px !important; font-weight: 800; }
+.campo-u { width: 98px; flex: none; padding: 0 10px; appearance: auto; }
+.quitar { width: 40px; height: 40px; border-radius: 50%; border: none; background: var(--crema2); display: flex; align-items: center; justify-content: center; flex: none; }
+.fotos { display: flex; gap: 10px; }
+.miniatura { width: 104px; height: 104px; border-radius: 20px; background-size: cover; background-position: center; position: relative; box-shadow: var(--sombra); }
+.miniatura .quitar { position: absolute; top: 6px; right: 6px; width: 32px; height: 32px; background: rgba(255,255,255,.92); }
+.anadir-foto { width: 104px; height: 104px; border-radius: 20px; border: 2px dashed #E8B48C; display: flex; flex-direction: column;
+  align-items: center; justify-content: center; gap: 4px; color: var(--brasa-osc); font-size: 13px; font-weight: 600; cursor: pointer; background: rgba(255,255,255,.5); }
+.btn-crono { display: flex; align-items: center; gap: 12px; width: 100%; height: 56px; border-radius: 18px; border: none; padding: 0 14px;
+  background: var(--tinta); color: var(--ambar); text-align: left; font-weight: 700; font-size: 15px; }
+.btn-crono span { flex: 1; display: flex; flex-direction: column; line-height: 1.15; }
+.btn-crono small { color: #FFD9BD; font-weight: 500; font-size: 12px; }
+.confeti { position: fixed; inset: 0; pointer-events: none; z-index: 70; overflow: hidden; }
+.confeti i { position: absolute; top: -12px; width: 9px; height: 14px; border-radius: 2px; animation: cae linear forwards; }
+@keyframes cae { to { top: 105%; transform: translateX(40px) rotate(720deg); } }
+
+/* ---------- cronómetro ---------- */
+.crono { position: fixed; inset: 0; z-index: 45; background: var(--crema); overflow-y: auto; display: flex; flex-direction: column; }
+.crono[hidden] { display: none; }
+.crono > * { width: 100%; max-width: 480px; margin: 0 auto; }
+.crono-cab { background: linear-gradient(160deg, #1F1208 0%, #3A1A08 60%, #8A2A00 140%); color: #fff; border-radius: 0 0 34px 34px;
+  padding: calc(14px + env(safe-area-inset-top, 0px)) 18px 22px; display: flex; flex-direction: column; gap: 14px; }
+.crono-barra { display: flex; align-items: center; justify-content: space-between; }
+.redondo.oscuro { background: rgba(255,255,255,.12); }
+.crono-donde { font-size: 12px; font-weight: 700; letter-spacing: .08em; color: var(--ambar); text-transform: uppercase; }
+.crono-tit h2 { margin: 8px 0 0; font-family: var(--titulo); font-weight: 800; font-size: 40px; line-height: 1; text-transform: uppercase; }
+.crono-tit p { margin: 6px 0 0; color: #FFD9BD; font-size: 14px; }
+.etq-modo { display: inline-block; background: var(--ambar); color: var(--tinta); font-size: 11px; font-weight: 700; padding: 4px 10px;
+  border-radius: 999px; letter-spacing: .06em; text-transform: uppercase; }
+.crono-modos { display: flex; flex-direction: column; gap: 10px; }
+.chip.oscuro { background: rgba(255,255,255,.08); border-color: rgba(255,255,255,.2); color: #fff; }
+.chip.oscuro.on { background: #fff; color: var(--tinta); border-color: #fff; }
+.crono-min { display: flex; align-items: center; justify-content: center; gap: 16px; }
+.crono-min button { width: 44px; height: 44px; border-radius: 50%; border: none; background: rgba(255,255,255,.14); color: #fff; font-size: 24px; font-weight: 600; }
+.crono-min span { min-width: 120px; text-align: center; font-family: var(--titulo); font-weight: 800; font-size: 30px; }
+.crono-centro { display: flex; flex-direction: column; align-items: center; gap: 16px; }
+.crono-reloj { position: relative; width: 236px; height: 236px; }
+.crono-reloj #c-anillo { transition: stroke-dashoffset .25s linear; }
+.crono-num { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; }
+.crono-num b { font-family: var(--titulo); font-weight: 800; font-size: 64px; line-height: 1; font-variant-numeric: tabular-nums; }
+.crono-num span { font-size: 13px; color: var(--ambar); font-weight: 600; margin-top: 4px; }
+.crono-botones { display: flex; align-items: center; gap: 22px; }
+.c-btn { border: none; border-radius: 50%; display: flex; align-items: center; justify-content: center; color: #fff; }
+.c-main { width: 84px; height: 84px; background: var(--grad); box-shadow: 0 10px 28px rgba(255,90,31,.45); }
+.c-sec { width: 60px; height: 60px; background: rgba(255,255,255,.14); }
+.c-sec[disabled] { opacity: .35; }
+.c-ronda { flex-direction: column; line-height: 1; }
+.c-ronda b { font-family: var(--titulo); font-size: 22px; }
+.c-ronda small { font-size: 10px; font-weight: 600; color: var(--ambar); }
+.crono-cuerpo { padding: 18px 16px 40px; display: flex; flex-direction: column; gap: 12px; }
+.pestanas { display: flex; background: #fff; border-radius: 999px; padding: 4px; box-shadow: 0 4px 14px rgba(150,50,0,.08); }
+.pestanas button { flex: 1; height: 38px; border: none; border-radius: 999px; background: transparent; font-weight: 700; font-size: 13px; }
+.pestanas button.on { background: var(--tinta); color: var(--ambar); }
+
+.crono-tit h2 { font-size: 36px; }
+.crono-modos { gap: 8px; }
+.crono-modos .chip { height: 34px; padding: 0 13px; font-size: 12.5px; }
+.crono-min button { width: 38px; height: 38px; font-size: 21px; }
+.crono-min span { font-size: 26px; min-width: 100px; }
+.crono-min small { font-size: 11px; color: #FFD9BD; font-weight: 600; text-transform: uppercase; letter-spacing: .06em; }
+.cada-etq { align-self: center; font-size: 11px; color: #FFD9BD; font-weight: 600; text-transform: uppercase; letter-spacing: .06em; margin-right: 2px; }
+.crono-centro.compacto .crono-reloj { width: 190px; height: 190px; }
+.crono-centro.compacto .crono-reloj svg { width: 190px; height: 190px; }
+.crono-centro.compacto .crono-num b { font-size: 52px; }
+.modos-scroll { display: flex; gap: 6px; overflow-x: auto; scrollbar-width: none; margin: 0 -18px; padding: 0 18px; }
+.modos-scroll::-webkit-scrollbar { display: none; }
+.crono-min small { min-width: 64px; text-align: right; }
+.crono-total { min-width: 42px; text-align: right; font-family: var(--titulo); font-weight: 800; font-size: 18px; color: #FFD9BD; }
+.crono-cab.descanso { background: linear-gradient(160deg, #0F2A1E 0%, #12402B 60%, #1E9E5A 140%); }
+.crono-cab.descanso #c-sub { color: #7CE3A8; }
+.crono-fin { font-family: var(--titulo); font-weight: 800; font-size: 26px; color: var(--ambar); text-transform: uppercase; }
+
+/* ---------- pesos del coach ---------- */
+.aviso-coach { display: flex; gap: 12px; align-items: flex-start; background: var(--tinta); color: #fff; border-radius: 18px; padding: 14px; }
+.aviso-coach svg { color: var(--ambar); width: 24px; height: 24px; flex: none; margin-top: 2px; }
+.aviso-coach b { display: block; color: var(--ambar); font-size: 15px; margin-bottom: 4px; }
+.aviso-coach span { font-size: 13.5px; line-height: 1.45; color: #FFE7D6; }
+.hoja .area { height: 80px; padding: 12px 16px; resize: vertical; font-family: inherit; font-size: 15px; line-height: 1.4; background: #fff; }
+.peso.bloq { border-style: solid; border-color: var(--borde); }
+.caja-coach { background: #fff; border-radius: 20px; padding: 14px; }
+.caja-coach .paso-etq svg { color: var(--brasa-osc); }
+.redondo.campana { position: relative; background: var(--ambar); }
+.redondo.campana i { position: absolute; top: -3px; right: -3px; min-width: 20px; height: 20px; border-radius: 999px; background: var(--rojo);
+  color: #fff; font-style: normal; font-size: 11px; font-weight: 700; display: flex; align-items: center; justify-content: center; padding: 0 5px; }
+.solicitud { background: #fff; border-radius: 22px; padding: 14px; display: flex; flex-direction: column; gap: 10px; box-shadow: var(--sombra); }
+.sol-cab { display: flex; gap: 10px; align-items: center; }
+.sol-cab .avatar { width: 40px; height: 40px; font-size: 15px; box-shadow: none; }
+.sol-cab b { display: block; font-size: 15px; } .sol-cab small { font-size: 12px; color: var(--suave); }
+.sol-pesos { display: flex; align-items: center; gap: 10px; font-family: var(--titulo); font-size: 26px; font-weight: 800; }
+.sol-pesos span { color: var(--suave); text-decoration: line-through; text-decoration-thickness: 2px; }
+.sol-pesos b { color: var(--brasa); }
+.sol-msg { background: var(--crema); border-radius: 14px; padding: 10px 12px; font-size: 13.5px; color: var(--medio); font-style: italic; }
+
+.card.warmup { background: linear-gradient(135deg, #fff 60%, #FFF1E4); border: 1.5px dashed #FFB37A; box-shadow: none; }
+.card.warmup .letra { background: var(--ambar); color: var(--tinta); }
+.card.warmup .letra.hecho { background: var(--verde); color: #fff; }
