@@ -1,1408 +1,2008 @@
-"""Lógica sin Streamlit: tiempos, marcas, series de progresión y consejos."""
+"""Diario de Entrenos — Streamlit.
+
+Un apartado por persona, con foto, tiempos, notas, progresión y consejos.
+Datos en Supabase si hay credenciales en los secrets; si no, en local (SQLite).
+"""
 from __future__ import annotations
 
 import datetime as dt
+import io
+import hashlib
+import json
+from collections import Counter
+import random
 import re
+import sqlite3
+import uuid
+import zipfile
+from urllib.parse import quote
+from pathlib import Path
 
-TIPOS = {
-    "fuerza": ("Fuerza", "#d6312b", "red"),
-    "wod": ("WOD", "#1f5fbf", "blue"),
-    "gym": ("Gym", "#d9a200", "orange"),
-    "endurance": ("Endurance", "#2a8c4a", "green"),
-    "otro": ("Otro", "#7f8994", "gray"),
-}
-UNIDADES = ["tiempo", "kg", "reps", "km", "m", "cal", "rondas"]
-MENOS_ES_MEJOR = {"tiempo"}
+import pandas as pd
+import plotly.graph_objects as go
+import streamlit as st
+from PIL import Image, ImageOps
+
+from logica import (
+    MENOS_ES_MEJOR, TIPOS, UNIDADES, a_fecha, aplicar_edicion, cambio_pct, consejos, es_metcon, fmt_num,
+    fmt_tiempo, fmt_valor, ids_con_pr, mejor_punto, norm, parse_tiempo, parse_valor, peso_principal,
+    prescripcion_semana, series_ejercicios, sesiones_por_semana,
+    PARTES, agrupar_por_parte, destino_dia_siguiente, destino_semana_siguiente, estado_parte, marcar_parte,
+    partes_del_dia, pendientes_para, resumen_dia, se_repite, semanas_que_sube, sin_validar,
+    NUM_PESO, cambiar_pesos, poner_pesos, linea_no_hecha, marcar_linea, no_hechas_en,
+    historial_parte, renombrar_parte, parametros_semana, editar_texto_linea,
+    CATEGORIAS_WOD, CLAVE_BIBLIOTECA, coincide_busqueda, wods_hechos,
+    CLAVES_BIBLIO, NOMBRE_BIBLIO, anadir_linea, biblioteca, tipo_de_linea,
+    detectar_entrenos, emparejar_autor, norm_busqueda, parse_whatsapp, CATEGORIAS_MOVILIDAD,
+    TRAMOS_EMOM, carga_maxima, copiar_rutina, duracion_emom, es_emom, rutina_desde_json, tramo_emom,
+    ciclos_desde_coach, ciclos_en_marcha, empezar_ciclo, linea_activa, quitar_ciclo,
+    LETRAS, _etiqueta_parte, anadir_parte, letra_visible, quitar_parte, deshacer_sustitucion, sustituir_parte,
+    NIVELES, escalar, referencias_elite,
+)
+from repertorio import COMPETICION, ELITE, HEROES, REPERTORIO
+from ciclos import CICLOS
+from i18n import lang, t
+from rutinas_iniciales import migrar, rutinas_iniciales
+
+try:  # fotos HEIC del iPhone
+    from pillow_heif import register_heif_opener
+    register_heif_opener()
+except Exception:
+    pass
+
+# ===== Cambia aquí los nombres =====
+ATLETAS = ["Yo", "Manu Anel", "Salatti", "Mi esposa", "Dario", "Archchana", "Juan"]
+IDIOMA_DEFECTO = {"Archchana": "fr"}  # el resto, español
+# Nombres que un invitado NO puede usar (para que nadie entre como «Yo» con la contraseña de invitados)
+PROTEGIDOS = ["Yo", "Manu Anel", "Salatti", "Mi esposa", "Dario", "Juan"]
+CLAVE_INVITADOS = "__invitados__"
+COLORES_ATLETA = ["#16202b", "#d6312b", "#1f5fbf", "#2a8c4a", "#d9a200", "#8e44ad", "#e67e22", "#7f8994"]
+# ===================================
+
+st.set_page_config(page_title="Diario de Entrenos", page_icon="🏋️", layout="centered")
 
 
-# ---------- tiempos y valores ----------
-def parse_tiempo(txt) -> int | None:
-    """'4:35' -> 275, '1:02:10' -> 3730, '45' (minutos) -> 2700."""
-    t = str(txt or "").strip().replace(",", ".")
-    if not t:
-        return None
-    if ":" in t:
-        try:
-            partes = [float(p) for p in t.split(":")]
-        except ValueError:
-            return None
-        total = 0.0
-        for p in partes:
-            total = total * 60 + p
-        return int(round(total))
+# ---------------------------------------------------------------- almacenamiento
+class LocalStore:
+    """SQLite + carpeta de fotos. Para probar en tu ordenador."""
+
+    def __init__(self, root: Path = Path("data")):
+        self.root = root
+        (root / "fotos").mkdir(parents=True, exist_ok=True)
+        self.db = root / "entrenos.db"
+        with sqlite3.connect(self.db) as c:
+            c.execute("""create table if not exists workouts(
+                id text primary key, athlete text, date text, type text, title text,
+                duration_sec integer, entries text, notes text, photo_path text, created_at text)""")
+            c.execute("create table if not exists rutinas(athlete text primary key, data text, updated_at text)")
+
+    def rutinas(self) -> dict:
+        with sqlite3.connect(self.db) as c:
+            return {a: json.loads(d) for a, d in c.execute("select athlete, data from rutinas")}
+
+    def guardar_rutina(self, atleta: str, data: dict):
+        with sqlite3.connect(self.db) as c:
+            c.execute("insert or replace into rutinas values (?,?,?)",
+                      (atleta, json.dumps(data, ensure_ascii=False), dt.datetime.now().isoformat()))
+
+    def listar(self) -> list[dict]:
+        with sqlite3.connect(self.db) as c:
+            c.row_factory = sqlite3.Row
+            filas = c.execute("select * from workouts order by date desc, created_at desc").fetchall()
+        out = []
+        for f in filas:
+            d = dict(f)
+            d["entries"] = json.loads(d["entries"] or "[]")
+            out.append(d)
+        return out
+
+    def guardar(self, w: dict, foto: bytes | None):
+        if foto:
+            nombre = f"{uuid.uuid4().hex}.jpg"
+            (self.root / "fotos" / nombre).write_bytes(foto)
+            w["photo_path"] = nombre
+        with sqlite3.connect(self.db) as c:
+            c.execute("insert into workouts values (?,?,?,?,?,?,?,?,?,?)", (
+                w["id"], w["athlete"], w["date"], w["type"], w["title"], w["duration_sec"],
+                json.dumps(w["entries"], ensure_ascii=False), w["notes"], w.get("photo_path"), w["created_at"]))
+
+    def borrar(self, w: dict):
+        with sqlite3.connect(self.db) as c:
+            c.execute("delete from workouts where id=?", (w["id"],))
+        if w.get("photo_path"):
+            (self.root / "fotos" / w["photo_path"]).unlink(missing_ok=True)
+
+    def foto(self, w: dict):
+        p = self.root / "fotos" / w["photo_path"]
+        return str(p) if p.exists() else None
+
+
+class SupabaseStore:
+    """Tabla `workouts` + bucket público `fotos` en Supabase."""
+
+    BUCKET = "fotos"
+
+    def __init__(self, url: str, key: str):
+        from supabase import create_client
+        self.c = create_client(url, key)
+
+    def listar(self) -> list[dict]:
+        r = self.c.table("workouts").select("*").order("date", desc=True).order("created_at", desc=True).execute()
+        return r.data or []
+
+    def guardar(self, w: dict, foto: bytes | None):
+        if foto:
+            carpeta = norm(w["athlete"]).replace(" ", "-") or "sin-nombre"
+            ruta = f"{carpeta}/{uuid.uuid4().hex}.jpg"
+            self.c.storage.from_(self.BUCKET).upload(ruta, foto, {"content-type": "image/jpeg"})
+            w["photo_path"] = ruta
+        self.c.table("workouts").insert(w).execute()
+
+    def borrar(self, w: dict):
+        self.c.table("workouts").delete().eq("id", w["id"]).execute()
+        if w.get("photo_path"):
+            try:
+                self.c.storage.from_(self.BUCKET).remove([w["photo_path"]])
+            except Exception:
+                pass
+
+    def foto(self, w: dict):
+        return self.c.storage.from_(self.BUCKET).get_public_url(w["photo_path"])
+
+    def rutinas(self) -> dict:
+        r = self.c.table("rutinas").select("athlete,data").execute()
+        return {f["athlete"]: f["data"] for f in (r.data or [])}
+
+    def guardar_rutina(self, atleta: str, data: dict):
+        self.c.table("rutinas").upsert({"athlete": atleta, "data": data,
+                                        "updated_at": dt.datetime.now(dt.timezone.utc).isoformat()}).execute()
+
+
+def secreto(nombre, defecto=None):
     try:
-        return int(round(float(t) * 60))
-    except ValueError:
-        return None
-
-
-def fmt_tiempo(seg) -> str:
-    if seg is None:
-        return ""
-    seg = int(round(float(seg)))
-    h, m, s = seg // 3600, seg % 3600 // 60, seg % 60
-    return f"{h}:{m:02d}:{s:02d}" if h else f"{m}:{s:02d}"
-
-
-def parse_valor(txt, unidad: str):
-    if unidad == "tiempo":
-        return parse_tiempo(txt)
-    t = str(txt or "").strip().replace(",", ".")
-    t = re.sub(r"[a-zA-Z\s]+$", "", t)  # admite "100kg" o "12 reps"
-    try:
-        return float(t)
-    except ValueError:
-        return None
-
-
-def fmt_valor(v, unidad: str) -> str:
-    if v is None:
-        return "—"
-    if unidad == "tiempo":
-        return fmt_tiempo(v)
-    v = float(v)
-    num = str(int(v)) if v.is_integer() else f"{v:.1f}".replace(".", ",")
-    return f"{num} {unidad}"
-
-
-def mejor(a, b, unidad: str) -> bool:
-    """¿a es mejor que b?"""
-    return a < b if unidad in MENOS_ES_MEJOR else a > b
-
-
-def norm(nombre: str) -> str:
-    return re.sub(r"\s+", " ", str(nombre or "").strip().lower())
-
-
-def a_fecha(d) -> dt.date:
-    if isinstance(d, dt.datetime):
-        return d.date()
-    if isinstance(d, dt.date):
-        return d
-    return dt.date.fromisoformat(str(d)[:10])
-
-
-# ---------- series ----------
-def series_ejercicios(entrenos: list[dict]) -> list[dict]:
-    """Agrupa resultados por ejercicio+unidad. Un punto por fecha (el mejor del día)."""
-    mapa: dict[str, dict] = {}
-    for w in entrenos:
-        for e in w.get("entries") or []:
-            if not e.get("name") or e.get("value") is None:
-                continue
-            k = norm(e["name"]) + "|" + e["unit"]
-            s = mapa.setdefault(k, {"key": k, "name": e["name"].strip(), "unit": e["unit"], "por_fecha": {}})
-            f = a_fecha(w["date"])
-            v = e["value"]
-            if f not in s["por_fecha"] or mejor(v, s["por_fecha"][f], e["unit"]):
-                s["por_fecha"][f] = v
-    out = []
-    for s in mapa.values():
-        s["pts"] = [{"date": f, "v": s["por_fecha"][f]} for f in sorted(s["por_fecha"])]
-        del s["por_fecha"]
-        out.append(s)
-    out.sort(key=lambda s: (-len(s["pts"]), s["name"].lower()))
-    return out
-
-
-def mejor_punto(s: dict) -> dict:
-    b = None
-    for p in s["pts"]:
-        if b is None or mejor(p["v"], b["v"], s["unit"]):
-            b = p
-    return b
-
-
-def cambio_pct(s: dict) -> float | None:
-    """Mejora desde el primer registro, en % (positivo = mejor)."""
-    pts = s["pts"]
-    if len(pts) < 2 or not pts[0]["v"]:
-        return None
-    pct = (pts[-1]["v"] - pts[0]["v"]) / pts[0]["v"] * 100
-    return -pct if s["unit"] in MENOS_ES_MEJOR else pct
-
-
-def ids_con_pr(entrenos: list[dict]) -> set[tuple[str, str]]:
-    """(id_entreno, clave_ejercicio) que tienen la mejor marca, solo si hay 2+ registros."""
-    orden = sorted(entrenos, key=lambda w: (str(w["date"]), str(w.get("created_at") or "")))
-    mejores: dict[str, tuple] = {}
-    cuenta: dict[str, int] = {}
-    for w in orden:
-        for e in w.get("entries") or []:
-            if not e.get("name") or e.get("value") is None:
-                continue
-            k = norm(e["name"]) + "|" + e["unit"]
-            cuenta[k] = cuenta.get(k, 0) + 1
-            if k not in mejores or mejor(e["value"], mejores[k][0], e["unit"]):
-                mejores[k] = (e["value"], w["id"])
-    return {(wid, k) for k, (_, wid) in mejores.items() if cuenta[k] > 1}
-
-
-# ---------- consejos ----------
-def consejos(entrenos: list[dict], hoy: dt.date | None = None) -> list[dict]:
-    """Lista de avisos {nivel: bueno|aviso|malo|info|tipo, titulo, detalle}."""
-    hoy = hoy or dt.date.today()
-    out = []
-    series = series_ejercicios(entrenos)
-    for s in series:
-        p = s["pts"]
-        if len(p) < 2:
-            continue
-        ult, prev, best = p[-1], p[-2], mejor_punto(s)
-        if ult is best:
-            out.append({"nivel": "bueno", "orden": 1, "titulo": f"{s['name']}: nueva mejor marca",
-                        "detalle": f"{fmt_valor(ult['v'], s['unit'])} el {ult['date']:%d/%m} (antes {fmt_valor(prev['v'], s['unit'])})."})
-            continue
-        desde_best = len(p) - 1 - p.index(best)
-        peor = prev["v"] and abs(ult["v"] - prev["v"]) / prev["v"] > 0.03 and mejor(prev["v"], ult["v"], s["unit"])
-        if desde_best >= 3:
-            out.append({"nivel": "malo", "orden": 0, "titulo": f"{s['name']}: estancado",
-                        "detalle": f"{desde_best} sesiones sin superar tu mejor marca ({fmt_valor(best['v'], s['unit'])}, "
-                                   f"{best['date']:%d/%m}). Prueba a cambiar volumen, técnica o descanso."})
-        elif peor:
-            out.append({"nivel": "aviso", "orden": 0.5, "titulo": f"{s['name']}: has bajado",
-                        "detalle": f"{fmt_valor(ult['v'], s['unit'])} frente a {fmt_valor(prev['v'], s['unit'])} la vez anterior. "
-                                   "Revisa las notas de ese día."})
-    recientes: dict[str, int] = {}
-    for w in entrenos:
-        if (hoy - a_fecha(w["date"])).days <= 30:
-            recientes[w["type"]] = recientes.get(w["type"], 0) + 1
-    if entrenos:
-        for k in ["fuerza", "wod", "gym", "endurance"]:
-            if not recientes.get(k):
-                out.append({"nivel": "tipo", "tipo": k, "orden": 0.8, "titulo": f"Sin {TIPOS[k][0]} en 30 días",
-                            "detalle": f"No has registrado ninguna sesión de {TIPOS[k][0].lower()} en el último mes."})
-        n4 = sum(1 for w in entrenos if 0 <= (hoy - a_fecha(w["date"])).days < 28)
-        out.append({"nivel": "info", "orden": 2, "titulo": f"{n4 / 4:.1f} sesiones por semana".replace(".", ","),
-                    "detalle": "Media de las últimas 4 semanas."})
-    solos = sum(1 for s in series if len(s["pts"]) == 1)
-    if solos:
-        out.append({"nivel": "info", "orden": 3,
-                    "titulo": f"{solos} {'ejercicio' if solos == 1 else 'ejercicios'} con un solo registro",
-                    "detalle": "Repite la misma prueba y escríbela igual para ver su progresión."})
-    out.sort(key=lambda c: c["orden"])
-    return out
-
-
-# ---------- semanas ----------
-def inicio_semana(d) -> dt.date:
-    d = a_fecha(d)
-    return d - dt.timedelta(days=d.weekday())
-
-
-def sesiones_por_semana(entrenos: list[dict], semanas: int = 8, hoy: dt.date | None = None, clave: str = "type"):
-    """Devuelve (lista_de_lunes, {valor_clave: [conteo por semana]})."""
-    hoy = hoy or dt.date.today()
-    lunes = [inicio_semana(hoy) - dt.timedelta(weeks=i) for i in range(semanas - 1, -1, -1)]
-    idx = {l: i for i, l in enumerate(lunes)}
-    cuentas: dict[str, list[int]] = {}
-    for w in entrenos:
-        i = idx.get(inicio_semana(w["date"]))
-        if i is None:
-            continue
-        cuentas.setdefault(w[clave], [0] * semanas)[i] += 1
-    return lunes, cuentas
-
-
-# ---------- rutinas ----------
-NUM_PESO = re.compile(r"@\s*(\d+(?:[.,]\d+)?)")
-PALABRAS_METCON = ("wod", "conditioning", "gym", "emom", "amrap", "metcon", "for time", "movilidad", "mobility",
-                   "mobilite", "estiramientos", "stretching")
-
-
-def fmt_num(v: float) -> str:
-    v = round(float(v) * 100) / 100
-    return str(int(v)) if v.is_integer() else f"{v:g}".replace(".", ",")
-
-
-def progresar(presc: str, delta: float) -> str:
-    """Suma `delta` kg a cada peso escrito tras una @ ('3@40 2@45' -> '3@42,5 2@47,5')."""
-    if not presc or not delta:
-        return presc or ""
-    return NUM_PESO.sub(lambda m: "@" + fmt_num(max(0.0, float(m.group(1).replace(",", ".")) + delta)), presc)
-
-
-def prescripcion_semana(linea: dict, semana: int, ajustes: dict | None) -> tuple[str, bool, bool]:
-    """(texto para esa semana, ¿ha subido respecto a la base?, ¿es un ajuste solo de esa semana?)."""
-    if semana < int(linea.get("desde") or 0) or (linea.get("hasta") is not None and semana > int(linea["hasta"])) \
-            or int(semana) in [int(x) for x in linea.get("saltar") or []]:
-        return "", False, False  # aún no existía, ya se quitó o esa semana se cambió por otra cosa
-    aj = (ajustes or {}).get(str(semana), {}).get(linea["id"])
-    if aj is not None:
-        return aj, False, True
-    if linea.get("plan") is not None:  # ciclo: texto fijado semana a semana
-        return linea["plan"].get(str(semana), ""), False, False
-    p = parametros_semana(linea, semana)
-    base = p.get("prescripcion") or ""
-    delta = semanas_que_sube(p, semana) * float(p.get("sube") or 0)
-    return progresar(base, delta), bool(delta) and bool(NUM_PESO.search(base)), False
-
-
-def parametros_semana(linea: dict, semana: int) -> dict:
-    """Los datos de la línea que valían en esa semana (los cambios nunca reescriben semanas anteriores)."""
-    for e in sorted(linea.get("historial") or [], key=lambda e: e["hasta"]):
-        if semana <= int(e["hasta"]):
-            return {**linea, **e}
-    return linea
-
-
-def rebasar(linea: dict, semana: int, presc: str | None = None, sube: float | None = None) -> None:
-    """Empieza un tramo nuevo en `semana` (modifica `linea`). Lo anterior se guarda tal cual en `historial`."""
-    hist = [dict(e) for e in sorted(linea.get("historial") or [], key=lambda e: e["hasta"])]
-    for e in hist:
-        e["hasta"] = min(int(e["hasta"]), semana - 1)
-    hist = [e for e in hist if e["hasta"] >= 1]
-    tope = max((e["hasta"] for e in hist), default=0)
-    if semana - 1 >= 1 and tope < semana - 1:
-        hist.append({"hasta": semana - 1, "prescripcion": linea.get("prescripcion") or "",
-                     "base": int(linea.get("base") or 1), "sube": float(linea.get("sube") or 0)})
-    vistos, limpio = set(), []
-    for e in hist:
-        if e["hasta"] not in vistos:
-            vistos.add(e["hasta"])
-            limpio.append(e)
-    linea["historial"] = limpio
-    if presc is not None:
-        linea["prescripcion"] = presc
-    if sube is not None:
-        linea["sube"] = sube
-    linea["base"] = int(semana)
-
-
-def semanas_que_sube(linea: dict, semana: int) -> int:
-    """Semanas de subida desde la base, sin contar las que se repiten por un «no hecho»."""
-    b = int(linea.get("base") or 1)
-    pausas = sum(1 for p in linea.get("pausas") or [] if b <= int(p) < semana)
-    return semana - b - pausas
-
-
-def se_repite(linea: dict, semana: int) -> bool:
-    """¿Esta semana repite pesos porque la anterior no se hizo?"""
-    p = parametros_semana(linea, semana)
-    return (semana - 1) in [int(x) for x in linea.get("pausas") or []] and float(p.get("sube") or 0) > 0 \
-        and int(p.get("base") or 1) <= semana - 1
-
-
-def peso_principal(presc: str) -> float | None:
-    """El último peso escrito (la serie más pesada en '3@40 2@45 1@50')."""
-    nums = NUM_PESO.findall(presc or "")
-    return float(nums[-1].replace(",", ".")) if nums else None
-
-
-def es_metcon(nombre: str) -> bool:
-    n = norm(nombre)
-    return any(p in n for p in PALABRAS_METCON)
-
-
-def _limpio(v) -> str:
-    if v is None or (isinstance(v, float) and v != v):
-        return ""
-    return str(v).strip()
-
-
-def _num(v, defecto: float = 0.0) -> float:
-    try:
-        f = float(str(v).replace(",", "."))
-        return defecto if f != f else f
-    except (TypeError, ValueError):
+        return st.secrets.get(nombre, defecto)
+    except Exception:  # no hay secrets.toml
         return defecto
 
 
-def aplicar_edicion(rut: dict, dia_id: str, filas: list[dict], semana: int, solo_esta: bool, nuevo_id) -> dict:
-    """Aplica lo editado en la tabla de un día. `filas` = [{id, ejercicio, presc, sube, nota}]."""
-    import copy
-    rut = copy.deepcopy(rut)
-    ajustes = rut.setdefault("ajustes", {})
-    dia = next(d for d in rut["dias"] if d["id"] == dia_id)
-    previas = {l["id"]: l for l in dia["lineas"]}
-    nuevas = []
-    for f in filas:
-        ejercicio = _limpio(f.get("ejercicio"))
-        presc = _limpio(f.get("presc"))
-        sube = _num(f.get("sube"), 0.0)
-        nota = _limpio(f.get("nota"))
-        lid = _limpio(f.get("id"))
-        parte = _limpio(f.get("parte"))
-        if not ejercicio and not presc:
+@st.cache_resource
+def store():
+    cfg = secreto("supabase")
+    if cfg and cfg.get("url") and cfg.get("key"):
+        return SupabaseStore(cfg["url"], cfg["key"])
+    return LocalStore()
+
+
+@st.cache_data(ttl=60, show_spinner=False)
+def cargar_todo() -> list[dict]:
+    return store().listar()
+
+
+def refrescar():
+    cargar_todo.clear()
+
+
+@st.cache_data(ttl=60, show_spinner=False)
+def cargar_rutinas() -> dict:
+    return store().rutinas()
+
+
+def guardar_rutina(atleta: str, data: dict):
+    store().guardar_rutina(atleta, data)
+    cargar_rutinas.clear()
+
+
+# ---------------------------------------------------------------- utilidades UI
+def preparar_foto(archivo) -> bytes:
+    img = Image.open(archivo)
+    img = ImageOps.exif_transpose(img).convert("RGB")
+    img.thumbnail((1600, 1600))
+    buf = io.BytesIO()
+    img.save(buf, "JPEG", quality=82)
+    return buf.getvalue()
+
+
+def etiqueta_tipo(k: str) -> str:
+    nombre, _, color = TIPOS.get(k, TIPOS["otro"])
+    return f":{color}[●] **{nombre}**"
+
+
+def fecha_larga(d) -> str:
+    dias = ["lun", "mar", "mié", "jue", "vie", "sáb", "dom"]
+    meses = ["ene", "feb", "mar", "abr", "may", "jun", "jul", "ago", "sep", "oct", "nov", "dic"]
+    d = a_fecha(d)
+    return f"{dias[d.weekday()]} {d.day} {meses[d.month - 1]} {d.year}"
+
+
+def control_contrasena():
+    """Contraseña general (todo) o contraseña personal (solo el perfil de esa persona)."""
+    clave = secreto("APP_PASSWORD")
+    if not clave or st.session_state.get("dentro"):
+        return
+    st.title("Diario de Entrenos")
+    intento = st.text_input("Contraseña / Mot de passe", type="password").strip()  # el móvil a veces añade espacios
+    personales = {nombre: str(c).strip() for nombre, c in (secreto("accesos_personales") or {}).items()}
+    invitados = str(secreto("CONTRASENA_INVITADOS") or "").strip()
+    if st.session_state.get("invitado_ok") or (invitados and intento == invitados):
+        st.session_state.invitado_ok = True
+        _entrar_como_invitado()
+        st.stop()
+    if intento and intento == str(clave).strip():
+        st.session_state.dentro, st.session_state.solo = True, None
+        st.rerun()
+    elif intento and intento in personales.values():
+        nombre = next(n for n, c in personales.items() if c == intento)
+        st.session_state.dentro, st.session_state.solo = True, nombre
+        st.session_state.lang = IDIOMA_DEFECTO.get(nombre, "es")
+        st.rerun()
+    elif intento:
+        st.error("Contraseña incorrecta. / Mot de passe incorrect.")
+    st.stop()
+
+
+def _hash(nombre: str, pin: str) -> str:
+    return hashlib.sha256(f"{nombre.lower()}|{pin}".encode()).hexdigest()
+
+
+def _entrar_como_invitado():
+    """Contraseña de invitados: cada persona pone su nombre y su PIN (lo crea la primera vez) y solo ve lo suyo."""
+    st.markdown("**Bienvenido/a · Bienvenue**")
+    nombre = st.text_input("Tu nombre · Ton prénom", key="inv_nombre").strip().title()
+    pin = st.text_input("Tu PIN (4 cifras o más) · Ton code", type="password", key="inv_pin").strip()
+    if not nombre or not pin:
+        st.caption("La primera vez, el PIN que pongas será el tuyo para siempre. · "
+                   "La première fois, le code que tu choisis devient le tien.")
+        return
+    if norm_busqueda(nombre) in {norm_busqueda(p) for p in PROTEGIDOS}:
+        st.error("Ese nombre no está disponible. Usa otro, por ejemplo con tu apellido.")
+        return
+    if len(pin) < 4:
+        st.error("El PIN tiene que tener al menos 4 cifras.")
+        return
+    registro = dict(_invitados())
+    existente = next((n for n in registro if norm_busqueda(n) == norm_busqueda(nombre)), None)
+    if existente and registro[existente].get("pin") != _hash(existente, pin):
+        st.error("PIN incorrecto para ese nombre. · Code incorrect.")
+        return
+    if not existente:
+        existente = nombre
+        registro[existente] = {"pin": _hash(existente, pin), "alta": dt.date.today().isoformat()}
+        guardar_rutina(CLAVE_INVITADOS, registro)
+    st.session_state.dentro, st.session_state.solo = True, existente
+    st.session_state.invitado_ok = False
+    st.session_state.lang = IDIOMA_DEFECTO.get(existente, st.session_state.get("lang") or "es")
+    st.rerun()
+
+
+def solo() -> str | None:
+    """Si se entró con una contraseña personal, el nombre de esa persona."""
+    return st.session_state.get("solo")
+
+
+def _invitados() -> dict:
+    try:
+        return cargar_rutinas().get(CLAVE_INVITADOS) or {}
+    except Exception:
+        return {}
+
+
+def atletas() -> list[str]:
+    """Las personas fijas más los invitados que se han dado de alta."""
+    return ATLETAS + [n for n in _invitados() if n not in ATLETAS]
+
+
+def visibles() -> list[str]:
+    return [solo()] if solo() else atletas()
+
+
+def eje_tiempo(fig: go.Figure, valores: list[float], eje: str = "yaxis"):
+    lo, hi = min(valores), max(valores)
+    paso = max(5, round((hi - lo) / 4 / 5) * 5) if hi > lo else 15
+    inicio = int(lo // paso * paso)
+    ticks = list(range(inicio, int(hi) + paso + 1, paso))
+    fig.update_layout(**{eje: dict(tickvals=ticks, ticktext=[fmt_tiempo(t) for t in ticks])})
+
+
+# ---------------------------------------------------------------- pestañas
+def formulario_entreno(atleta: str, entrenos: list[dict], clave: str, inicial: dict | None = None,
+                       partes: list[str] | None = None, al_guardar=None):
+    """Formulario de entreno. `inicial` = {tipo, titulo, filas:[{Ejercicio, Resultado, Unidad}]}.
+    Con `partes`, pregunta qué partes se hicieron y llama a `al_guardar(partes_hechas)` tras guardar."""
+    inicial = inicial or {}
+    n = st.session_state.setdefault(f"form_n_{clave}", 0)
+    usados = sorted({e["name"].strip() for w in entrenos for e in (w.get("entries") or []) if e.get("name")}, key=str.lower)
+    filas = inicial.get("filas") or [{"Ejercicio": "", "Resultado": "", "Unidad": "tiempo"} for _ in range(3)]
+    tipos = list(TIPOS)
+
+    with st.form(f"form_{clave}_{n}"):
+        c1, c2 = st.columns(2)
+        tipo = c1.selectbox(t("Tipo"), tipos, index=tipos.index(inicial.get("tipo", "fuerza")),
+                            format_func=lambda k: TIPOS[k][0])
+        fecha = c2.date_input(t("Fecha"), dt.date.today(), format="DD/MM/YYYY")
+        c3, c4 = st.columns([2, 1])
+        titulo = c3.text_input(t("Título"), value=inicial.get("titulo", ""), placeholder="Fran, Pierna, 10K suave…")
+        duracion = c4.text_input(t("Duración total"), placeholder="h:mm:ss o min")
+
+        st.markdown(f"**{t('Resultados')}**")
+        tabla = st.data_editor(
+            pd.DataFrame(filas, columns=["Ejercicio", "Resultado", "Unidad"]),
+            num_rows="dynamic", hide_index=True, use_container_width=True, key=f"tabla_{clave}_{n}",
+            column_config={
+                "Ejercicio": st.column_config.TextColumn(width="medium"),
+                "Resultado": st.column_config.TextColumn(help="Tiempo como 4:35 o 1:02:10; el resto, un número"),
+                "Unidad": st.column_config.SelectboxColumn(options=UNIDADES, required=True),
+            },
+        )
+        st.caption("Tiempo como 4:35 o 1:02:10. Escribe cada ejercicio siempre igual para seguir su progresión."
+                   + (f" Ya usados: {', '.join(usados[:12])}." if usados and not inicial else ""))
+        notas = st.text_area(t("Notas"), placeholder="Sensaciones, escalado, qué falló…")
+        hechas = st.multiselect(t("Partes que has hecho (se validan al guardar)"), partes, default=partes) if partes else []
+        foto = st.file_uploader(t("Foto"), type=["jpg", "jpeg", "png", "webp", "heic", "heif"])
+        enviado = st.form_submit_button(t("Guardar entreno"), type="primary", use_container_width=True)
+
+    if not enviado:
+        return
+
+    errores, resultados = [], []
+    dur = None
+    if duracion.strip():
+        dur = parse_tiempo(duracion)
+        if dur is None:
+            errores.append("La duración no se entiende. Usa h:mm:ss, mm:ss o minutos.")
+    for _, fila in tabla.iterrows():
+        nombre = str(fila.get("Ejercicio") or "").strip()
+        bruto = str(fila.get("Resultado") or "").strip()
+        unidad = fila.get("Unidad") or "tiempo"
+        if not nombre and not bruto:
             continue
-        if lid not in previas:
-            sube = _num(f.get("sube"), 0.0 if es_metcon(ejercicio) or "accessor" in parte.lower() else 2.5)
-            nuevas.append({"id": nuevo_id(), "ejercicio": ejercicio or "Sin nombre", "prescripcion": presc,
-                           "sube": sube, "base": semana, "nota": nota, "parte": parte, "desde": semana})
-            continue
-        l = dict(previas[lid])
-        actual, _, _ = prescripcion_semana(l, semana, ajustes)
-        sin_ajuste, _, _ = prescripcion_semana(l, semana, None)
-        if sube != float(l.get("sube") or 0):  # nuevo ritmo a partir de esta semana
-            rebasar(l, semana, sin_ajuste, sube)
-        l["ejercicio"], l["nota"] = ejercicio or l["ejercicio"], nota
-        if parte:
-            l["parte"] = parte
-        if presc != actual:
-            if solo_esta:
-                ajustes.setdefault(str(semana), {})[lid] = presc
-            else:
-                rebasar(l, semana, presc)
-                for s in list(ajustes):
-                    if int(s) >= semana:
-                        ajustes[s].pop(lid, None)
-        nuevas.append(l)
-    dia["lineas"] = nuevas
-    for l, p in zip(nuevas, partes_del_dia(dia)):
-        l["parte"] = p
-    dia["lineas"] = [l for _, l in sorted(enumerate(nuevas), key=lambda t: (_letra(t[1]["parte"]), t[0]))]
-    rut["ajustes"] = {s: a for s, a in ajustes.items() if a}
-    return rut
+        valor = parse_valor(bruto, unidad) if bruto else None
+        if bruto and valor is None:
+            errores.append(f"Revisa el resultado de «{nombre or bruto}»: los tiempos van como 4:35 y el resto como número.")
+        resultados.append({"name": nombre or "Sin nombre", "value": valor, "unit": unidad})
+    if errores:
+        for e in errores:
+            st.error(e)
+        st.info("No se ha guardado nada. Corrige y vuelve a pulsar Guardar.")
+        return
+
+    w = {
+        "id": str(uuid.uuid4()), "athlete": atleta, "date": fecha.isoformat(), "type": tipo,
+        "title": titulo.strip(), "duration_sec": dur, "entries": resultados, "notes": notas.strip(),
+        "photo_path": None, "created_at": dt.datetime.now(dt.timezone.utc).isoformat(),
+    }
+    try:
+        with st.spinner("Guardando…"):
+            store().guardar(w, preparar_foto(foto) if foto else None)
+    except Exception as ex:
+        st.error(f"No se pudo guardar: {ex}")
+        return
+    refrescar()
+    if al_guardar and hechas:
+        al_guardar(hechas)
+    st.session_state[f"form_n_{clave}"] = n + 1
+    st.session_state["aviso"] = "Entreno guardado"
+    st.rerun()
 
 
-# ---------- validar partes de cada día ----------
-def clave_parte(semana: int, dia_id: str, parte: str) -> str:
-    return f"{int(semana)}|{dia_id}|{parte}"
+def tab_registrar(atleta: str, entrenos: list[dict]):
+    formulario_entreno(atleta, entrenos, f"libre_{atleta}")
 
 
-def estado_parte(rut: dict, semana: int, dia_id: str, parte: str) -> dict:
-    """{'estado': 'hecho'|'pospuesto'|'pendiente', 'destino': [semana, dia_id]?}"""
-    est = rut.get("estados") or {}
-    e = est.get(clave_parte(semana, dia_id, parte)) or est.get(f"{int(semana)}|{dia_id}")  # marca antigua de día entero
-    return e or {"estado": "pendiente"}
+SQL_RUTINAS = """create table if not exists public.rutinas (
+  athlete    text primary key,
+  data       jsonb not null,
+  updated_at timestamptz not null default now()
+);
+alter table public.rutinas enable row level security;"""
 
 
-def resumen_dia(rut: dict, semana: int, dia: dict) -> str:
-    """'hecho', 'no_hecho', 'parcial', 'pospuesto' o 'pendiente'."""
-    ests = [estado_parte(rut, semana, dia["id"], p)["estado"] for p, _ in agrupar_por_parte(dia, semana)]
-    if not ests:
-        return "pendiente"
-    if all(e == "hecho" for e in ests):
-        return "hecho"
-    if all(e == "no_hecho" for e in ests):
-        return "no_hecho"
-    if all(e == "pospuesto" for e in ests):
-        return "pospuesto"
-    if any(e != "pendiente" for e in ests):
-        return "parcial"
-    return "pendiente"
+def _nuevo_id() -> str:
+    return uuid.uuid4().hex[:8]
 
 
-def destino_dia_siguiente(rut: dict, semana: int, dia_id: str) -> list:
-    ids = [d["id"] for d in rut["dias"]]
-    i = ids.index(dia_id)
-    return [semana, ids[i + 1]] if i + 1 < len(ids) else [semana + 1, ids[0]]
+def _titulo_dia(semana: int, dia: dict) -> str:
+    return f"Semana {semana} · {dia['nombre']}"
 
 
-def destino_semana_siguiente(semana: int, dia_id: str) -> list:
-    return [semana + 1, dia_id]
-
-
-def marcar_parte(rut: dict, semana: int, dia_id: str, parte: str, estado: str | None, destino: list | None = None) -> dict:
-    """estado: 'hecho', 'no_hecho' (repite pesos la semana siguiente), 'pospuesto' (con destino) o None."""
-    import copy
-    rut = copy.deepcopy(rut)
-    estados = rut.setdefault("estados", {})
-    viejo = f"{int(semana)}|{dia_id}"
-    if viejo in estados:  # pasar la marca antigua de día entero a cada parte
-        e = estados.pop(viejo)
-        dia = next((d for d in rut["dias"] if d["id"] == dia_id), None)
-        for p, _ in (agrupar_por_parte(dia) if dia else []):
-            estados.setdefault(clave_parte(semana, dia_id, p), dict(e))
-    k = clave_parte(semana, dia_id, parte)
-    dia = next((d for d in rut["dias"] if d["id"] == dia_id), None)
-    lineas = next((ls for p, ls in agrupar_por_parte(dia) if p == parte), []) if dia else []
-    previo = (estados.get(k) or {}).get("estado")
-    if previo == "no_hecho" or estado == "no_hecho":  # rehacer la repetición de toda la parte
-        for l in lineas:
-            if semana in [int(x) for x in l.get("pausas") or []]:
-                l["pausas"] = [x for x in l["pausas"] if int(x) != semana]
-    if estado == "no_hecho":  # la semana siguiente repite pesos
-        for l in lineas:
-            if float(l.get("sube") or 0) > 0:
-                l.setdefault("pausas", []).append(int(semana))
-    if estado is None:
-        estados.pop(k, None)
-    elif estado == "pospuesto":
-        estados[k] = {"estado": "pospuesto", "destino": list(destino)}
-    else:
-        estados[k] = {"estado": estado}
-    return rut
-
-
-def pendientes_para(rut: dict, semana: int, dia_id: str) -> list[tuple[int, str, str]]:
-    """Partes pospuestas que caen en (semana, dia_id): [(semana_origen, dia_origen, parte)]."""
-    out = []
-    ids = {d["id"] for d in rut["dias"]}
-    for k, e in (rut.get("estados") or {}).items():
-        if e.get("estado") != "pospuesto" or list(e.get("destino") or []) != [semana, dia_id]:
-            continue
-        trozos = k.split("|", 2)
-        if trozos[1] not in ids:
-            continue
-        if len(trozos) == 3:
-            out.append((int(trozos[0]), trozos[1], trozos[2]))
-        else:  # marca antigua de día entero
-            dia = next(d for d in rut["dias"] if d["id"] == trozos[1])
-            out += [(int(trozos[0]), trozos[1], p) for p, _ in agrupar_por_parte(dia)]
-    return sorted(out)
-
-
-def sin_validar(rut: dict, semana: int) -> list[str]:
-    out = []
-    for d in rut["dias"]:
-        faltan = [p.split(")")[0] for p, _ in agrupar_por_parte(d, semana)
-                  if estado_parte(rut, semana, d["id"], p)["estado"] == "pendiente"]
-        if faltan:
-            out.append(f"{d['nombre']} ({', '.join(faltan)})")
-    return out
-
-
-# ---------- partes del día (A, B, C…) ----------
-PARTES = ["A) Fuerza", "A) Halterofilia", "B) Fuerza", "B) WOD", "B) Gym", "B) Gym / WOD", "B) Conditioning",
-          "B) Accessory", "C) WOD", "C) Conditioning", "C) Accessory", "C) Movilidad", "D) Conditioning",
-          "D) Accessory", "D) Movilidad"]
-
-
-def _letra(parte: str) -> str:
-    p = (parte or "").strip()
-    return p[0].upper() if p[:1].isalpha() and p[1:2] in (")", ".", " ", "") else "Z"
-
-
-def partes_del_dia(dia: dict) -> list[str]:
-    """La parte de cada línea; si falta, la deduce (fuerza seguida, cada metcon una letra nueva)."""
-    out, ultima = [], None
-    for l in dia.get("lineas", []):
-        p = (l.get("parte") or "").strip()
-        if not p:
-            nombre = l["ejercicio"] if es_metcon(l["ejercicio"]) else "Fuerza"
-            if ultima and ultima.split(") ", 1)[-1] == nombre:
-                p = ultima
-            else:
-                sig = chr(ord(_letra(ultima)) + 1) if ultima and _letra(ultima) != "Z" else "A"
-                p = f"{sig}) {nombre}"
-        out.append(p)
-        ultima = p
-    return out
-
-
-def agrupar_por_parte(dia: dict, semana: int | None = None) -> list[tuple[str, list[dict]]]:
-    """[(parte, [líneas])] ordenado por letra, respetando el orden dentro de cada parte.
-    Con `semana`, solo las líneas que existen esa semana (los ciclos duran unas semanas concretas)."""
-    partes = partes_del_dia(dia)
-    orden = sorted(range(len(partes)), key=lambda i: (_letra(partes[i]), i))
-    if semana is not None:
-        orden = [i for i in orden if linea_activa(dia["lineas"][i], semana)]
-    grupos: list[tuple[str, list[dict]]] = []
-    for i in orden:
-        if grupos and grupos[-1][0] == partes[i]:
-            grupos[-1][1].append(dia["lineas"][i])
+def _inicial_desde_dia(rut: dict, dia: dict, semana: int, lineas: list[dict] | None = None, titulo: str = "") -> dict:
+    filas, fuerza = [], False
+    for l in [x for x in (dia["lineas"] if lineas is None else lineas) if linea_activa(x, semana)]:
+        txt, _, _ = prescripcion_semana(l, semana, rut.get("ajustes"))
+        if es_metcon(l["ejercicio"]):
+            filas.append({"Ejercicio": l["ejercicio"], "Resultado": "", "Unidad": "tiempo"})
         else:
-            grupos.append((partes[i], [dia["lineas"][i]]))
-    return grupos
+            fuerza = True
+            p = peso_principal(txt)
+            filas.append({"Ejercicio": l["ejercicio"], "Resultado": fmt_num(p) if p is not None else "", "Unidad": "kg"})
+    return {"tipo": "fuerza" if fuerza else "wod", "titulo": titulo or _titulo_dia(semana, dia), "filas": filas}
 
 
-# ---------- cambiar pesos rápido ----------
-def _buscar_linea(rut: dict, lid: str) -> dict | None:
-    return next((l for d in rut["dias"] for l in d["lineas"] if l["id"] == lid), None)
+def _cambiar_semana(atleta: str, rut: dict, nueva: int):
+    rut = dict(rut, semana_actual=nueva)
+    guardar_rutina(atleta, rut)
+    st.session_state[f"sem_{atleta}"] = nueva
 
 
-def fijar_prescripcion(rut: dict, lid: str, semana: int, presc: str, solo_esta: bool) -> None:
-    """Fija la prescripción de una línea en `semana` (modifica `rut`). Desde esa semana sigue subiendo."""
-    l = _buscar_linea(rut, lid)
-    if l is None:
+CHIP_DIA = {"hecho": ":green[✓ hecho]", "no_hecho": ":red[✗ no hecho]", "parcial": ":orange[◐ a medias]",
+            "pospuesto": ":orange[↷ pasado]", "pendiente": ":gray[○ sin validar]"}  # se traducen con t()
+
+
+def _chip_parte(est: dict, semana: int, dias: dict) -> str:
+    if est["estado"] == "hecho":
+        return ":green[✓]"
+    if est["estado"] == "no_hecho":
+        return t(":red[✗ no hecho · la semana que viene se repite]")
+    if est["estado"] == "pospuesto":
+        s_, did = est["destino"]
+        nombre = dias.get(did, {}).get("nombre", "otro día")
+        return f":orange[↷ {nombre}" + (f", semana {s_}]" if s_ != semana else "]")
+    return ""
+
+
+PREFIJO_CARGA = re.compile(r"(\S*?)\s*@\s*\d+(?:[.,]\d+)?")
+
+
+def _etiqueta_extra(l: dict, txt: str, semana: int, ajuste: bool, subio: bool) -> str:
+    if ajuste:
+        return " :orange[(solo esta semana)]"
+    if txt and se_repite(l, semana):
+        return " :gray[(se repite)]"
+    p = parametros_semana(l, semana)
+    if subio and semanas_que_sube(p, semana) > 0:
+        return f" :green[+{fmt_num(semanas_que_sube(p, semana) * float(p['sube']))}]"
+    return ""
+
+
+# ---------------------------------------------------------------- IA (opcional)
+def ia_disponible() -> bool:
+    return bool(secreto("ANTHROPIC_API_KEY"))
+
+
+@st.cache_resource
+def _cliente_ia():
+    import anthropic
+    return anthropic.Anthropic(api_key=secreto("ANTHROPIC_API_KEY"))
+
+
+QUE_ES = {"wod": "WOD de CrossFit", "conditioning": "sesión de conditioning (motor, cardio, intervalos)",
+          "emom": "EMOM (o E2MOM/E3MOM) de CrossFit con su duración total",
+          "fuerza": "bloque de fuerza o halterofilia con series, repeticiones y pesos tras @",
+          "mobility": "bloque de movilidad o estiramientos con su duración o repeticiones",
+          "accessory": "ejercicio accesorio de fuerza con sus series y repeticiones"}
+
+
+def inventar_con_ia(tipo: str, ejemplos: list[tuple[str, str]], idea: str, duracion: str, estilo: str) -> tuple[str, str]:
+    lista = "\n".join(f"- {n}: {t}" if n else f"- {t}" for n, t in ejemplos[:25]) or "(todavía no hay ejemplos)"
+    prompt = (
+        f"Inventa un {QUE_ES[tipo]} nuevo y original para un grupo de amigos que entrena CrossFit.\n"
+        f"Inspírate en el estilo, el volumen y los movimientos de estos (no los copies):\n{lista}\n\n"
+        f"Duración: {duracion}. Estilo: {estilo}.\n"
+        + ("Escribe en francés.\n" if lang() == "fr" else "")
+        + (f"Lo que pide el atleta: {idea}\n" if idea else "")
+        + "Usa pesos RX hombre/mujer en kg cuando haya carga. Escribe en español, con los nombres de los movimientos "
+          "en inglés como en los ejemplos, y en una o dos líneas.\n"
+          'Responde SOLO con JSON: {"nombre": "...", "texto": "..."}. '
+          'En accessories, "nombre" es el ejercicio y "texto" las series, por ejemplo "3x10 @40".'
+    )
+    msg = _cliente_ia().messages.create(model=secreto("ANTHROPIC_MODEL", "claude-sonnet-5-5"), max_tokens=500,
+                                        messages=[{"role": "user", "content": prompt}])
+    texto = "".join(getattr(b, "text", "") for b in msg.content)
+    m = re.search(r"\{.*\}", texto, re.S)
+    try:
+        data = json.loads(m.group(0)) if m else {}
+    except json.JSONDecodeError:
+        data = {}
+    return str(data.get("nombre", "")).strip(), str(data.get("texto", texto)).strip()
+
+
+def _ia_panel(tipo: str, k: str):
+    """Pide a la IA uno nuevo al estilo de lo hecho. Devuelve (nombre, texto) o None."""
+    if not ia_disponible():
+        st.caption("La IA no está activada. Añade ANTHROPIC_API_KEY en los Secrets de Streamlit (lo explica el README).")
+        return None
+    idea = st.text_input(t("Idea (opcional)"), key=f"ii_{k}", placeholder="thrusters y pull ups, algo corto e intenso…")
+    c1, c2, c3 = st.columns(3)
+    dur = c1.selectbox(t("Duración"), ["Corto (menos de 10')", "Medio (10-20')", "Largo (más de 20')"], index=1,
+                       key=f"id_{k}")
+    estilos = ["Como los nuestros", "Competición (tipo Open)", "Hero WOD"] if tipo == "wod" else ["Como los nuestros"]
+    estilo = c2.selectbox(t("Estilo"), estilos, key=f"ie_{k}")
+    persona = c3.selectbox(t("Al estilo de"), (["Todos"] if not solo() else []) + visibles(), key=f"ip_{k}",
+                           format_func=t)
+    hay_coach = bool(_datos_coach())
+    con_coach = st.checkbox("Inspirarse también en el coach", value=hay_coach, key=f"ic_{k}") if hay_coach else False
+    if st.button(t("✨ Inventar uno") if not st.session_state.get(f"ir_{k}") else t("✨ Otro"), key=f"ib_{k}"):
+        grupos = _bib({"emom": "wod", "fuerza": "accessory"}.get(tipo, tipo))
+        if tipo == "emom":
+            grupos = [g for g in grupos if es_emom(g["titulo"] + "\n" + g["texto"])]
+        if persona != "Todos":
+            grupos = [g for g in grupos if any(v["atleta"] == persona for v in g["veces"])] or grupos
+            estilo += f" (el de {persona})"
+        ejemplos = [(g["titulo"], g["texto"]) for g in grupos]
+        if con_coach:
+            del_coach = [i for i in _datos_coach()["items"]
+                         if (i.get("emom") if tipo == "emom" else i["tipo"] in COACH_PARA_LINEA.get(tipo, [tipo]))]
+            ejemplos = random.sample([(i["nombre"], i["texto"][:400]) for i in del_coach], min(12, len(del_coach))) + ejemplos
+            estilo += " (más exigente, como un coach de competición)"
+        if estilo.startswith("Competición") or estilo == "Hero WOD":
+            ejemplos = COMPETICION + ejemplos
+        elif len(ejemplos) < 5:
+            ejemplos += REPERTORIO.get({"emom": "wod", "fuerza": "accessory"}.get(tipo, tipo), [])
+        with st.spinner("Pensando…"):
+            try:
+                st.session_state[f"ir_{k}"] = inventar_con_ia(tipo, ejemplos, idea, dur, estilo)
+            except Exception as ex:
+                st.error(f"La IA no ha podido responder: {ex}")
+    res = st.session_state.get(f"ir_{k}")
+    if res:
+        st.markdown(f"**{res[0] or 'Propuesta'}** · {res[1]}")
+    return res
+
+
+_BIB_RUN: dict = {}
+
+
+def _bib(tipo: str) -> list[dict]:
+    """Lo ya hecho de un tipo (todos los atletas), calculado una vez por pantalla."""
+    if tipo not in _BIB_RUN:
+        try:
+            guardadas = cargar_rutinas()
+        except Exception:
+            guardadas = {}
+        rutinas = {a: _completar_partes(guardadas.get(a) or rutinas_iniciales(ATLETAS).get(a), a) for a in ATLETAS}
+        try:
+            entrenos = cargar_todo()
+        except Exception:
+            entrenos = []
+        rutinas.update({a: _completar_partes(guardadas.get(a), a) for a in atletas() if a not in rutinas and guardadas.get(a)})
+        grupos = biblioteca(rutinas, atletas(), entrenos, guardadas.get(CLAVE_BIBLIOTECA), tipo)
+        if solo():
+            for g in grupos:
+                g["veces"] = [v for v in g["veces"] if v["atleta"] == solo()]
+            grupos = [g for g in grupos if g["veces"]]
+        _BIB_RUN[tipo] = grupos
+    return _BIB_RUN[tipo]
+
+
+def _titulo_grupo(g: dict) -> str:
+    if g["titulo"] and g["texto"] and norm(g["texto"]) != norm(g["titulo"]):
+        return f"{g['titulo']} · {g['texto'].splitlines()[0]}"
+    return g["titulo"] or g["texto"].splitlines()[0]
+
+
+def _elegir_contenido(tipo: str, k: str, atleta: str | None = None):
+    """✍️ Nuevo / 📚 Ya hechos / 💡 Repertorio / ✨ IA / 🔒 Coach. Devuelve (modo, (nombre, texto) | None)."""
+    con_coach = atleta in ACCESO_COACH and not solo() and bool(secreto("COACH_PIN"))
+    modos = ["✍️ Nuevo", "📚 Ya hechos", "💡 Repertorio", "✨ IA"] + (["🔒 Coach"] if con_coach else [])
+    modo = st.segmented_control("Origen", modos, default="✍️ Nuevo",
+                                key=f"om_{k}", label_visibility="collapsed", format_func=t) or "✍️ Nuevo"
+    if modo == "🔒 Coach" and con_coach:
+        if not coach_abierto():
+            if _pedir_pin(f"pin_{k}"):
+                st.rerun()
+            return modo, None
+        if not _datos_coach():
+            st.caption("Aún no has subido el material del coach (sección 🔒 Coach).")
+            return modo, None
+        tipos = COACH_PARA_LINEA.get(tipo, [tipo])
+        q = st.text_input(t("Buscar por movimiento"), key=f"cq_{k}", placeholder="snatch, MU, bike…")
+        ops = [i for i in _datos_coach()["items"] if (i.get("emom") if tipo == "emom" else i["tipo"] in tipos)
+               and (not q or coincide_busqueda(i["nombre"] + "\n" + i["texto"], q))][::-1]
+        if not ops:
+            st.caption("Nada del coach con eso.")
+            return modo, None
+        _boton_azar(f"cs_{k}", len(ops))
+        i = st.selectbox(t("Elige"), range(len(ops)), key=f"cs_{k}",
+                         format_func=lambda i: f"{ops[i]['fecha'][:10]} · {ops[i]['nombre']}"[:80])
+        it = ops[min(i, len(ops) - 1)]
+        st.caption(it["texto"].replace("\n", "  \n"))
+        return modo, ("", it["texto"])
+    if modo == "✨ IA":
+        return modo, _ia_panel(tipo, k)
+    if modo == "📚 Ya hechos":
+        q = st.text_input(t("Buscar por movimiento"), key=f"oq_{k}", placeholder="thruster, row, pull up…")
+        base = {"emom": "wod", "fuerza": "accessory"}.get(tipo, tipo)
+        ops = [g for g in _bib(base) if any(v["estado"] == "hecho" for v in g["veces"])
+               and (tipo != "emom" or es_emom(g["titulo"] + "\n" + g["texto"]))
+               and (not q or coincide_busqueda(g["titulo"] + "\n" + g["texto"], q))]
+        if not ops:
+            st.caption("Todavía no hay nada de este tipo hecho por ninguno. Prueba el repertorio o el coach.")
+            return modo, None
+        _boton_azar(f"os_{k}", len(ops))
+        i = st.selectbox(t("Elige"), range(len(ops)), key=f"os_{k}",
+                         format_func=lambda i: f"{_titulo_grupo(ops[i])[:70]} ({len(ops[i]['veces'])}x)")
+        g = ops[min(i, len(ops) - 1)]
+        st.caption(g["texto"].replace("\n", "  \n") + "  \n" +
+                   "Hecho por: " + ", ".join(sorted({v['atleta'] for v in g['veces'] if v['atleta']})))
+        return modo, (g["titulo"], g["texto"])
+    if modo == "💡 Repertorio":
+        q = st.text_input(t("Buscar por movimiento"), key=f"rq_{k}", placeholder="thruster, row, pull up…")
+        fuente = {"emom": [x for x in REPERTORIO["wod"] + REPERTORIO["conditioning"] if es_emom(x[1])],
+                  "fuerza": REPERTORIO["accessory"]}.get(tipo, REPERTORIO.get(tipo, []))
+        ops = [x for x in fuente if not q or coincide_busqueda(x[0] + "\n" + x[1], q)]
+        if not ops:
+            st.caption("Nada en el repertorio con eso.")
+            return modo, None
+        clave = f"rs_{k}"
+        _boton_azar(clave, len(ops))
+        i = st.selectbox(t("Elige"), range(len(ops)), key=clave, format_func=lambda i: f"{ops[i][0]} · {ops[i][1]}"[:80])
+        st.caption(f"**{ops[i][0]}** · {ops[i][1]}")
+        return modo, ops[i]
+    return modo, None
+
+
+def _boton_azar(clave: str, n: int):
+    """🎲: elige uno al azar en el desplegable `clave` (debe ir antes del desplegable)."""
+    if st.button(t("🎲 Al azar"), key=f"{clave}_azar") and n:
+        st.session_state[clave] = random.randrange(n)
+    if st.session_state.get(clave, 0) >= max(n, 1):
+        st.session_state[clave] = 0
+
+
+def _contenido_elegido(tipo: str, l: dict, sel: tuple) -> tuple[str, str]:
+    """(ejercicio, prescripción) a guardar en la línea a partir de lo elegido."""
+    titulo, texto = sel
+    if tipo in ("accessory", "mobility", "fuerza"):
+        return (titulo or l["ejercicio"]), texto
+    if not titulo or norm(texto).startswith(norm(titulo)):
+        return l["ejercicio"], texto
+    return l["ejercicio"], f"{titulo}: {texto}"
+
+
+NIVEL_DEFECTO = {"Yo": "RX"}  # el resto empieza en Inter
+_NIVEL_RUN: dict = {}
+
+
+def nivel_de(atleta: str) -> str:
+    if atleta in _NIVEL_RUN:
+        return _NIVEL_RUN[atleta]
+    rut = None
+    try:
+        rut = cargar_rutinas().get(atleta)
+    except Exception:
+        pass
+    return (rut or {}).get("nivel") or NIVEL_DEFECTO.get(atleta, "Inter")
+
+
+def _versiones(texto: str, titulo: str = "", clave: str = ""):
+    """Popover con RX / Inter / Scaled / Elite y, si es un benchmark, la marca de un atleta de élite."""
+    with st.popover("🎚️ Versiones"):
+        for n in NIVELES:
+            st.markdown(f"**{n}**  \n" + escalar(texto, n).replace("\n", "  \n"))
+        for r in referencias_elite(f"{titulo}\n{texto}", ELITE):
+            st.markdown(f"🏆 **{r['quien']}**: {r['marca']} ({r['detalle']}) · [fuente]({r['fuente']})")
+
+
+def _reto_elite(texto: str, titulo: str = ""):
+    refs = referencias_elite(f"{titulo}\n{texto}", ELITE)
+    if refs:
+        r = refs[0]
+        st.caption(f"🏆 {r['quien']} hizo **{r['marca']}** ({r['detalle']}). ¿A ver si te acercas?")
+
+
+def _linea_texto_editable(atleta: str, rut: dict, l: dict, txt: str, semana: int, metcon: bool, nombre: str,
+                          extra: str, tipo: str = "wod"):
+    """WOD, conditioning o accessory: se ve el texto y al tocarlo se edita o se elige de lo hecho / el repertorio."""
+    nivel = nivel_de(atleta) if tipo in ("wod", "emom", "conditioning", "accessory") else "RX"
+    visto = escalar(txt, nivel) if txt and nivel != "RX" else txt
+    resumen = (visto or t("por definir")).replace("\n", " / ")
+    if len(resumen) > 80:
+        resumen = resumen[:77] + "…"
+    k = f"{atleta}_{semana}_{l['id']}"
+    with st.popover(f"{nombre}{resumen} ✏️", use_container_width=True):
+        modo, sel = _elegir_contenido(tipo, k, atleta)
+        if modo == "✍️ Nuevo":
+            nuevo_nombre = st.text_input(t("Nombre"), l["ejercicio"], key=f"tn_{k}")
+            nuevo_txt = st.text_area(t("Qué toca"), txt, height=120, key=f"tt_{k}",
+                                     placeholder="AMRAP 12': 10 thrusters @40 + 5 burpees")
+            nueva_nota = st.text_input(t("Nota"), l.get("nota", ""), key=f"to_{k}")
+        alcance = st.radio(t("Aplicar a"), ["Solo esta semana", "Esta semana y las siguientes"], format_func=t,
+                           index=0 if metcon else 1, key=f"ta_{k}", horizontal=True)
+        if st.button(t("Guardar") if modo == "✍️ Nuevo" else t("Usar este"), type="primary", key=f"tg_{k}",
+                     disabled=(modo != "✍️ Nuevo" and sel is None)):
+            rut_act = _rutina_actual(atleta)
+            if modo == "✍️ Nuevo":
+                nueva = editar_texto_linea(rut_act, l["id"], semana, nuevo_nombre, nuevo_txt, nueva_nota,
+                                           alcance == "Solo esta semana")
+            else:
+                ejercicio, presc = _contenido_elegido(tipo, l, sel)
+                nueva = editar_texto_linea(rut_act, l["id"], semana, ejercicio, presc, l.get("nota", ""),
+                                           alcance == "Solo esta semana")
+            guardar_rutina(atleta, nueva)
+            st.session_state["aviso"] = "Guardado"
+            st.rerun()
+    if "\n" in (visto or ""):
+        st.caption(visto.replace("\n", "  \n"))
+    if extra.strip():
+        st.caption(extra.strip())
+    if txt and tipo in ("wod", "emom", "conditioning", "accessory"):
+        if nivel != "RX":
+            st.caption(f"Versión {nivel} · el RX está en 🎚️ Versiones")
+        _reto_elite(txt, l["ejercicio"])
+        _versiones(txt, l["ejercicio"], k)
+
+
+def _anadir_a_parte(atleta: str, dia: dict, parte: str, semana: int, tipo: str = "accessory"):
+    """Botón para añadir un accessory o movilidad (nuevo, ya hecho o del repertorio) a esta parte, desde esta semana."""
+    k = f"add_{atleta}_{semana}_{dia['id']}_{parte}"
+    with st.popover(t("+ Añadir movilidad") if tipo == "mobility" else t("+ Añadir accessory")):
+        modo, sel = _elegir_contenido(tipo, k, atleta)
+        if modo == "✍️ Nuevo":
+            nombre = st.text_input(t("Ejercicio"), key=f"an_{k}",
+                                   placeholder="Couch stretch" if tipo == "mobility" else "Romanian deadlift")
+            texto = st.text_input(t("Series y peso"), key=f"at_{k}",
+                                  placeholder="2x90\" por lado" if tipo == "mobility" else "3x10 @60")
+            sel = (nombre, texto) if nombre.strip() else None
+        if st.button(t("Añadir"), type="primary", key=f"ag_{k}", disabled=sel is None):
+            nombre, texto = sel
+            nombre = nombre or texto.split("\n")[0][:40]
+            guardar_rutina(atleta, anadir_linea(_rutina_actual(atleta), dia["id"], parte, nombre, texto, semana))
+            st.session_state["aviso"] = f"{nombre} añadido desde la semana {semana}"
+            st.rerun()
+
+
+def _cambiar_peso(atleta: str, semana: int, lid: str, txt: str, claves: list[str]):
+    """Callback al tocar un peso: guarda desde esta semana (o solo esta) y mueve el mismo ejercicio si toca."""
+    vals = [st.session_state.get(k) for k in claves]
+    if any(v is None for v in vals):
         return
-    if l.get("plan") is not None:
-        l["plan"][str(semana)] = presc
-        return
-    ajustes = rut.setdefault("ajustes", {})
-    if solo_esta:
-        ajustes.setdefault(str(semana), {})[lid] = presc
-        return
-    rebasar(l, int(semana), presc)
-    for s in list(ajustes):
-        if int(s) >= semana:
-            ajustes[s].pop(lid, None)
-    rut["ajustes"] = {s: a for s, a in ajustes.items() if a}
+    rut = _rutina_actual(atleta)
+    solo_semana = st.session_state.get(f"solo_sem_{atleta}", False)
+    propagar = st.session_state.get(f"propagar_{atleta}", True)
+    nueva, tocados = cambiar_pesos(rut, semana, {lid: poner_pesos(txt, [float(v) for v in vals])}, solo_semana, propagar)
+    guardar_rutina(atleta, nueva)
+    st.session_state["aviso"] = "Peso guardado" + (f" (también en {', '.join(tocados)})" if tocados else "")
 
 
-def poner_pesos(presc: str, pesos: list[float]) -> str:
-    """Sustituye, en orden, los pesos tras @ por `pesos`. Si no tenía ninguno, añade ' @peso'."""
-    if not pesos:
-        return presc
-    if not NUM_PESO.search(presc or ""):
-        return ((presc or "").strip() + f" @{fmt_num(pesos[0])}").strip()
-    it = iter(pesos)
-    return NUM_PESO.sub(lambda m: "@" + fmt_num(next(it, float(m.group(1).replace(",", ".")))), presc)
+def _lineas(rut: dict, lineas: list[dict], semana: int, parte: str, atleta: str | None = None,
+            por_ejercicio: bool = False):
+    """Muestra las líneas de una parte. Con `atleta`, los pesos son casillas que se pueden tocar y cambiar."""
+    texto = []
+
+    def volcar():
+        if texto:
+            st.markdown("\n".join(texto))
+            texto.clear()
+
+    for l in lineas:
+        if not linea_activa(l, semana):
+            continue
+        txt, subio, ajuste = prescripcion_semana(l, semana, rut.get("ajustes"))
+        metcon = es_metcon(l["ejercicio"])
+        extra = _etiqueta_extra(l, txt, semana, ajuste, subio)
+        nota = f" — _{l['nota']}_" if l.get("nota") else ""
+        if atleta and tipo_de_linea(parte, l["ejercicio"]) is None and l.get("plan") is None:
+            volcar()
+            cargas = PREFIJO_CARGA.findall(txt)
+            pesos = [float(x.replace(",", ".")) for x in NUM_PESO.findall(txt)]
+            esquema = NUM_PESO.sub("", txt).replace("  ", " ").strip(" -")
+            k = f"w_{atleta}_{semana}_{l['id']}_{txt}"
+            if len(pesos) <= 1:
+                etiqueta = f"**{l['ejercicio']}**" + (f" · {esquema}" if esquema else "") + extra + nota
+                st.number_input(etiqueta, min_value=0.0, step=1.25, format="%.2f",
+                                value=pesos[0] if pesos else None, placeholder=t("falta el peso · toca para ponerlo"),
+                                key=k, on_change=_cambiar_peso, args=(atleta, semana, l["id"], txt, [k]))
+            else:
+                st.markdown(f"**{l['ejercicio']}**{extra}{nota}")
+                claves = [f"{k}_{i}" for i in range(len(pesos))]
+                cols = st.columns(len(pesos))
+                for i, p in enumerate(pesos):
+                    pref = cargas[i] if i < len(cargas) and cargas[i] else f"Carga {i + 1}"
+                    cols[i].number_input(f"{pref} reps" if pref.isdigit() else pref, min_value=0.0, step=1.25,
+                                         format="%.2f", value=p, key=claves[i], on_change=_cambiar_peso,
+                                         args=(atleta, semana, l["id"], txt, claves))
+            if por_ejercicio:
+                kc = f"nh_{atleta}_{semana}_{l['id']}_{linea_no_hecha(l, semana)}"
+                st.checkbox(t("✗ No lo hice (repite peso la semana que viene)"), value=linea_no_hecha(l, semana),
+                            key=kc, on_change=_marcar_linea_cb, args=(atleta, semana, l["id"], kc))
+            continue
+        solo_bloque = metcon and norm(l["ejercicio"]) in norm(parte)  # «B) WOD» + línea «WOD»
+        nombre = "" if solo_bloque else f"**{l['ejercicio']}** · "
+        if atleta:
+            volcar()
+            _linea_texto_editable(atleta, rut, l, txt, semana, metcon, nombre, extra + nota,
+                                  _tipo_ui(parte, l["ejercicio"]) if _tipo_ui(parte, l["ejercicio"]) != "fuerza" else "wod")
+            continue
+        if txt:
+            linea = f"- {nombre}`{txt}`"
+        elif metcon:
+            linea = f"- {nombre}:gray[{t('por definir')}]"
+        else:
+            linea = f"- {nombre}:orange[falta el peso]"
+        texto.append(linea + extra + nota)
+    volcar()
+    if not lineas:
+        st.caption("Sin ejercicios.")
 
 
-def cambiar_pesos(rut: dict, semana: int, cambios: dict, solo_esta: bool, propagar: bool) -> tuple[dict, list[str]]:
-    """cambios = {id_linea: nueva_prescripcion}. Con `propagar`, mueve igual el mismo ejercicio en otros días.
-    Devuelve (rutina nueva, nombres de los días tocados por propagación)."""
-    import copy
-    rut = copy.deepcopy(rut)
-    tocados = []
-    antes = {lid: prescripcion_semana(_buscar_linea(rut, lid), semana, rut.get("ajustes"))[0] for lid in cambios}
-    for lid, presc in cambios.items():
-        fijar_prescripcion(rut, lid, semana, presc, solo_esta)
-    if propagar:
-        for lid, presc in cambios.items():
-            viejo, nuevo = peso_principal(antes[lid]), peso_principal(presc)
-            if viejo is None or nuevo is None or viejo == nuevo:
-                continue
-            nombre = norm(_buscar_linea(rut, lid)["ejercicio"])
-            for d in rut["dias"]:
-                for l in d["lineas"]:
-                    if l["id"] in cambios or norm(l["ejercicio"]) != nombre:
-                        continue
-                    actual = prescripcion_semana(l, semana, rut.get("ajustes"))[0]
-                    if NUM_PESO.search(actual):
-                        fijar_prescripcion(rut, l["id"], semana, progresar(actual, nuevo - viejo), solo_esta)
-                        tocados.append(d["nombre"])
-    return rut, sorted(set(tocados), key=tocados.index)
+def _marcar_linea_cb(atleta: str, semana: int, lid: str, clave: str):
+    guardar_rutina(atleta, marcar_linea(_rutina_actual(atleta), lid, semana, bool(st.session_state.get(clave))))
 
 
-def linea_no_hecha(linea: dict, semana: int) -> bool:
-    return int(semana) in [int(x) for x in linea.get("pausas") or []]
+def _guardar_marca(atleta: str, semana: int, dia_id: str, parte: str, clave: str, opciones: dict):
+    """Callback del selector de estado de una parte."""
+    elegido = st.session_state.get(clave)
+    rut = _rutina_actual(atleta)
+    if elegido is None:
+        nueva = marcar_parte(rut, semana, dia_id, parte, None)
+    else:
+        estado, destino = opciones[elegido]
+        nueva = marcar_parte(rut, semana, dia_id, parte, estado, destino)
+    guardar_rutina(atleta, nueva)
 
 
-def marcar_linea(rut: dict, lid: str, semana: int, no_hecha: bool) -> dict:
-    """Un ejercicio suelto no hecho: la semana siguiente repite su peso."""
-    import copy
-    rut = copy.deepcopy(rut)
-    l = _buscar_linea(rut, lid)
-    if l is not None:
-        pausas = [int(x) for x in l.get("pausas") or [] if int(x) != int(semana)]
-        if no_hecha:
-            pausas.append(int(semana))
-        l["pausas"] = sorted(pausas)
-    return rut
+def _etiqueta_semana_sig(rut: dict, dia: dict, sem_aqui: int) -> str:
+    destino = dia.get("pasa_a")
+    if destino and destino != dia["id"]:
+        nombre = next((d["nombre"] for d in rut["dias"] if d["id"] == destino), "otro día")
+        return f"→ {nombre} (sem. {sem_aqui + 1})"
+    return t("→ Semana {n}", n=sem_aqui + 1)
 
 
-def no_hechas_en(lineas: list[dict], semana: int) -> int:
-    return sum(1 for l in lineas if not es_metcon(l["ejercicio"]) and linea_no_hecha(l, semana))
+SIMBOLO = {"hecho": ":green[✓]", "no_hecho": ":red[✗]", "pospuesto": ":orange[↷]", "pendiente": ":gray[·]"}
 
 
-# ---------- renombrar partes e historial ----------
-def renombrar_parte(rut: dict, dia_id: str, vieja: str, nueva: str) -> dict:
-    """Cambia la letra/nombre de una parte del día y conserva lo ya validado."""
-    import copy
-    rut = copy.deepcopy(rut)
-    nueva = nueva.strip()
-    if not nueva or nueva == vieja:
-        return rut
+def _historial_txt(rut: dict, dia: dict, parte: str, semana: int) -> str:
+    """Semanas anteriores de esta parte: S1 ✓ · S2 ✗ · S3 ↷."""
+    previas = historial_parte(rut, dia["id"], parte, semana - 1)
+    if not previas:
+        return ""
+    return f":gray[{t('Historial:')}] " + " ".join(f":gray[S{s}]{SIMBOLO[e]}" for s, e in previas)
+
+
+TIPOS_PARTE = ["EMOM", "WOD", "Conditioning", "Accessory", "Movilidad", "Fuerza", "Halterofilia", "Gym"]
+
+
+def _tipo_ui(parte: str, ejercicio: str = "") -> str:
+    """Tipo para elegir contenido: «emom» si la parte es un EMOM; si no, el de la línea."""
+    if "emom" in norm_busqueda(_etiqueta_parte(parte)):
+        return "emom"
+    return tipo_de_linea(parte, ejercicio) or "fuerza"
+
+
+def _mover_parte(rut: dict, dia_id: str, parte: str, paso: int) -> dict:
     dia = next(d for d in rut["dias"] if d["id"] == dia_id)
-    for l, p in zip(dia["lineas"], partes_del_dia(dia)):
-        l["parte"] = nueva if p == vieja else p
-    dia["lineas"] = [l for _, l in sorted(enumerate(dia["lineas"]), key=lambda t: (_letra(t[1]["parte"]), t[0]))]
-    estados = rut.get("estados") or {}
-    for k in list(estados):
-        trozos = k.split("|", 2)
-        if len(trozos) == 3 and trozos[1] == dia_id and trozos[2] == vieja:
-            estados[f"{trozos[0]}|{dia_id}|{nueva}"] = estados.pop(k)
-    return rut
-
-
-def historial_parte(rut: dict, dia_id: str, parte: str, hasta: int, maximo: int = 6) -> list[tuple[int, str]]:
-    """[(semana, estado)] de las últimas semanas hasta `hasta` (incluida)."""
-    desde = max(1, hasta - maximo + 1)
-    return [(s, estado_parte(rut, s, dia_id, parte)["estado"]) for s in range(desde, hasta + 1)]
-
-
-def editar_texto_linea(rut: dict, lid: str, semana: int, ejercicio: str, presc: str, nota: str, solo_esta: bool) -> dict:
-    """Edición libre de una línea (WOD, conditioning, accessory): nombre y nota para siempre; el texto
-    solo esa semana o desde esa semana en adelante."""
-    import copy
-    rut = copy.deepcopy(rut)
-    l = _buscar_linea(rut, lid)
-    if l is None:
+    todas = [p for p, _ in agrupar_por_parte(dia)]
+    i = todas.index(parte)
+    j = i + paso
+    if not 0 <= j < len(todas):
         return rut
-    l["ejercicio"] = ejercicio.strip() or l["ejercicio"]
-    l["nota"] = nota.strip()
-    actual = prescripcion_semana(l, semana, rut.get("ajustes"))[0]
-    if presc.strip() != actual:
-        fijar_prescripcion(rut, lid, semana, presc.strip(), solo_esta)
+    a, b = todas[i], todas[j]
+    tmp = "~tmp~"
+    rut = renombrar_parte(rut, dia_id, a, tmp)
+    rut = renombrar_parte(rut, dia_id, b, f"{a[:1]}) {_etiqueta_parte(b)}")
+    return renombrar_parte(rut, dia_id, tmp, f"{b[:1]}) {_etiqueta_parte(a)}")
+
+
+def _cabecera_parte(atleta: str, rut: dict, dia: dict, parte: str, semana: int, visible: str = ""):
+    """El nombre de la parte; al tocarlo se cambia el nombre, se mueve o se quita. La letra va sola por posición."""
+    k = f"{atleta}_{dia['id']}_{semana}_{parte}"
+    with st.popover(f"**{visible or parte}** ✏️"):
+        etiqueta = _etiqueta_parte(parte)
+        opciones = list(dict.fromkeys([etiqueta] + TIPOS_PARTE))
+        elegida = st.selectbox("Nombre", opciones, key=f"ps_{k}")
+        libre = st.text_input("…o escribe otro", placeholder="Gymnastics, Skill…", key=f"pl_{k}")
+        c1, c2, c3 = st.columns(3)
+        if c1.button("Guardar", key=f"pg_{k}", type="primary"):
+            nueva = f"{parte[:1]}) {(libre.strip() or elegida)}"
+            if nueva != parte:
+                guardar_rutina(atleta, renombrar_parte(_rutina_actual(atleta), dia["id"], parte, nueva))
+            st.rerun()
+        if c2.button("⬆️ Subir", key=f"pu_{k}"):
+            guardar_rutina(atleta, _mover_parte(_rutina_actual(atleta), dia["id"], parte, -1))
+            st.rerun()
+        if c3.button("⬇️ Bajar", key=f"pd_{k}"):
+            guardar_rutina(atleta, _mover_parte(_rutina_actual(atleta), dia["id"], parte, 1))
+            st.rerun()
+        st.divider()
+        es_cambio = any(l.get("sustituye") and l.get("parte") == parte for l in dia["lineas"])
+        if es_cambio and st.button("↩️ Volver a lo que había", key=f"pv_{k}"):
+            guardar_rutina(atleta, deshacer_sustitucion(_rutina_actual(atleta), dia["id"], parte, semana))
+            st.rerun()
+        if st.toggle("🔄 Cambiar por otra cosa", key=f"pc_{k}"):
+            datos = _form_contenido_parte(f"sub_{k}", atleta, "Cambiar")
+            if datos:
+                etiqueta, nombre, texto, solo_esta, sube = datos
+                guardar_rutina(atleta, sustituir_parte(_rutina_actual(atleta), dia["id"], parte, semana, etiqueta,
+                                                       nombre, texto, solo_esta, sube))
+                st.session_state["aviso"] = (f"Cambiado por {etiqueta}" +
+                                             (" solo esta semana" if solo_esta else f" desde la semana {semana}"))
+                st.rerun()
+            st.divider()
+        if st.button(f"🗑️ Quitar esta parte desde la semana {semana}", key=f"pq_{k}"):
+            guardar_rutina(atleta, quitar_parte(_rutina_actual(atleta), dia["id"], parte, semana))
+            st.session_state["aviso"] = "Parte quitada (las semanas anteriores no cambian)"
+            st.rerun()
+
+
+def _form_contenido_parte(k: str, atleta: str, boton: str, alcance_defecto: int = 0):
+    """Tipo + para cuándo + contenido (crear, ya hechos, repertorio, coach, IA). Devuelve los datos al pulsar el botón."""
+    c1, c2 = st.columns(2)
+    etiqueta = c1.selectbox("Tipo", TIPOS_PARTE, key=f"{k}_t")
+    alcance = c2.radio("Para", ["Solo esta semana", "Desde esta semana en adelante"], index=alcance_defecto,
+                       key=f"{k}_a")
+    tipo = {"EMOM": "emom", "WOD": "wod", "Gym": "wod", "Conditioning": "conditioning", "Accessory": "accessory",
+            "Movilidad": "mobility", "Fuerza": "fuerza", "Halterofilia": "fuerza"}[etiqueta]
+    modo, sel = _elegir_contenido(tipo, k, atleta)
+    if modo == "✍️ Nuevo":
+        if tipo in ("fuerza", "accessory", "mobility"):
+            n = st.text_input("Ejercicio", key=f"{k}_n", placeholder="Back squat")
+            p = st.text_input("Series y peso", key=f"{k}_p", placeholder="5x5 @100")
+            sel = (n, p) if (n.strip() or p.strip()) else None
+        else:
+            p = st.text_area("Qué toca", key=f"{k}_p2", height=110, placeholder="EMOM 12': 10 cal row / 10 burpees")
+            sel = (etiqueta, p) if p.strip() else None
+    if not st.button(boton, type="primary", key=f"{k}_ok", disabled=sel is None):
+        return None
+    nombre, texto = sel
+    if tipo not in ("fuerza", "accessory", "mobility"):
+        if sel[0] and sel[0] != etiqueta and not norm(texto).startswith(norm(sel[0])):
+            texto = f"{sel[0]}: {texto}"
+        nombre = etiqueta
+    solo_esta = alcance == "Solo esta semana"
+    sube = 2.5 if tipo == "fuerza" and not solo_esta and "@" in texto else 0.0
+    return etiqueta, nombre or etiqueta, texto, solo_esta, sube
+
+
+def _anadir_parte_ui(atleta: str, dia: dict, semana: int):
+    """+ Añadir parte al final del día."""
+    k = f"np_{atleta}_{dia['id']}_{semana}"
+    with st.popover("+ Añadir parte", use_container_width=True):
+        datos = _form_contenido_parte(k, atleta, "Añadir")
+        if datos:
+            etiqueta, nombre, texto, solo_esta, sube = datos
+            guardar_rutina(atleta, anadir_parte(_rutina_actual(atleta), dia["id"], etiqueta, nombre, texto,
+                                                semana, solo_esta, sube))
+            st.session_state["aviso"] = f"{etiqueta} añadido"
+            st.rerun()
+
+
+def _selector_parte(atleta: str, rut: dict, semana: int, dia: dict, parte: str, desde: tuple[int, str] | None = None):
+    """✓ Hecho / → día siguiente / → semana que viene, para una parte. `desde` = dónde se muestra si es un pendiente."""
+    sem_aqui, dia_aqui = desde or (semana, dia["id"])
+    sig = destino_dia_siguiente(rut, sem_aqui, dia_aqui)
+    nombre_sig = next(d["nombre"] for d in rut["dias"] if d["id"] == sig[1])
+    opciones = {
+        t("✓ Hecho"): ("hecho", None),
+        t("✗ No hecho"): ("no_hecho", None),
+        f"→ {nombre_sig}" + (f" (sem. {sig[0]})" if sig[0] != sem_aqui else ""): ("pospuesto", sig),
+        _etiqueta_semana_sig(rut, dia, sem_aqui): ("pospuesto", destino_semana_siguiente(sem_aqui, dia.get("pasa_a") or dia["id"])),
+    }
+    est = estado_parte(rut, semana, dia["id"], parte)
+    actual = None
+    for etiqueta, (e, dest) in opciones.items():
+        if e == est["estado"] and (dest is None or list(dest) == list(est.get("destino") or [])):
+            actual = etiqueta
+    marca = est["estado"] + str(est.get("destino") or "")
+    clave = f"seg_{atleta}_{semana}_{dia['id']}_{parte}_{sem_aqui}_{dia_aqui}_{marca}"
+    st.segmented_control("Estado", list(opciones), default=actual, key=clave, label_visibility="collapsed",
+                         on_change=_guardar_marca, args=(atleta, semana, dia["id"], parte, clave, opciones))
+
+
+def _rutina_actual(atleta: str) -> dict:
+    return _completar_partes(cargar_rutinas().get(atleta) or rutinas_iniciales(ATLETAS).get(atleta), atleta)
+
+
+def _completar_partes(rut: dict | None, atleta: str) -> dict | None:
+    """Rutinas guardadas antes de existir las partes: las toma de la rutina inicial o las deduce."""
+    if not rut:
+        return rut
+    rut = migrar(rut, atleta, ATLETAS)
+    semilla = {l["id"]: l.get("parte") for d in (rutinas_iniciales(ATLETAS).get(atleta) or {}).get("dias", [])
+               for l in d["lineas"]}
+    for d in rut["dias"]:
+        for l in d["lineas"]:
+            if not l.get("parte") and semilla.get(l["id"]):
+                l["parte"] = semilla[l["id"]]
+        for l, p in zip(d["lineas"], partes_del_dia(d)):
+            l.setdefault("parte", p)
     return rut
 
 
-# ---------- biblioteca de WODs ----------
-import unicodedata
-
-CLAVE_BIBLIOTECA = "__biblioteca_wods__"
-CATEGORIAS_WOD = ["Todos", "Gym", "Barbell", "Dumbbell", "Cardio", "🎖️ Hero"]
-NOMBRES_HERO = ["murph", "dt", "jt", "randy", "michael", "nate", "josh", "danny", "badger", "jerry", "ryan",
-                "hansen", "glen", "holleyman", "nutts", "chad", "luce", "loredo", "whitten", "griff", "tommy v",
-                "the seven", "kalsu", "bull", "manion", "wittman", "zimmerman", "hero"]
-_PALABRAS = {
-    "Dumbbell": ["dumbbell", "dumbell", "db", "dbs", "mancuerna", "mancuernas", "devil press", "man maker"],
-    "Barbell": ["barbell", "barra", "thruster", "thrusters", "clean", "cleans", "snatch", "snatches", "jerk", "jerks",
-                "deadlift", "deadlifts", "peso muerto", "front squat", "back squat", "overhead squat", "ohs",
-                "push press", "sdhp", "c&j", "power clean", "power snatch", "hang clean", "hang snatch", "rdl",
-                "romanian deadlift", "good morning", "good mornings", "bench press", "press banca"],
-    "Cardio": ["run", "running", "correr", "carrera", "course", "rameur", "velo", "row", "remo", "bike", "echo", "assault", "ski", "skierg",
-               "swim", "nadar", "cal", "km", "z2", "zona 2", "double under", "double unders", "du", "comba"],
-    "Gym": ["pompes", "tractions", "fentes", "gainage", "abdos", "pull up", "pull ups", "pullup", "pullups", "dominada", "dominadas", "chest to bar", "c2b", "ctb",
-            "toes to bar", "t2b", "ttb", "muscle up", "muscle ups", "mu", "bmu", "rmu", "handstand", "hspu", "pino",
-            "rope climb", "rope climbs", "cuerda", "ring", "rings", "anillas", "pistol", "pistols", "dips", "fondos",
-            "knees to elbow", "k2e", "double under", "double unders", "du", "dus", "burpee", "burpees", "push up",
-            "push ups", "flexiones", "box jump", "box jumps", "sit up", "sit ups", "abmat", "wall walk", "wall walks",
-            "lunges", "zancadas", "air squat", "air squats", "ghd", "l sit"],
-}
+def _marcar_hechas(atleta: str, semana: int, dia_id: str):
+    def f(partes_hechas: list[str]):
+        rut = _rutina_actual(atleta)
+        for p in partes_hechas:
+            rut = marcar_parte(rut, semana, dia_id, p, "hecho")
+        guardar_rutina(atleta, rut)
+    return f
 
 
-def norm_busqueda(texto: str) -> str:
-    t = unicodedata.normalize("NFKD", str(texto or "")).encode("ascii", "ignore").decode().lower()
-    t = re.sub(r"[-_/·,.;:()\[\]+*']", " ", t)
-    return re.sub(r"\s+", " ", t).strip()
+def tab_rutina(atleta: str, entrenos: list[dict]):
+    _BIB_RUN.clear()
+    try:
+        guardadas = cargar_rutinas()
+    except Exception as ex:
+        if "rutinas" in str(ex) and ("relation" in str(ex) or "PGRST205" in str(ex) or "does not exist" in str(ex)):
+            st.warning("Falta crear la tabla de rutinas en Supabase. Ve a **SQL Editor**, pega esto y pulsa **Run**; "
+                       "luego recarga la página.")
+            st.code(SQL_RUTINAS, language="sql")
+        else:
+            st.warning("No se pudo cargar la rutina. Reinicia la app (⋮ → Reboot app) y recarga la página.")
+        st.caption(f"Detalle: {ex}")
+        return
+
+    rut = _completar_partes(guardadas.get(atleta) or rutinas_iniciales(ATLETAS).get(atleta), atleta)
+    if not rut:
+        crear_rutina(atleta, guardadas)
+        return
+
+    actual = int(rut.get("semana_actual") or 1)
+    clave_sem = f"sem_{atleta}"
+    if clave_sem not in st.session_state:
+        st.session_state[clave_sem] = actual
+    c1, c2 = st.columns([1, 2], vertical_alignment="bottom")
+    semana = int(c1.number_input(t("Semana"), min_value=1, step=1, key=clave_sem))
+    if semana == actual:
+        c2.button(t("Terminé la semana {a} → pasar a la {b}", a=actual, b=actual + 1), key=f"sig_{atleta}",
+                  on_click=_cambiar_semana, args=(atleta, rut, actual + 1), use_container_width=True)
+    else:
+        c2.button(t("Marcar la semana {s} como la actual", s=semana), key=f"act_{atleta}",
+                  on_click=_cambiar_semana, args=(atleta, rut, semana), use_container_width=True)
+    momento = t("esta semana") if semana == actual else (t("semana pasada") if semana < actual else t("semana que viene"))
+    st.caption(t("Semana {s} ({m}). Los pesos tras @ suben lo indicado en «Sube» cada semana (2,5 kg por defecto).",
+                 s=semana, m=momento))
+
+    nivel_actual = rut.get("nivel") or NIVEL_DEFECTO.get(atleta, "Inter")
+    nuevo_nivel = st.segmented_control("Nivel en WODs, EMOMs y conditioning", NIVELES, default=nivel_actual,
+                                       key=f"nivel_{atleta}")
+    if nuevo_nivel and nuevo_nivel != nivel_actual:
+        guardar_rutina(atleta, dict(rut, nivel=nuevo_nivel))
+        st.rerun()
+    _NIVEL_RUN[atleta] = nuevo_nivel or nivel_actual
+    st.caption(t("Toca un peso para cambiarlo: se guarda solo y las semanas siguientes se recalculan. ")
+               + t("Los WOD, conditionings y accessories se editan tocándolos. ")
+               + t("En las pestañas: ✓ hecho · ◐ a medias · ↷ pasado · ✗ no hecho · • tiene pendientes."))
+    with st.expander(t("Opciones al cambiar un peso")):
+        st.toggle(t("Mover igual el mismo ejercicio en los otros días"), value=True, key=f"propagar_{atleta}")
+        st.toggle(t("Cambiar solo esta semana (excepción)"), value=False, key=f"solo_sem_{atleta}")
+
+    faltan = sin_validar(rut, semana)
+    if semana <= actual and faltan:
+        st.warning(t("Sin validar en la semana {s}: {f}. Marca cada parte como hecha o pásala a otro día.",
+                     s=semana, f="; ".join(faltan)))
+
+    dias = {d["id"]: d for d in rut["dias"]}
+    icono = {"hecho": " ✓", "parcial": " ◐", "pospuesto": " ↷", "no_hecho": " ✗", "pendiente": ""}
+    etiquetas = []
+    for d in rut["dias"]:
+        pend = " •" if pendientes_para(rut, semana, d["id"]) else ""
+        etiquetas.append(f"{d['nombre']}{icono[resumen_dia(rut, semana, d)]}{pend}")
+    for pestana, dia in zip(st.tabs(etiquetas), rut["dias"]):
+        with pestana:
+            st.markdown(f"#### {dia['nombre']}  {t(CHIP_DIA[resumen_dia(rut, semana, dia)])}")
+            grupos = agrupar_por_parte(dia, semana)
+            if not grupos:
+                st.caption("Sin ejercicios. Añádelos en Editar.")
+            partes_semana = [p for p, _ in grupos]
+            for parte, lineas in grupos:
+                est = estado_parte(rut, semana, dia["id"], parte)
+                n_no = no_hechas_en(lineas, semana) if est["estado"] != "no_hecho" else 0
+                aviso_no = f" :red[({n_no} sin hacer)]" if n_no else ""
+                _cabecera_parte(atleta, rut, dia, parte, semana, letra_visible(partes_semana, parte))
+                if lineas and lineas[0].get("ciclo"):
+                    l0 = lineas[0]
+                    st.caption(f"🔁 Semana {semana - int(l0['desde']) + 1} de {int(l0['hasta']) - int(l0['desde']) + 1} "
+                               "del ciclo")
+                estado_txt = f"{_chip_parte(est, semana, dias)}{aviso_no}".strip()
+                st.markdown(f"{estado_txt}  {_historial_txt(rut, dia, parte, semana)}".strip())
+                _lineas(rut, lineas, semana, parte, atleta, bool(dia.get("por_ejercicio")))
+                if tipo_de_linea(parte, "") in ("accessory", "mobility"):
+                    _anadir_a_parte(atleta, dia, parte, semana, tipo_de_linea(parte, ""))
+                _selector_parte(atleta, rut, semana, dia, parte)
+            _anadir_parte_ui(atleta, dia, semana)
+            if grupos:
+                with st.expander(t("Registrar resultados")):
+                    formulario_entreno(atleta, entrenos, f"rut_{atleta}_{dia['id']}_{semana}",
+                                       _inicial_desde_dia(rut, dia, semana), partes=[p for p, _ in grupos],
+                                       al_guardar=_marcar_hechas(atleta, semana, dia["id"]))
+
+            for so, did, parte in pendientes_para(rut, semana, dia["id"]):
+                origen = dias[did]
+                lineas = next((ls for p, ls in agrupar_por_parte(origen) if p == parte), [])
+                st.divider()
+                st.markdown(f"**:orange[↷ Pendiente · {origen['nombre']} (semana {so}) · {parte}]**")
+                _lineas(rut, lineas, so, parte, atleta)
+                _selector_parte(atleta, rut, so, origen, parte, desde=(semana, dia["id"]))
+                with st.expander("Registrar resultados del pendiente"):
+                    formulario_entreno(atleta, entrenos, f"rutp_{atleta}_{did}_{so}_{parte}",
+                                       _inicial_desde_dia(rut, origen, so, lineas,
+                                                          f"{_titulo_dia(so, origen)} · {parte}"),
+                                       partes=[parte], al_guardar=_marcar_hechas(atleta, so, did))
+
+            with st.expander(t("Editar ejercicios")):
+                editar_dia(atleta, rut, dia, semana)
+
+    if st.button(t("+ Añadir día"), key=f"add_dia_{atleta}"):
+        rut2 = dict(rut, dias=rut["dias"] + [{"id": _nuevo_id(), "nombre": f"Día {len(rut['dias']) + 1}", "lineas": []}])
+        guardar_rutina(atleta, rut2)
+        st.rerun()
 
 
-def _contiene(texto_norm: str, palabra: str) -> bool:
-    return re.search(r"(?<![a-z0-9])" + re.escape(norm_busqueda(palabra)) + r"(?![a-z0-9])", texto_norm) is not None
+def inventar_rutina_con_ia(atleta: str, dias: int, enfoque: str, con_coach: bool) -> dict:
+    ejemplos = []
+    for tipo in ("wod", "conditioning", "accessory", "mobility"):
+        for g in _bib(tipo):
+            if any(v["atleta"] == atleta for v in g["veces"]):
+                ejemplos.append(f"[{tipo}] {g['titulo']}: {g['texto'][:300]}")
+    if con_coach and _datos_coach():
+        muestra = random.sample(_datos_coach()["items"], min(15, len(_datos_coach()["items"])))
+        ejemplos += [f"[coach · {i['tipo']}] {i['texto'][:300]}" for i in muestra]
+    prompt = (
+        f"Diseña una semana de entrenamiento de CrossFit de {dias} días para {atleta}.\n"
+        + (f"Lo que ha hecho hasta ahora (copia su estilo, nivel y movimientos):\n" + "\n".join(ejemplos[:40]) + "\n"
+           if ejemplos else "No hay historial: haz algo equilibrado para nivel intermedio.\n")
+        + (f"Lo que pide: {enfoque}\n" if enfoque else "")
+        + ("Escribe los textos en francés.\n" if lang() == "fr" else "")
+        + "Cada día tiene partes: A) Fuerza o Halterofilia (con pesos tras @ en kg, p. ej. «5x5 @60»), B) WOD y, si encaja, "
+          "C) Conditioning, Accessory o Movilidad.\n"
+          'Responde SOLO con JSON: {"dias": [{"nombre": "Día 1", "lineas": [{"parte": "A) Fuerza", "ejercicio": '
+          '"Back squat", "prescripcion": "5x5 @60"}, {"parte": "B) WOD", "ejercicio": "WOD", "prescripcion": '
+          '"AMRAP 12\': …"}]}]}'
+    )
+    msg = _cliente_ia().messages.create(model=secreto("ANTHROPIC_MODEL", "claude-sonnet-5-5"), max_tokens=3000,
+                                        messages=[{"role": "user", "content": prompt}])
+    texto = "".join(getattr(b, "text", "") for b in msg.content)
+    m = re.search(r"\{.*\}", texto, re.S)
+    return rutina_desde_json(json.loads(m.group(0)) if m else {}, _nuevo_id)
 
 
-def es_hero(titulo: str) -> bool:
-    t = norm_busqueda(titulo)
-    return any(_contiene(t, n) for n in NOMBRES_HERO)
+def crear_rutina(atleta: str, guardadas: dict):
+    st.info(f"{atleta} aún no tiene rutina." if lang() == "es" else f"{atleta} n'a pas encore de programme.")
+    otras = {a: (guardadas.get(a) or rutinas_iniciales(ATLETAS).get(a)) for a in visibles() if a != atleta}
+    otras = {a: r for a, r in otras.items() if r}
+    opciones = ["Vacía"] + (["Copiar la de otra persona"] if otras else []) + (["✨ Con IA según su estilo"] if ia_disponible() else [])
+    modo = st.radio("Cómo crearla", opciones, key=f"cr_modo_{atleta}", horizontal=True)
+    if modo == "Copiar la de otra persona":
+        origen = st.selectbox("Copiar de", list(otras), key=f"cr_origen_{atleta}")
+        st.caption("Se copian los días, los ejercicios y los pesos actuales; empieza en la semana 1 y luego "
+                   "ajustas los pesos tocándolos.")
+        if st.button("Crear rutina", type="primary", key=f"cr_ok_{atleta}"):
+            guardar_rutina(atleta, copiar_rutina(_completar_partes(otras[origen], origen), _nuevo_id))
+            st.rerun()
+    elif modo == "✨ Con IA según su estilo":
+        c1, c2 = st.columns([1, 2])
+        dias = c1.number_input("Días por semana", 2, 7, 4, key=f"cr_dias_{atleta}")
+        enfoque = c2.text_input("Qué quiere (opcional)", key=f"cr_enf_{atleta}",
+                                placeholder="más movilidad, halterofilia, preparar el Open…")
+        con_coach = bool(_datos_coach()) and st.checkbox("Inspirarse también en el coach", value=False,
+                                                         key=f"cr_coach_{atleta}")
+        st.caption("Usa lo que esta persona tenga en las secciones (WODs, Conditioning…), por ejemplo lo importado de "
+                   "WhatsApp. Cuanto más haya, más se parecerá a su estilo.")
+        if st.button("✨ Crear rutina", type="primary", key=f"cr_ia_{atleta}"):
+            with st.spinner("Pensando la semana…"):
+                try:
+                    rut = inventar_rutina_con_ia(atleta, int(dias), enfoque, con_coach)
+                except Exception as ex:
+                    st.error(f"La IA no ha podido: {ex}")
+                    return
+            if not rut["dias"]:
+                st.error("La IA no ha devuelto una rutina válida. Prueba otra vez.")
+                return
+            guardar_rutina(atleta, rut)
+            st.session_state["aviso"] = "Rutina creada. Revisa los pesos y ajústalos tocándolos."
+            st.rerun()
+    elif st.button("Crear rutina", key=f"crear_rut_{atleta}", type="primary"):
+        guardar_rutina(atleta, {"semana_actual": 1, "ajustes": {},
+                                "dias": [{"id": _nuevo_id(), "nombre": "Día 1", "lineas": []}]})
+        st.rerun()
 
 
-def clasificar_wod(texto: str, titulo: str = "") -> list[str]:
-    t = norm_busqueda(texto)
-    cats = ["🎖️ Hero"] if es_hero(titulo or texto.splitlines()[0] if texto else titulo) else []
-    if any(_contiene(t, p) for p in _PALABRAS["Dumbbell"]):
-        cats.append("Dumbbell")
-    # Barbell solo si aparece en una línea/movimiento sin mancuerna ("DB hang clean and jerk" no es barra)
-    trozos = [norm_busqueda(x) for x in re.split(r"[\n,;+/]", texto or "")]
-    if any(any(_contiene(x, p) for p in _PALABRAS["Barbell"]) and not any(_contiene(x, p) for p in _PALABRAS["Dumbbell"])
-           for x in trozos):
-        cats.append("Barbell")
-    if any(_contiene(t, p) for p in _PALABRAS["Gym"]):
-        cats.append("Gym")
-    if any(_contiene(t, p) for p in _PALABRAS["Cardio"]):
-        cats.append("Cardio")
-    return cats
+def editar_dia(atleta: str, rut: dict, dia: dict, semana: int):
+    col = f"Semana {semana}"
+    base = f"{atleta}_{dia['id']}_{semana}"
+    df = pd.DataFrame(
+        [{"id": l["id"], "Parte": p, "Ejercicio": l["ejercicio"],
+          col: prescripcion_semana(l, semana, rut.get("ajustes"))[0],
+          "Sube (kg)": float(l.get("sube") or 0), "Nota": l.get("nota", "")}
+         for l, p in zip(dia["lineas"], partes_del_dia(dia))],
+        columns=["id", "Parte", "Ejercicio", col, "Sube (kg)", "Nota"],
+    )
+    opciones_parte = list(dict.fromkeys(PARTES + [p for p in df["Parte"] if p]))
+    nombre = st.text_input("Nombre del día", dia["nombre"], key=f"nom_{base}")
+    por_ej = st.toggle("Poder marcar cada ejercicio de fuerza como no hecho", value=bool(dia.get("por_ejercicio")),
+                       key=f"porej_{base}")
+    ids_dias = [d["id"] for d in rut["dias"]]
+    nombres_dias = {d["id"]: d["nombre"] for d in rut["dias"]}
+    actual_pasa = dia.get("pasa_a") if dia.get("pasa_a") in ids_dias else dia["id"]
+    pasa_a = st.selectbox("Si no se hace, a la semana siguiente pasa al…", ids_dias, index=ids_dias.index(actual_pasa),
+                          format_func=lambda i: nombres_dias[i] + (" (el mismo día)" if i == dia["id"] else ""),
+                          key=f"pasa_{base}")
+    tabla = st.data_editor(
+        df, num_rows="dynamic", hide_index=True, use_container_width=True, key=f"edr_{base}",
+        column_order=["Parte", "Ejercicio", col, "Sube (kg)", "Nota"],
+        column_config={
+            "Parte": st.column_config.SelectboxColumn(options=opciones_parte, default="A) Fuerza", required=True),
+            "Ejercicio": st.column_config.TextColumn(width="medium"),
+            col: st.column_config.TextColumn(help="Series, reps y peso tras @: 3x3 @50, 3@40 2@45 1@50, 10 @25"),
+            "Sube (kg)": st.column_config.NumberColumn(min_value=0.0, step=1.25, default=2.5, format="%.2f",
+                                                       help="Kg que sube cada semana. 0 = no sube"),
+            "Nota": st.column_config.TextColumn(),
+        },
+    )
+    st.caption("Escribe el peso tras una @ para que suba solo. Para WOD o conditioning deja «Sube» en 0. "
+               "La columna Parte agrupa el día en A, B, C…")
+    modo = st.radio("Si cambias un peso, aplicarlo a…", ["Esta semana y las siguientes", "Solo esta semana"],
+                    horizontal=True, key=f"modo_{base}")
+    b1, b2 = st.columns(2)
+    if b1.button("Guardar cambios", type="primary", key=f"save_{base}", use_container_width=True):
+        filas = [{"id": r.get("id"), "parte": r.get("Parte"), "ejercicio": r.get("Ejercicio"), "presc": r.get(col),
+                  "sube": r.get("Sube (kg)"), "nota": r.get("Nota")} for r in tabla.to_dict("records")]
+        nueva = aplicar_edicion(rut, dia["id"], filas, semana, modo == "Solo esta semana", _nuevo_id)
+        for d in nueva["dias"]:
+            if d["id"] == dia["id"]:
+                d["nombre"] = nombre.strip() or d["nombre"]
+                d["por_ejercicio"] = por_ej
+                d["pasa_a"] = None if pasa_a == dia["id"] else pasa_a
+        guardar_rutina(atleta, nueva)
+        st.session_state["aviso"] = "Rutina guardada"
+        st.rerun()
+
+    confirmar = f"conf_borrar_dia_{base}"
+    if st.session_state.get(confirmar):
+        b2.warning("¿Borrar este día de la rutina?")
+        s1, s2 = b2.columns(2)
+        if s1.button("Sí, borrar", key=f"si_{base}"):
+            guardar_rutina(atleta, dict(rut, dias=[d for d in rut["dias"] if d["id"] != dia["id"]]))
+            st.session_state.pop(confirmar, None)
+            st.rerun()
+        if s2.button("Cancelar", key=f"no_{base}"):
+            st.session_state.pop(confirmar, None)
+            st.rerun()
+    elif b2.button("Borrar día", key=f"del_{base}", use_container_width=True):
+        st.session_state[confirmar] = True
+        st.rerun()
 
 
-def coincide_busqueda(texto: str, consulta: str) -> bool:
-    """Todas las palabras buscadas aparecen (sin importar tildes, guiones ni espacios: pull-up = pullup = pull up)."""
-    t = norm_busqueda(texto)
-    t_junto = t.replace(" ", "")
-    for trozo in [x for x in re.split(r"\s*,\s*", consulta or "") if x.strip()] or [""]:
-        q = norm_busqueda(trozo)
-        if q and q not in t and q.replace(" ", "") not in t_junto:
-            return False
-    return True
+def tab_historial(atleta: str, entrenos: list[dict]):
+    if not entrenos:
+        st.info("Aún no hay entrenos. Ve a **Registrar** para guardar el primero.")
+        return
+    presentes = [k for k in TIPOS if any(w["type"] == k for w in entrenos)]
+    filtro = st.multiselect("Filtrar por tipo", presentes, format_func=lambda k: TIPOS[k][0],
+                            placeholder="Todos", key=f"filtro_{atleta}")
+    lista = [w for w in entrenos if not filtro or w["type"] in filtro]
+    prs = ids_con_pr(entrenos)
+    st.caption(f"{len(lista)} de {len(entrenos)} entrenos")
+
+    for w in lista:
+        with st.container(border=True):
+            tiene_foto = bool(w.get("photo_path"))
+            cols = st.columns([1, 2]) if tiene_foto else [None, st.container()]
+            if tiene_foto:
+                src = store().foto(w)
+                if src:
+                    cols[0].image(src, use_container_width=True)
+            cuerpo = cols[1]
+            cabecera = f"{etiqueta_tipo(w['type'])} · {fecha_larga(w['date'])}"
+            if w.get("duration_sec"):
+                cabecera += f" · ⏱ `{fmt_tiempo(w['duration_sec'])}`"
+            cuerpo.markdown(cabecera)
+            if w.get("title"):
+                cuerpo.markdown(f"#### {w['title']}")
+            lineas = []
+            for e in w.get("entries") or []:
+                pr = " :green[**PR**]" if (w["id"], norm(e["name"]) + "|" + e["unit"]) in prs else ""
+                lineas.append(f"- {e['name']}: `{fmt_valor(e.get('value'), e['unit'])}`{pr}")
+            if lineas:
+                cuerpo.markdown("\n".join(lineas))
+            if w.get("notes"):
+                cuerpo.caption(w["notes"])
+
+            clave = f"borrar_{w['id']}"
+            if st.session_state.get("confirmar") == w["id"]:
+                cuerpo.warning("¿Borrar este entreno" + (" y su foto" if tiene_foto else "") + "? No se puede deshacer.")
+                b1, b2 = cuerpo.columns(2)
+                if b1.button("Sí, borrar", key=clave + "_si", type="primary"):
+                    store().borrar(w)
+                    refrescar()
+                    st.session_state.pop("confirmar", None)
+                    st.session_state["aviso"] = "Entreno borrado"
+                    st.rerun()
+                if b2.button("Cancelar", key=clave + "_no"):
+                    st.session_state.pop("confirmar", None)
+                    st.rerun()
+            elif cuerpo.button("Borrar", key=clave):
+                st.session_state["confirmar"] = w["id"]
+                st.rerun()
 
 
-def _es_parte_wod(parte: str, ejercicio: str) -> bool:
-    p = norm_busqueda(parte)
-    if "accessor" in p or ("conditioning" in p and "wod" not in p):
-        return False
-    return any(k in p for k in ("wod", "gym", "metcon")) or es_metcon(ejercicio) and "conditioning" not in norm_busqueda(ejercicio)
+COLOR_NIVEL = {"bueno": "green", "malo": "red", "aviso": "orange", "info": "gray"}
 
 
-def _fecha_corta(f) -> str:
+def tab_progreso(atleta: str, entrenos: list[dict]):
+    if not entrenos:
+        st.info("Cuando guardes entrenos con resultados (kg, tiempos, reps…) verás aquí tu progresión.")
+        return
+
+    st.subheader("Dónde mejorar")
+    for c in consejos(entrenos):
+        color = TIPOS[c["tipo"]][2] if c["nivel"] == "tipo" else COLOR_NIVEL[c["nivel"]]
+        st.markdown(f":{color}[▌] **{c['titulo']}**  \n{c['detalle']}")
+
+    series = series_ejercicios(entrenos)
+    if series:
+        st.subheader("Progresión por ejercicio")
+        claves = [s["key"] for s in series]
+        por_clave = {s["key"]: s for s in series}
+        k = st.selectbox("Ejercicio o WOD", claves, key=f"ej_{atleta}",
+                         format_func=lambda k: f"{por_clave[k]['name']} ({por_clave[k]['unit']}) · {len(por_clave[k]['pts'])}")
+        s = por_clave[k]
+        best, ult, prim = mejor_punto(s), s["pts"][-1], s["pts"][0]
+        pct = cambio_pct(s)
+        m1, m2, m3, m4 = st.columns(4)
+        m1.metric("Mejor marca", fmt_valor(best["v"], s["unit"]), f"{best['date']:%d/%m}", delta_color="off")
+        m2.metric("Última", fmt_valor(ult["v"], s["unit"]), f"{ult['date']:%d/%m}", delta_color="off")
+        m3.metric("Desde el inicio", f"{pct:+.1f}%".replace(".", ",") if pct is not None else "—",
+                  f"vs {prim['date']:%d/%m}", delta_color="off")
+        m4.metric("Registros", len(s["pts"]))
+
+        xs = [p["date"] for p in s["pts"]]
+        ys = [p["v"] for p in s["pts"]]
+        txt = [fmt_valor(v, s["unit"]) for v in ys]
+        fig = go.Figure()
+        fig.add_trace(go.Scatter(x=xs, y=ys, mode="lines+markers", line=dict(color="#1f5fbf", width=2.5),
+                                 marker=dict(size=8), text=txt, hovertemplate="%{x|%d/%m/%Y}: %{text}<extra></extra>",
+                                 name=s["name"]))
+        fig.add_trace(go.Scatter(x=[best["date"]], y=[best["v"]], mode="markers+text",
+                                 marker=dict(size=14, color="#2a8c4a"), text=[fmt_valor(best["v"], s["unit"])],
+                                 textposition="top center", hoverinfo="skip", name="Mejor marca"))
+        fig.update_layout(height=320, margin=dict(l=10, r=10, t=30, b=10), showlegend=False)
+        if s["unit"] == "tiempo":
+            eje_tiempo(fig, ys)
+            fig.update_yaxes(autorange="reversed")
+        st.plotly_chart(fig, use_container_width=True)
+        st.caption("En tiempos, menos es mejor: el eje está invertido para que subir sea mejorar."
+                   if s["unit"] in MENOS_ES_MEJOR else "Arriba es mejor. El punto verde es tu mejor marca.")
+
+    st.subheader("Frecuencia semanal")
+    lunes, cuentas = sesiones_por_semana(entrenos)
+    fig = go.Figure()
+    for k, (nombre, color, _) in TIPOS.items():
+        if k in cuentas:
+            fig.add_trace(go.Bar(x=[f"{l:%d/%m}" for l in lunes], y=cuentas[k], name=nombre, marker_color=color))
+    fig.update_layout(barmode="stack", height=280, margin=dict(l=10, r=10, t=10, b=10),
+                      legend=dict(orientation="h", y=-0.2), yaxis=dict(dtick=1, title="Sesiones"))
+    st.plotly_chart(fig, use_container_width=True)
+    st.caption("Sesiones por semana en las últimas 8 semanas (semana que empieza el lunes indicado).")
+
+
+def tab_grupo(todos: list[dict]):
+    if not todos:
+        st.info("Cuando alguien guarde entrenos verás aquí la comparación del grupo.")
+        return
+    hoy = dt.date.today()
+    filas = []
+    for a in atletas():
+        ws = [w for w in todos if w["athlete"] == a]
+        tipos30 = [w["type"] for w in ws if (hoy - a_fecha(w["date"])).days <= 30]
+        fav = max(set(tipos30), key=tipos30.count) if tipos30 else None
+        filas.append({
+            "Atleta": a,
+            "Sesiones (30 días)": len(tipos30),
+            "Media semanal": round(sum(1 for w in ws if 0 <= (hoy - a_fecha(w["date"])).days < 28) / 4, 1),
+            "Último entreno": fecha_larga(ws[0]["date"]) if ws else "—",
+            "Lo que más hace": TIPOS[fav][0] if fav else "—",
+        })
+    st.dataframe(pd.DataFrame(filas), hide_index=True, use_container_width=True)
+
+    st.subheader("Sesiones por semana")
+    lunes, cuentas = sesiones_por_semana(todos, clave="athlete")
+    fig = go.Figure()
+    for i, a in enumerate(atletas()):
+        fig.add_trace(go.Bar(x=[f"{l:%d/%m}" for l in lunes], y=cuentas.get(a, [0] * len(lunes)), name=a,
+                             marker_color=COLORES_ATLETA[i % len(COLORES_ATLETA)]))
+    fig.update_layout(barmode="group", height=300, margin=dict(l=10, r=10, t=10, b=10),
+                      legend=dict(orientation="h", y=-0.2), yaxis=dict(dtick=1))
+    st.plotly_chart(fig, use_container_width=True)
+
+    st.subheader("Mismo ejercicio, cara a cara")
+    por_atleta = {a: {s["key"]: s for s in series_ejercicios([w for w in todos if w["athlete"] == a])} for a in atletas()}
+    compartidos: dict[str, list[str]] = {}
+    for a, ss in por_atleta.items():
+        for k in ss:
+            compartidos.setdefault(k, []).append(a)
+    comunes = sorted([k for k, quien in compartidos.items() if len(quien) >= 2],
+                     key=lambda k: -len(compartidos[k]))
+    if not comunes:
+        st.caption("Cuando dos o más registréis el mismo ejercicio (escrito igual) podréis compararlo aquí.")
+        return
+    nombre_de = {k: next(por_atleta[a][k]["name"] for a in compartidos[k]) for k in comunes}
+    k = st.selectbox("Ejercicio", comunes, format_func=lambda k: f"{nombre_de[k]} ({k.split('|')[1]})", key="ej_grupo")
+    unidad = k.split("|")[1]
+    fig = go.Figure()
+    marcas = []
+    todos_y = []
+    for i, a in enumerate(atletas()):
+        s = por_atleta[a].get(k)
+        if not s:
+            continue
+        ys = [p["v"] for p in s["pts"]]
+        todos_y += ys
+        fig.add_trace(go.Scatter(x=[p["date"] for p in s["pts"]], y=ys, mode="lines+markers", name=a,
+                                 line=dict(color=COLORES_ATLETA[i % len(COLORES_ATLETA)], width=2.5),
+                                 text=[fmt_valor(v, unidad) for v in ys],
+                                 hovertemplate=a + " · %{x|%d/%m}: %{text}<extra></extra>"))
+        b = mejor_punto(s)
+        marcas.append({"Atleta": a, "Mejor marca": fmt_valor(b["v"], unidad), "Fecha": f"{b['date']:%d/%m/%Y}",
+                       "Registros": len(s["pts"]), "_v": b["v"]})
+    fig.update_layout(height=320, margin=dict(l=10, r=10, t=10, b=10), legend=dict(orientation="h", y=-0.2))
+    if unidad == "tiempo":
+        eje_tiempo(fig, todos_y)
+        fig.update_yaxes(autorange="reversed")
+    st.plotly_chart(fig, use_container_width=True)
+    marcas.sort(key=lambda m: m["_v"], reverse=unidad not in MENOS_ES_MEJOR)
+    st.dataframe(pd.DataFrame(marcas).drop(columns="_v"), hide_index=True, use_container_width=True)
+
+
+# ---------------------------------------------------------------- WODs
+COLOR_CAT = {"Gym": "violet", "Barbell": "red", "Dumbbell": "blue", "Cardio": "green", "🎖️ Hero": "orange",
+             "Cadera": "violet", "Hombros": "blue", "Tobillos": "green", "Espalda": "orange", "Isquios": "red"}
+
+
+def seccion_wods(todos: list[dict]):
+    seccion_biblio("wod", todos)
+
+
+def seccion_biblio(tipo: str, todos: list[dict]):
+    try:
+        guardadas = cargar_rutinas()
+    except Exception as ex:
+        st.warning(f"No se pudieron cargar las rutinas: {ex}")
+        guardadas = {}
+    rutinas = {a: _completar_partes(guardadas.get(a) or rutinas_iniciales(ATLETAS).get(a), a) for a in ATLETAS}
+    bib = dict(guardadas.get(CLAVE_BIBLIOTECA) or {})
+    clave = CLAVES_BIBLIO[tipo]
+    k = f"bib_{tipo}"
+
+    q = st.text_input(t("Buscar por movimiento"), key=f"{k}_q",
+                      placeholder="thruster, pull up, wall ball… (separa con comas para buscar varios)")
+    if tipo == "mobility":
+        cats_tipo = CATEGORIAS_MOVILIDAD
+    else:
+        cats_tipo = CATEGORIAS_WOD if tipo == "wod" else [c for c in CATEGORIAS_WOD if "Hero" not in c]
+    if tipo == "wod":
+        cats_tipo = cats_tipo + ["⏱️ EMOM"]
+    cat = st.segmented_control(t("Tipo"), cats_tipo, default="Todos", key=f"{k}_cat", format_func=t) or "Todos"
+    tramo = (st.segmented_control("Duración", TRAMOS_EMOM, key=f"{k}_tramo")
+             if cat == "⏱️ EMOM" else None)
+    c1, c2 = st.columns([2, 1], vertical_alignment="bottom")
+    quien = [solo()] if solo() else c1.multiselect(t("Quién"), atletas(), placeholder=t("Todos"), key=f"{k}_quien")
+    solo_h = c2.toggle(t("Solo los hechos"), value=True, key=f"{k}_solo")
+
+    filtrados, por_cat = [], {c: 0 for c in cats_tipo}
+    rutinas.update({a: _completar_partes(guardadas.get(a), a) for a in atletas() if a not in rutinas and guardadas.get(a)})
+    for g in biblioteca(rutinas, atletas(), todos, bib, tipo):
+        veces = [v for v in g["veces"] if (not quien or v["atleta"] in quien) and (not solo_h or v["estado"] == "hecho")]
+        if not veces or (q and not coincide_busqueda(g["titulo"] + "\n" + g["texto"], q)):
+            continue
+        texto_g = g["titulo"] + "\n" + g["texto"]
+        emom = tipo == "wod" and es_emom(texto_g)
+        por_cat["Todos"] += 1
+        for c in g["categorias"] + (["⏱️ EMOM"] if emom else []):
+            if c in por_cat:
+                por_cat[c] += 1
+        if cat == "⏱️ EMOM":
+            if emom and (not tramo or tramo_emom(duracion_emom(texto_g)) == tramo):
+                filtrados.append((g, veces))
+        elif cat == "Todos" or cat in g["categorias"]:
+            filtrados.append((g, veces))
+    st.caption(" · ".join(f"{t(c)}: {n}" for c, n in por_cat.items()))
+    if tipo == "wod":
+        url = ("https://www.google.com/search?q=" + quote(f"site:wodwell.com {q}")) if q else "https://wodwell.com"
+        st.link_button("Buscar en Wodwell" + (f": {q}" if q else ""), url)
+
+    if not filtrados:
+        st.info(f"No hay {NOMBRE_BIBLIO[tipo]} con estos filtros. Aparecen aquí cuando escribís o elegís lo que toca "
+                "en esa parte de la rutina (y la marcáis como hecha) o si los añadís abajo.")
+    for g, veces in filtrados:
+        with st.container(border=True):
+            primera = g["texto"].split("\n")[0]
+            titulo = g["titulo"] or (primera[:60] + ("…" if len(primera) > 60 else ""))
+            chips = " ".join(f":{COLOR_CAT.get(c, 'gray')}[● {t(c)}]" for c in g["categorias"]) or ":gray[—]"
+            st.markdown(f"**{titulo}**  {chips}")
+            with st.popover(t("Cambiar tipo")):
+                elegidas = st.multiselect("Tipos", [c for c in cats_tipo if c != "Todos"],
+                                          default=[c for c in g["categorias"] if c in cats_tipo],
+                                          key=f"cat_{tipo}_{g['clave'][:60]}")
+                if st.button("Guardar", key=f"catg_{tipo}_{g['clave'][:60]}", type="primary"):
+                    corr = dict(bib.get("categorias_manual", {}), **{g["clave"]: elegidas})
+                    guardar_rutina(CLAVE_BIBLIOTECA, dict(bib, categorias_manual=corr))
+                    st.session_state["aviso"] = "Tipo cambiado"
+                    st.rerun()
+            if g["texto"] and g["texto"] != titulo:
+                st.markdown(g["texto"].replace("\n", "  \n"))
+            if tipo in ("wod", "conditioning", "accessory"):
+                _reto_elite(g["texto"], g["titulo"])
+                _versiones(g["texto"], g["titulo"], g["clave"][:40])
+            lineas = []
+            for v in veces:
+                linea = f"- **{v['atleta'] or '—'}** · {v['cuando']} {SIMBOLO.get(v['estado'], '')}"
+                if v["resultado"]:
+                    linea += f" · `{v['resultado']}`"
+                lineas.append(linea)
+            st.markdown("\n".join(lineas))
+            if g["ids"]:
+                with st.popover("Borrar de la lista"):
+                    st.write("¿Seguro? Solo se borra el WOD añadido a mano, no los de las rutinas.")
+                    if st.button("Sí, borrar", key=f"del{tipo}_{'_'.join(sorted(g['ids']))}", type="primary"):
+                        bib2 = dict(bib, **{clave: [w for w in bib.get(clave, []) if w.get("id") not in g["ids"]]})
+                        guardar_rutina(CLAVE_BIBLIOTECA, bib2)
+                        st.rerun()
+
+    with st.expander(f"➕ Añadir a {NOMBRE_BIBLIO[tipo]}"):
+        with st.form(f"nuevo_{tipo}", clear_on_submit=True):
+            nombre = st.text_input("Nombre", placeholder="Fran, Cindy, DT…")
+            texto = st.text_area("Qué es", placeholder="21-15-9: thrusters @42,5 + pull ups", height=100)
+            c1, c2 = st.columns(2)
+            quien_n = c1.multiselect("Quién lo hizo", visibles(), key=f"{k}_nq",
+                                     default=[solo()] if solo() else [])
+            fecha = c2.date_input("Fecha", dt.date.today(), format="DD/MM/YYYY")
+            resultado = st.text_input("Resultado", placeholder="5:41, 18 rondas + 3…")
+            if st.form_submit_button("Añadir", type="primary", use_container_width=True):
+                if not (nombre.strip() or texto.strip()):
+                    st.error("Escribe al menos el nombre o qué es.")
+                else:
+                    bib2 = dict(bib, **{clave: bib.get(clave, []) + [{
+                        "id": uuid.uuid4().hex[:8], "nombre": nombre.strip(), "texto": texto.strip(),
+                        "quien": quien_n, "fecha": fecha.isoformat(), "resultado": resultado.strip()}]})
+                    guardar_rutina(CLAVE_BIBLIOTECA, bib2)
+                    st.session_state["aviso"] = "Añadido a la lista"
+                    st.rerun()
+
+
+
+    with st.expander(t("📲 Importar de WhatsApp")):
+        importar_whatsapp(bib, tipo)
+
+    with st.expander(t("✨ Inventar con IA")):
+        res = _ia_panel(tipo, f"sec_{tipo}")
+        if res and st.button("Guardar en la lista como idea", key=f"ig_{tipo}"):
+            bib2 = dict(bib, **{clave: bib.get(clave, []) + [{
+                "id": uuid.uuid4().hex[:8], "nombre": res[0], "texto": res[1], "quien": [],
+                "fecha": dt.date.today().isoformat(), "resultado": "", "idea": True}]})
+            guardar_rutina(CLAVE_BIBLIOTECA, bib2)
+            st.session_state.pop(f"ir_sec_{tipo}", None)
+            st.session_state["aviso"] = "Guardado como idea (quita «Solo los hechos» para verlo)"
+            st.rerun()
+
+    with st.expander(t("💡 Ideas del repertorio")):
+        q2 = st.text_input(t("Buscar en el repertorio"), key=f"{k}_rq", placeholder="thruster, row…")
+        heroes = {n for n, _ in HEROES}
+        bloques = ([("Clásicos y propuestas", [x for x in REPERTORIO[tipo] if x[0] not in heroes and x not in COMPETICION]),
+                    ("🏆 Competición (Open)", COMPETICION), ("🎖️ Hero WODs", HEROES)]
+                   if tipo == "wod" else [("", REPERTORIO[tipo])])
+        if tipo == "wod" and cat == "🎖️ Hero":
+            bloques = [("🎖️ Hero WODs", HEROES)]
+        for titulo_b, items in bloques:
+            vis = [x for x in items if not q2 or coincide_busqueda(x[0] + "\n" + x[1], q2)]
+            if not vis:
+                continue
+            if titulo_b:
+                st.markdown(f"**{titulo_b}**")
+            st.markdown("\n".join(f"- **{n}** · {t}" for n, t in vis))
+
+
+# ---------------------------------------------------------------- importar de WhatsApp
+TIPO_ETIQUETA = {"wod": "WOD", "conditioning": "Conditioning", "accessory": "Accessory", "mobility": "Movilidad"}
+NADIE = "Nadie (guardar como idea)"
+
+
+def _leer_chat(archivo) -> str:
+    datos = archivo.getvalue()
+    if archivo.name.lower().endswith(".zip"):
+        with zipfile.ZipFile(io.BytesIO(datos)) as z:
+            txts = [n for n in z.namelist() if n.lower().endswith(".txt")]
+            if not txts:
+                return ""
+            datos = z.read(next((n for n in txts if "chat" in n.lower()), txts[0]))
+    return datos.decode("utf-8", errors="replace").lstrip("\ufeff")
+
+
+def importar_whatsapp(bib: dict, tipo_seccion: str):
+    n = st.session_state.setdefault("wa_n", 0)
+    st.caption("En el iPhone: abre el chat → toca su nombre → Exportar chat → Sin archivos → Guardar en Archivos. "
+               "Sube aquí el .zip tal cual (o el .txt).")
+    archivos = st.file_uploader("Chats exportados (puedes subir varios a la vez)", type=["zip", "txt"],
+                                accept_multiple_files=True, key=f"wa_file_{tipo_seccion}_{n}")
+    if not archivos:
+        return
+    candidatos, total, autores_por_chat, fallidos = [], 0, [], []
+    for archivo in archivos:
+        try:
+            mensajes = parse_whatsapp(_leer_chat(archivo))
+        except Exception:
+            mensajes = []
+        if not mensajes:
+            fallidos.append(archivo.name)
+            continue
+        chat = re.sub(r"(?i)^(whatsapp chat - |chat de whatsapp con )|\.(zip|txt)$", "", archivo.name).strip()
+        total += len(mensajes)
+        autores_por_chat.append({m["autor"] for m in mensajes})
+        candidatos += [dict(c, chat=chat) for c in detectar_entrenos(mensajes)]
+    if fallidos:
+        st.warning("No reconozco el formato de: " + ", ".join(fallidos))
+    # el mismo entreno mandado a varios chats sale una sola vez (el primero)
+    unicos: dict[str, dict] = {}
+    for c in sorted(candidatos, key=lambda c: c["fecha"]):
+        k = norm_busqueda(c["cuerpo"])
+        if k in unicos:
+            if c["chat"] not in unicos[k]["chat"]:
+                unicos[k]["chat"] += ", " + c["chat"]
+        else:
+            unicos[k] = dict(c)
+    candidatos = list(unicos.values())
+    st.caption(f"{len(archivos) - len(fallidos)} chats · {total} mensajes leídos · {len(candidatos)} entrenos distintos.")
+    if not candidatos:
+        st.info("No he encontrado mensajes que parezcan entrenos.")
+        return
+
+    # quien sale en todos los chats es casi seguro el dueño del móvil → «Yo»
+    comunes = set.intersection(*autores_por_chat) if len(autores_por_chat) > 1 else set()
+    st.markdown("**¿Quién es quién?** Cada entreno se marca como hecho por quien lo mandó.")
+    mapa = {}
+    for autor in sorted({c["autor"] for c in candidatos}):
+        opciones = visibles() + [NADIE]
+        sugerido = emparejar_autor(autor, visibles()) or (visibles()[0] if autor in comunes else NADIE)
+        mapa[autor] = st.selectbox(autor, opciones, index=opciones.index(sugerido), key=f"wa_map_{n}_{autor}")
+    autores_sel = st.multiselect("Importar solo los mandados por", sorted(mapa), default=sorted(mapa), key=f"wa_solo_{n}")
+
+    ya = {norm_busqueda(item.get("texto", "")) for clave in CLAVES_BIBLIO.values() for item in bib.get(clave, [])}
+    filas = [{"Importar": norm_busqueda(c["cuerpo"]) not in ya, "Fecha": c.get("fecha_entreno", c["fecha"]),
+              "Mensaje": c["fecha"], "Autor": c["autor"],
+              "Chat": c["chat"], "Tipo": TIPO_ETIQUETA[c["tipo"]], "Nombre": c["nombre"], "Entreno": c["cuerpo"]}
+             for c in candidatos if c["autor"] in autores_sel]
+    if not filas:
+        st.info("Nada que importar con ese filtro.")
+        return
+    st.markdown("**Revisa la lista:** desmarca lo que no sea un entreno y corrige tipo o nombre si hace falta.")
+    tabla = st.data_editor(
+        pd.DataFrame(filas), hide_index=True, use_container_width=True, key=f"wa_tabla_{n}",
+        disabled=["Mensaje", "Autor", "Chat"],
+        column_config={
+            "Importar": st.column_config.CheckboxColumn(width="small"),
+            "Fecha": st.column_config.DateColumn(format="DD/MM/YYYY", help="Día del entreno (sale de «mañana», «el lunes», «12/10»… si el mensaje lo dice)"),
+            "Mensaje": st.column_config.DateColumn(format="DD/MM/YYYY", help="Día en que se mandó el mensaje"),
+            "Tipo": st.column_config.SelectboxColumn(options=list(TIPO_ETIQUETA.values()), required=True),
+            "Entreno": st.column_config.TextColumn(width="large"),
+        },
+    )
+    elegidas = tabla[tabla["Importar"] == True]  # noqa: E712
+    if st.button(f"Importar {len(elegidas)} entrenos", type="primary", disabled=elegidas.empty, key=f"wa_ok_{n}"):
+        inverso = {v: k for k, v in TIPO_ETIQUETA.items()}
+        nueva = dict(bib)
+        for _, f in elegidas.iterrows():
+            clave = CLAVES_BIBLIO[inverso[f["Tipo"]]]
+            quien = [] if mapa.get(f["Autor"], NADIE) == NADIE else [mapa[f["Autor"]]]
+            fecha = f["Fecha"].isoformat() if hasattr(f["Fecha"], "isoformat") else str(f["Fecha"])[:10]
+            nueva[clave] = nueva.get(clave, []) + [{
+                "id": uuid.uuid4().hex[:8], "nombre": str(f["Nombre"] or "").strip(), "texto": str(f["Entreno"]).strip(),
+                "quien": quien, "fecha": fecha, "resultado": "", "idea": not quien, "origen": "whatsapp"}]
+        guardar_rutina(CLAVE_BIBLIOTECA, nueva)
+        st.session_state["wa_n"] = n + 1
+        st.session_state["aviso"] = f"{len(elegidas)} entrenos importados de WhatsApp"
+        st.rerun()
+
+
+# ---------------------------------------------------------------- 🔒 Coach (privado)
+CLAVE_COACH = "__coach__"
+ACCESO_COACH = ["Yo", "Mi esposa"]  # quién puede usar el material del coach en su rutina
+TIPOS_COACH = {"semanas": "📅 Semanas", "emom": "⏱️ EMOMs", "halterofilia": "🏋️ Halterofilia", "fuerza": "💪 Fuerza",
+               "wod": "🔥 WOD", "gym": "🤸 Gym", "conditioning": "🫀 Conditioning", "accessory": "🧩 Accessories",
+               "mobility": "🧘 Movilidad", "consejo": "💬 Consejos"}
+COACH_PARA_LINEA = {"wod": ["wod", "gym"], "conditioning": ["conditioning"], "accessory": ["accessory", "gym", "fuerza"],
+                    "mobility": ["mobility"], "fuerza": ["fuerza", "halterofilia"], "emom": []}
+
+
+def _datos_coach() -> dict | None:
+    try:
+        return cargar_rutinas().get(CLAVE_COACH)
+    except Exception:
+        return None
+
+
+def _pedir_pin(clave: str) -> bool:
+    """Pide el PIN del coach. True si se acaba de abrir."""
+    intento = st.text_input("🔒 PIN del coach", type="password", key=clave).strip()
+    if intento and intento == str(secreto("COACH_PIN") or "").strip():
+        st.session_state.coach_ok = True
+        return True
+    if intento:
+        st.error("PIN incorrecto.")
+    return False
+
+
+def coach_abierto() -> bool:
+    return bool(st.session_state.get("coach_ok")) and not solo()
+
+
+def _subir_coach():
+    archivo = st.file_uploader("Archivo del coach (coach.json)", type=["json"], key="coach_file")
+    if not archivo:
+        return
+    try:
+        data = json.loads(archivo.getvalue().decode("utf-8"))
+        assert isinstance(data.get("items"), list)
+    except Exception:
+        st.error("Ese archivo no es el coach.json que te preparé.")
+        return
+    st.caption(f"{len(data['items'])} bloques y {len(data.get('semanas', []))} semanas completas.")
+    if st.button("Guardar en mi app", type="primary", key="coach_guardar"):
+        guardar_rutina(CLAVE_COACH, data)
+        st.session_state["aviso"] = "Material del coach guardado"
+        st.rerun()
+
+
+def _fecha_txt(f: str) -> str:
     try:
         return f"{a_fecha(f):%d/%m/%Y}"
-    except (TypeError, ValueError):
-        return str(f or "")
+    except Exception:
+        return str(f)
 
 
-CLAVES_BIBLIO = {"wod": "wods", "conditioning": "conditionings", "accessory": "accessories", "mobility": "movilidad"}
-NOMBRE_BIBLIO = {"wod": "WODs", "conditioning": "Conditioning", "accessory": "Accessories", "mobility": "Movilidad"}
-CATEGORIAS_MOVILIDAD = ["Todos", "Cadera", "Hombros", "Tobillos", "Espalda", "Isquios"]
-_ZONAS = {
-    "Cadera": ["cadera", "hip", "hips", "90 90", "pigeon", "paloma", "frog", "rana", "couch stretch", "cossack",
-               "psoas", "gluteo", "glute", "aductor", "adductor", "pancake", "hanche"],
-    "Hombros": ["hombro", "hombros", "shoulder", "shoulders", "dislocates", "wall slides", "pec", "pectoral",
-                "lat stretch", "overhead", "epaule", "epaules"],
-    "Tobillos": ["tobillo", "tobillos", "ankle", "ankles", "knee to wall", "calf", "gemelo", "gemelos", "cheville"],
-    "Espalda": ["espalda", "thoracic", "toracica", "columna", "spine", "cat cow", "jefferson", "rotations",
-                "rotaciones", "dos", "lumbar"],
-    "Isquios": ["isquio", "isquios", "hamstring", "hamstrings", "pancake", "jefferson", "floss", "ischio"],
-}
+def seccion_coach():
+    pin = secreto("COACH_PIN")
+    if not pin:
+        st.warning("Para activar esta sección, añade `COACH_PIN = \"…\"` en los Secrets de Streamlit.")
+        return
+    if not st.session_state.get("coach_ok"):
+        intento = st.text_input("PIN del coach", type="password", key="coach_pin_in").strip()
+        if intento and intento == str(pin).strip():
+            st.session_state.coach_ok = True
+            st.rerun()
+        elif intento:
+            st.error("PIN incorrecto.")
+        return
+    datos = _datos_coach()
+    if not datos or not datos.get("items"):
+        st.info("Sube el archivo **coach.json** que te preparé. Se guarda solo en tu base de datos, nunca en GitHub.")
+        _subir_coach()
+        return
+    items, semanas = datos["items"], datos.get("semanas", [])
+    conteo = Counter(i["tipo"] for i in items)
+    conteo["semanas"], conteo["emom"] = len(semanas), sum(1 for i in items if i.get("emom"))
+    vista = st.segmented_control("Tipo", list(TIPOS_COACH), default="emom", key="coach_tipo",
+                                 format_func=lambda k: f"{TIPOS_COACH[k]} {conteo.get(k, 0)}",
+                                 label_visibility="collapsed") or "emom"
+    q = st.text_input(t("Buscar por movimiento"), key="coach_q", placeholder="snatch, MU, bike, thruster…")
+    anios = sorted({i["fecha"][:4] for i in items}, reverse=True)
+    c1, c2 = st.columns(2)
+    anio = c1.selectbox("Año", ["Todos"] + anios, key="coach_anio")
+
+    def pasa(texto: str, fecha: str) -> bool:
+        return (anio == "Todos" or fecha.startswith(anio)) and (not q or coincide_busqueda(texto, q))
+
+    if vista == "semanas":
+        lista = [x for x in semanas if pasa(x["texto"], x["fecha"])][::-1]
+        st.caption(f"{len(lista)} semanas")
+        for x in lista[: st.session_state.get("coach_n", 25)]:
+            with st.expander(f"Semana enviada el {_fecha_txt(x['fecha'])}"):
+                st.markdown(x["texto"].replace("\n", "  \n"))
+        _ver_mas(len(lista))
+        return
+
+    if vista == "emom":
+        lista = [i for i in items if i.get("emom")]
+        tramo = c2.segmented_control("Duración", TRAMOS_EMOM + ["?"], key="coach_tramo",
+                                     format_func=lambda x: "sin duración" if x == "?" else x)
+        quien = st.segmented_control("De", ["Coach", "Diego"], key="coach_autor")
+        if tramo:
+            lista = [i for i in lista if (tramo_emom(i.get("emom_min")) or "?") == tramo]
+        if quien:
+            lista = [i for i in lista if i.get("autor", "Coach") == quien]
+    else:
+        lista = [i for i in items if i["tipo"] == vista]
+    lista = [i for i in lista if pasa(i["nombre"] + "\n" + i["texto"], i["fecha"])]
+
+    if vista in ("halterofilia", "fuerza"):
+        levs = [x for x, _ in Counter(i["levantamiento"] for i in lista).most_common()]
+        lev = c2.selectbox("Levantamiento", ["Todos"] + levs, key="coach_lev")
+        if lev != "Todos":
+            lista = [i for i in lista if i["levantamiento"] == lev]
+            sin_pulls = lambda x: "\n".join(l for l in x.split("\n") if "pull" not in l.lower())  # noqa: E731
+            puntos = [(i["fecha"], carga_maxima(sin_pulls(i["texto"]))) for i in lista]
+            puntos = sorted((f, v) for f, v in puntos if v)
+            if len(puntos) >= 2:
+                fig = go.Figure(go.Scatter(x=[f for f, _ in puntos], y=[v for _, v in puntos], mode="markers+lines",
+                                           line=dict(color="#d6312b"), hovertemplate="%{x}: %{y} kg<extra></extra>"))
+                fig.update_layout(height=260, margin=dict(l=10, r=10, t=30, b=10),
+                                  title=f"Progresión {lev}: carga más alta de cada sesión (kg)")
+                st.plotly_chart(fig, use_container_width=True)
+    elif vista not in ("consejo",):
+        cats = sorted({c for i in lista for c in i.get("categorias", [])})
+        if cats:
+            elegidas = c2.multiselect(t("Tipo"), cats, key=f"coach_cats_{vista}", placeholder=t("Todos"))
+            if elegidas:
+                lista = [i for i in lista if set(elegidas) <= set(i.get("categorias", []))]
+
+    lista = lista[::-1]
+    st.caption(f"{len(lista)} resultados")
+    for i in lista[: st.session_state.get("coach_n", 25)]:
+        with st.container(border=True):
+            extra = []
+            if i.get("emom_min"):
+                extra.append(f"⏱️ {i['emom_min']}'")
+            if i.get("autor") == "Diego":
+                extra.append("de Diego")
+            chips = " ".join(f":{COLOR_CAT.get(c, 'gray')}[● {c}]" for c in i.get("categorias", []))
+            st.markdown(f"**{i['nombre']}**  :gray[{_fecha_txt(i['fecha'])} {i.get('dia', '')}] "
+                        f"{' · '.join(extra)}  {chips}")
+            st.markdown(i["texto"].replace("\n", "  \n"))
+    _ver_mas(len(lista))
+
+    with st.expander("Reemplazar el material del coach"):
+        _subir_coach()
 
 
-def clasificar_movilidad(texto: str) -> list[str]:
-    t = norm_busqueda(texto)
-    return [z for z, ps in _ZONAS.items() if any(_contiene(t, p) for p in ps)]
+# ---------------------------------------------------------------- 🔁 Ciclos
+@st.cache_data(show_spinner=False)
+def _ciclos_coach_de(items_json: str) -> list[dict]:
+    return ciclos_desde_coach(json.loads(items_json))
 
 
-def tipo_de_linea(parte: str, ejercicio: str) -> str | None:
-    """'wod', 'conditioning', 'accessory' o None (fuerza)."""
-    p, e = norm_busqueda(parte), norm_busqueda(ejercicio)
-    if any(w in p or w in e for w in ("movilidad", "mobility", "mobilite", "estiramiento", "stretch")):
-        return "mobility"
-    if "accessor" in p:
-        return "accessory"
-    if "conditioning" in p or "conditioning" in e:
-        return "conditioning"
-    if es_metcon(ejercicio) or any(k in p for k in ("wod", "gym", "metcon")):
-        return "wod"
-    return None
-
-
-def anadir_linea(rut: dict, dia_id: str, parte: str, ejercicio: str, presc: str, semana: int) -> dict:
-    """Nueva línea en una parte, que existe desde `semana` (no aparece en semanas anteriores)."""
-    import copy
-    import uuid
-    rut = copy.deepcopy(rut)
-    dia = next(d for d in rut["dias"] if d["id"] == dia_id)
-    for l, p in zip(dia["lineas"], partes_del_dia(dia)):
-        l.setdefault("parte", p)
-    nueva = {"id": uuid.uuid4().hex[:8], "ejercicio": ejercicio.strip() or "Sin nombre", "prescripcion": presc.strip(),
-             "sube": 0.0, "base": int(semana), "nota": "", "parte": parte, "desde": int(semana)}
-    ult = max((i for i, l in enumerate(dia["lineas"]) if l.get("parte") == parte), default=len(dia["lineas"]) - 1)
-    dia["lineas"].insert(ult + 1, nueva)
-    return rut
-
-
-def biblioteca(rutinas: dict, atletas: list[str], entrenos: list[dict], manual: dict | None, tipo: str) -> list[dict]:
-    """Junta lo hecho de un tipo ('wod', 'conditioning', 'accessory') en las rutinas, en los entrenos registrados
-    (solo WOD) y en la lista manual. Devuelve grupos {titulo, texto, categorias, veces:[...]}."""
-    veces = []
-    for atleta in atletas:
-        rut = rutinas.get(atleta)
-        if not rut:
-            continue
-        actual = int(rut.get("semana_actual") or 1)
-        for d in rut.get("dias", []):
-            for parte, lineas in agrupar_por_parte(d):
-                for l in lineas:
-                    if tipo_de_linea(parte, l["ejercicio"]) != tipo:
-                        continue
-                    for sem in range(1, actual + 1):
-                        txt = prescripcion_semana(l, sem, rut.get("ajustes"))[0]
-                        if not txt:
-                            continue
-                        estado = estado_parte(rut, sem, d["id"], parte)["estado"]
-                        if tipo == "accessory" and l.get("pausas") and sem in [int(x) for x in l["pausas"]]:
-                            estado = "no_hecho"
-                        generico = es_metcon(l["ejercicio"]) and norm(l["ejercicio"]) in (
-                            "wod", "gym / wod", "wod / gym", "gym", "metcon", "conditioning")
-                        veces.append({"atleta": atleta, "texto": txt,
-                                      "titulo": "" if generico else l["ejercicio"],
-                                      "cuando": f"Semana {sem} · {d['nombre']}", "orden": f"S{sem:03d}",
-                                      "estado": estado, "resultado": ""})
-    if tipo == "wod":
-        veces += _veces_de_entrenos(entrenos)
-    for item in (manual or {}).get(CLAVES_BIBLIO[tipo], []):
-        for q in item.get("quien") or [""]:
-            veces.append({"atleta": q, "texto": item.get("texto", ""), "titulo": item.get("nombre", ""),
-                          "cuando": "idea guardada" if item.get("idea") else _fecha_corta(item.get("fecha", "")),
-                          "orden": item.get("fecha", ""), "estado": "pendiente" if item.get("idea") else "hecho",
-                          "resultado": item.get("resultado", ""), "id": item.get("id")})
-    grupos = _agrupar_veces(veces, por_titulo=(tipo in ("accessory", "mobility")), tipo=tipo)
-    corregidas = (manual or {}).get("categorias_manual", {})
-    for g in grupos:
-        if g["clave"] in corregidas:
-            g["categorias"] = list(corregidas[g["clave"]])
-    return grupos
-
-
-def _veces_de_entrenos(entrenos: list[dict]) -> list[dict]:
-    veces = []
-    for w in entrenos:
-        if w.get("type") != "wod":
-            continue
-        resultados = ", ".join(f"{e['name']} {fmt_valor(e.get('value'), e['unit'])}" for e in w.get("entries") or []
-                               if e.get("value") is not None)
-        texto = "\n".join(x for x in [w.get("notes") or "", ", ".join(e["name"] for e in w.get("entries") or [])] if x)
-        veces.append({"atleta": w["athlete"], "texto": texto or (w.get("title") or ""), "titulo": w.get("title") or "",
-                      "cuando": _fecha_corta(w["date"]), "orden": str(w["date"]), "estado": "hecho",
-                      "resultado": resultados})
-    return veces
-
-
-def _agrupar_veces(veces: list[dict], por_titulo: bool = False, tipo: str = "wod") -> list[dict]:
-    grupos: dict[str, dict] = {}
-    for v in veces:
-        k = norm_busqueda((v["titulo"] + " | " if por_titulo else "") + v["texto"]) or norm_busqueda(v["titulo"])
-        if not k:
-            continue
-        g = grupos.setdefault(k, {"titulo": "", "texto": v["texto"], "veces": [], "ids": set(), "clave": k})
-        g["titulo"] = g["titulo"] or v["titulo"]
-        g["veces"].append(v)
-        if v.get("id"):
-            g["ids"].add(v["id"])
-    out = []
-    for g in grupos.values():
-        primera = (g["texto"].split(":")[0] if ":" in g["texto"].splitlines()[0] else "") if g["texto"] else ""
-        if tipo == "mobility":
-            g["categorias"] = clasificar_movilidad(g["titulo"] + "\n" + g["texto"])
-        else:
-            g["categorias"] = clasificar_wod(g["titulo"] + "\n" + g["texto"], g["titulo"] or primera)
-        g["veces"].sort(key=lambda v: v["orden"], reverse=True)
-        g["ultimo"] = g["veces"][0]["orden"]
-        out.append(g)
-    out.sort(key=lambda g: g["ultimo"], reverse=True)
-    return out
-
-
-def wods_hechos(rutinas: dict, atletas: list[str], entrenos: list[dict], manual: dict | None) -> list[dict]:
-    return biblioteca(rutinas, atletas, entrenos, manual, "wod")
-
-
-# ---------- importar de WhatsApp ----------
-_RE_IOS = re.compile(r"^\[(\d{1,2})/(\d{1,2})/(\d{2,4}),?\s+(\d{1,2}):(\d{2})(?::\d{2})?\]\s+([^:]+?):\s?(.*)$")
-_RE_ANDROID = re.compile(r"^(\d{1,2})/(\d{1,2})/(\d{2,4}),?\s+(\d{1,2}):(\d{2})\s+-\s+([^:]+?):\s?(.*)$")
-_RUIDO = ("omitido", "omitted", "omitida", "este mensaje fue eliminado", "this message was deleted",
-          "los mensajes y las llamadas están cifrados", "messages and calls are end-to-end encrypted",
-          "<adjunto:", "<attached:", "mensaje editado", "<this message was edited>", "<se editó este mensaje.>")
-
-
-def parse_whatsapp(texto: str) -> list[dict]:
-    """Mensajes de un chat exportado (iPhone o Android): [{fecha, autor, texto}]."""
-    mensajes = []
-    for linea in (texto or "").replace("\r\n", "\n").split("\n"):
-        limpia = linea.replace("‎", "").replace("‏", "").replace(" ", " ").replace("\xa0", " ")
-        m = _RE_IOS.match(limpia) or _RE_ANDROID.match(limpia)
-        if m:
-            d, mes, a, _, _, autor, cuerpo = m.groups()
-            a = int(a) + (2000 if len(a) == 2 else 0)
-            try:
-                fecha = dt.date(a, int(mes), int(d))
-            except ValueError:
-                try:
-                    fecha = dt.date(a, int(d), int(mes))  # por si el móvil está en formato mes/día
-                except ValueError:
-                    continue
-            mensajes.append({"fecha": fecha, "autor": autor.strip(), "texto": cuerpo})
-        elif mensajes:
-            mensajes[-1]["texto"] += "\n" + limpia
-    for m in mensajes:
-        lineas = [l for l in m["texto"].split("\n") if not any(r in l.lower() for r in _RUIDO)]
-        m["texto"] = "\n".join(lineas).strip()
-    return [m for m in mensajes if m["texto"]]
-
-
-_FORMATOS = ["amrap", "emom", "e2mom", "e3mom", "every", "for time", "ft", "rft", "rondas", "rounds", "ronda", "round",
-             "rnd", "rnds", "tabata", "cap", "time cap", "intervalos", "intervals", "chipper", "max", "reps", "cals",
-             "metros", "series", "x", "tours", "tour", "repos", "repetitions", "minutes"]
-
-
-def _tipo_probable(texto: str) -> str:
-    t = norm_busqueda(texto)
-    cats = clasificar_wod(texto)
-    lineas = [l for l in texto.split("\n") if l.strip()]
-    if cats == ["Cardio"]:
-        return "conditioning"
-    if re.search(r"\b\d+\s*x\s*\d+", t) and len(lineas) <= 3 and not any(_contiene(t, f) for f in
-                                                                           ("amrap", "emom", "for time", "rondas", "rounds")):
-        return "accessory"
-    if cats == ["Cardio"]:
-        return "conditioning"
-    return "wod"
-
-
-_DIAS = {"lunes": 0, "martes": 1, "miercoles": 2, "jueves": 3, "viernes": 4, "sabado": 5, "domingo": 6,
-         "lundi": 0, "mardi": 1, "mercredi": 2, "jeudi": 3, "vendredi": 4, "samedi": 5, "dimanche": 6,
-         "monday": 0, "tuesday": 1, "wednesday": 2, "thursday": 3, "friday": 4, "saturday": 5, "sunday": 6}
-
-
-def fecha_del_entreno(texto: str, fecha_mensaje: dt.date) -> dt.date:
-    """La fecha a la que se refiere el mensaje: «mañana», «ayer», «el lunes», «12/10»… o la del propio mensaje."""
-    t = norm_busqueda(" ".join(texto.split("\n")[:3]))
-    m = re.search(r"(?<![\d/])(\d{1,2})/(\d{1,2})(?:/(\d{2,4}))?(?![\d/])", " ".join(texto.split("\n")[:3]))
-    if m:
-        d, mes, a = int(m.group(1)), int(m.group(2)), m.group(3)
-        anio = (int(a) + (2000 if len(a) == 2 else 0)) if a else fecha_mensaje.year
-        try:
-            f = dt.date(anio, mes, d)
-            if abs((f - fecha_mensaje).days) <= 60:
-                return f
-        except ValueError:
-            pass
-    if any(_contiene(t, w) for w in ("pasado manana", "apres demain")):
-        return fecha_mensaje + dt.timedelta(days=2)
-    if any(_contiene(t, w) for w in ("manana", "demain", "tomorrow")) and not _contiene(t, "esta manana"):
-        return fecha_mensaje + dt.timedelta(days=1)
-    if any(_contiene(t, w) for w in ("ayer", "hier", "yesterday")):
-        return fecha_mensaje - dt.timedelta(days=1)
-    for nombre, wd in _DIAS.items():
-        if _contiene(t, nombre):
-            return fecha_mensaje + dt.timedelta(days=(wd - fecha_mensaje.weekday()) % 7)
-    return fecha_mensaje
-
-
-_INTRO = ("hoy", "manana", "wod", "toca", "aqui", "ahi", "va", "os paso", "el de", "entreno", "training")
-
-
-def _separar_nombre(texto: str) -> tuple[str, str]:
-    """Quita líneas de introducción ("Hoy toca:") y toma como nombre una primera línea corta sin números."""
-    lineas = [l.strip() for l in texto.split("\n")]
-    while lineas and (not lineas[0] or (lineas[0].endswith(":") and len(lineas[0]) <= 30)
-                      or norm_busqueda(lineas[0]) in _INTRO):
-        lineas.pop(0)
-    if lineas and len(lineas) > 1 and len(lineas[0]) <= 30 and not re.search(r"\d", lineas[0]) \
-            and not any(_contiene(norm_busqueda(lineas[0]), p) for p in ("amrap", "emom", "for time")):
-        return lineas[0], "\n".join(lineas[1:]).strip()
-    return "", "\n".join(lineas).strip()
-
-
-def detectar_entrenos(mensajes: list[dict]) -> list[dict]:
-    """Mensajes que parecen un WOD, conditioning o accessory, con una puntuación de confianza."""
-    todas = [p for lista in _PALABRAS.values() for p in lista]
-    out = []
-    for m in mensajes:
-        t = norm_busqueda(m["texto"])
-        if len(t) < 12 or not re.search(r"\d", t):
-            continue
-        movs = {p for p in todas if len(p) > 2 and _contiene(t, p)}
-        formatos = {f for f in _FORMATOS if _contiene(t, f)}
-        lineas = len([l for l in m["texto"].split("\n") if l.strip()])
-        puntos = len(movs) * 2 + len(formatos) * 2 + min(lineas, 6) + len(re.findall(r"(?<![a-z0-9])\d+(?![a-z0-9])", t)) // 3
-        puntos += 3 * bool(re.search(r"\d+\s*x\s*\d+", t)) + 2 * bool(re.search(r"@\s*\d", m["texto"]))
-        puntos += 3 * bool(re.search(r"\d+\s*-\s*\d+\s*-\s*\d+", m["texto"])) + bool(re.search(r"\d\s*kg", t))
-        puntos += 2 * any(_contiene(t, w) for w in ("descanso", "rest", "repos", "accesorio", "accesorios", "accessory",
-                                                    "rx", "movilidad", "mobilite", "estiramientos", "etirements"))
-        zonas = clasificar_movilidad(m["texto"])
-        if (movs or zonas) and puntos >= 7:
-            nombre, cuerpo = _separar_nombre(m["texto"])
-            tipo = "mobility" if zonas and (not movs or any(_contiene(t, w) for w in (
-                "movilidad", "mobility", "mobilite", "estiramientos", "etirements", "stretch"))) else _tipo_probable(m["texto"])
-            out.append({**m, "puntos": puntos, "tipo": tipo, "nombre": nombre, "cuerpo": cuerpo,
-                        "fecha_entreno": fecha_del_entreno(m["texto"], m["fecha"])})
-    return out
-
-
-def emparejar_autor(autor: str, atletas: list[str]) -> str | None:
-    """'Manu' -> 'Manu Anel'. None si no se parece a ninguno."""
-    a = norm_busqueda(autor)
-    for at in atletas:
-        n = norm_busqueda(at)
-        if a == n or (a and (a in n.split() or n.split()[0] == a.split()[0])):
-            return at
-    return None
-
-
-# ---------- copiar rutina y rutina desde IA ----------
-def copiar_rutina(origen: dict, nuevo_id) -> dict:
-    """Copia la estructura y los pesos actuales de otra rutina, empezando en la semana 1 y sin marcas."""
-    actual = int(origen.get("semana_actual") or 1)
-    dias = []
-    for d in origen.get("dias", []):
-        lineas = []
-        for l, p in zip(d["lineas"], partes_del_dia(d)):
-            if actual < int(l.get("desde") or 0):
-                continue
-            lineas.append({"id": nuevo_id(), "ejercicio": l["ejercicio"],
-                           "prescripcion": prescripcion_semana(l, actual, origen.get("ajustes"))[0],
-                           "sube": float(l.get("sube") or 0), "base": 1, "nota": l.get("nota", ""), "parte": p})
-        dias.append({"id": nuevo_id(), "nombre": d["nombre"], "lineas": lineas,
-                     "por_ejercicio": bool(d.get("por_ejercicio"))})
-    return {"semana_actual": 1, "ajustes": {}, "dias": dias}
-
-
-def rutina_desde_json(data: dict, nuevo_id) -> dict:
-    """Convierte la propuesta de la IA ({dias:[{nombre, lineas:[{parte, ejercicio, prescripcion, sube?}]}]})."""
-    dias = []
-    for i, d in enumerate(data.get("dias") or [], start=1):
-        lineas = []
-        for l in d.get("lineas") or []:
-            ejercicio = str(l.get("ejercicio") or "").strip()
-            presc = str(l.get("prescripcion") or "").strip()
-            if not ejercicio and not presc:
-                continue
-            parte = str(l.get("parte") or "A) Fuerza").strip()
-            tipo = tipo_de_linea(parte, ejercicio)
-            sube = l.get("sube")
-            sube = float(sube) if isinstance(sube, (int, float)) else (2.5 if tipo is None and NUM_PESO.search(presc) else 0.0)
-            lineas.append({"id": nuevo_id(), "ejercicio": ejercicio or "Sin nombre", "prescripcion": presc,
-                           "sube": sube, "base": 1, "nota": str(l.get("nota") or ""), "parte": parte})
-        dias.append({"id": nuevo_id(), "nombre": str(d.get("nombre") or f"Día {i}"), "lineas": lineas})
-    return {"semana_actual": 1, "ajustes": {}, "dias": dias}
-
-
-def carga_maxima(texto: str) -> float | None:
-    """La carga más alta escrita en un bloque (tras @ o antes de kg), para ver progresiones."""
-    nums = []
-    for grupo in re.findall(r"@\s*([\d.,]+(?:\s*[-/]\s*[\d.,]+)*)", texto):
-        nums += re.findall(r"[\d]+(?:[.,]\d+)?", grupo)
-    nums += re.findall(r"(\d+(?:[.,]\d+)?)\s*kg", texto, flags=re.I)
-    vals = [float(n.replace(",", ".")) for n in nums]
-    vals = [v for v in vals if 20 <= v <= 350]
-    return max(vals) if vals else None
-
-
-# ---------- EMOMs por duración ----------
-TRAMOS_EMOM = ["≤10'", "11-20'", "21-30'", "31-40'", "40'+"]
-
-
-def es_emom(texto: str) -> bool:
-    t = norm_busqueda(texto)
-    return bool(re.search(r"\be\d*mom\b|\bevery\s*\d|\btoutes les\s*\d|\bcada\s*\d+\s*(min|')", t))
-
-
-def duracion_emom(texto: str) -> int | None:
-    """Minutos totales de un EMOM/E2MOM/Every: «EMOM 12'», «E2MOM x8» (16), «Every 2' x7» (14), «Every 1:30 x8» (12)."""
-    t = (texto or "").lower().replace("’", "'").replace("′", "'")
-    m = re.search(r"\be(\d)\s*mom\s*(?:for\s*)?(x\s*)?(\d+)", t)
-    if m:
-        n = int(m.group(3))
-        return int(m.group(1)) * n if m.group(2) else n
-    m = re.search(r"\bemom\s*(?:for\s*)?(\d+)\s*(?:'|min|’)?", t)
-    if m and not re.search(r"\bemom\s*x", t):
-        return int(m.group(1))
-    m = re.search(r"\b(?:every|toutes les|cada)\s*(\d+)(?::(\d{2}))?\s*(?:'|min|minutes?|mn)?\s*(?:x|for)\s*(\d+)\s*('|min)?", t)
-    if m:
-        intervalo = int(m.group(1)) + (int(m.group(2)) / 60 if m.group(2) else 0)
-        n = int(m.group(3))
-        return n if m.group(4) else round(intervalo * n)
-    m = re.search(r"\((\d+)\s*(?:'|min)\)", t)  # «SNATCH (19')»: total escrito por el coach
-    if m:
-        return int(m.group(1))
-    bloques = re.findall(r"\bemom\s*x\s*(\d+)", t)  # varios «EMOM x4» seguidos: se suman
-    if bloques:
-        return sum(int(n) for n in bloques)
-    return None
-
-
-def tramo_emom(minutos: int | None) -> str | None:
-    if not minutos:
-        return None
-    if minutos <= 10:
-        return TRAMOS_EMOM[0]
-    if minutos <= 20:
-        return TRAMOS_EMOM[1]
-    if minutos <= 30:
-        return TRAMOS_EMOM[2]
-    if minutos <= 40:
-        return TRAMOS_EMOM[3]
-    return TRAMOS_EMOM[4]
-
-
-# ---------- ciclos (programas de varias semanas) ----------
-def _firma_progresion(texto: str) -> str:
-    t = norm_busqueda(texto)
-    t = re.sub(r"\d+(?:[.,]\d+)?\s*(kg|%)?", "#", t)
-    t = re.sub(r"[#\s@x-]+", " ", t)
-    return " ".join(t.split()[:8])
-
-
-def ciclos_desde_coach(items: list[dict]) -> list[dict]:
-    """Progresiones de 3+ semanas seguidas (mismo bloque con cargas que cambian), agrupadas en paquetes."""
-    fuerza = sorted([i for i in items if i["tipo"] in ("fuerza", "halterofilia") and i.get("autor", "Coach") == "Coach"],
-                    key=lambda i: i["fecha"])
-    cadenas, usados = [], set()
-    for n, a in enumerate(fuerza):
-        if a["id"] in usados or len(_firma_progresion(a["texto"])) < 4:
-            continue
-        f, cadena = _firma_progresion(a["texto"]), [a]
-        for b in fuerza[n + 1:]:
-            if b["id"] in usados or _firma_progresion(b["texto"]) != f:
-                continue
-            gap = (dt.date.fromisoformat(b["fecha"]) - dt.date.fromisoformat(cadena[-1]["fecha"])).days
-            if 4 <= gap <= 12:
-                cadena.append(b)
-            elif gap > 12:
-                break
-        if len(cadena) >= 3:
-            usados |= {c["id"] for c in cadena}
-            cadenas.append(cadena)
-    # cadenas que empiezan la misma semana y duran lo mismo = un mismo programa (cada una, una sesión)
-    paquetes: list[list[list[dict]]] = []
-    for c in sorted(cadenas, key=lambda c: c[0]["fecha"]):
-        ini = dt.date.fromisoformat(c[0]["fecha"])
-        for p in paquetes:
-            ini_p = dt.date.fromisoformat(p[0][0]["fecha"])
-            if abs((ini - ini_p).days) <= 6 and len(p[0]) == len(c):
-                p.append(c)
-                break
-        else:
-            paquetes.append([c])
-    meses = ["ene", "feb", "mar", "abr", "may", "jun", "jul", "ago", "sep", "oct", "nov", "dic"]
-    ciclos = []
-    for p in paquetes:
-        n = len(p[0])
-        ini = dt.date.fromisoformat(p[0][0]["fecha"])
-        levs = list(dict.fromkeys(c[0]["levantamiento"] or "Fuerza" for c in p))
-        es_fuerza = all(c[0]["tipo"] == "fuerza" for c in p)
-        ciclos.append({
-            "id": "coach-" + p[0][0]["id"],
-            "nombre": f"{' + '.join(levs)} · {n} semanas ({meses[ini.month - 1]} {ini.year})",
-            "categoria": "Fuerza (coach)" if es_fuerza else "Halterofilia (coach)", "privado": True,
-            "descripcion": f"Progresión del coach de {n} semanas con {len(p)} "
-                           f"{'sesión' if len(p) == 1 else 'sesiones'} por semana.",
-            "semanas": [{"sesiones": [[{"ejercicio": c[0]["levantamiento"] or "Fuerza", "prescripcion": c[w]["texto"]}]
-                                      for c in p]} for w in range(n)],
-        })
+def _todos_los_ciclos() -> list[dict]:
+    ciclos = list(CICLOS)
+    datos = _datos_coach()
+    if datos and coach_abierto():
+        ciclos += _ciclos_coach_de(json.dumps(datos["items"]))
     return ciclos
 
 
-def empezar_ciclo(rut: dict, ciclo: dict, semana_inicio: int, dias: list[str], letra: str, nuevo_id) -> dict:
-    """Mete el ciclo en la rutina: una parte «X) Ciclo: …» en los días elegidos (uno por sesión), activa N semanas."""
-    import copy
-    rut = copy.deepcopy(rut)
-    semanas = ciclo["semanas"]
-    parte = f"{letra}) Ciclo: {ciclo['nombre']}"
-    for s_idx, dia_id in enumerate(dias):
-        dia = next((d for d in rut["dias"] if d["id"] == dia_id), None)
-        if dia is None:
+def _rutina_de(atleta: str) -> dict | None:
+    try:
+        guardadas = cargar_rutinas()
+    except Exception:
+        guardadas = {}
+    return _completar_partes(guardadas.get(atleta) or rutinas_iniciales(ATLETAS).get(atleta), atleta)
+
+
+def seccion_ciclos():
+    st.caption("Programas de varias semanas. Al empezar uno, se añade a la rutina como una parte más durante esas "
+               "semanas; después desaparece solo.")
+    if not solo() and secreto("COACH_PIN") and not coach_abierto():
+        with st.expander("🔒 Ver también los ciclos del coach"):
+            if _pedir_pin("pin_ciclos"):
+                st.rerun()
+
+    with st.expander("En marcha"):
+        hay = False
+        for a in visibles():
+            rut = _rutina_de(a)
+            for c in ciclos_en_marcha(rut or {}):
+                hay = True
+                c1, c2 = st.columns([4, 1], vertical_alignment="center")
+                c1.markdown(f"**{a}** · {c['parte'].split(') ', 1)[-1]} · semanas {c['desde']}–{c['hasta']} · "
+                            f"{', '.join(c['dias'])}")
+                if c2.button("Quitar", key=f"quitar_{a}_{c['id']}"):
+                    guardar_rutina(a, quitar_ciclo(rut, c["id"]))
+                    st.session_state["aviso"] = "Ciclo quitado"
+                    st.rerun()
+        if not hay:
+            st.caption("Nadie tiene ningún ciclo en marcha.")
+
+    ciclos = _todos_los_ciclos()
+    cats = list(dict.fromkeys(c["categoria"] for c in ciclos))
+    cat = st.segmented_control("Tipo", ["Todos"] + cats, default="Todos", key="ciclos_cat",
+                               label_visibility="collapsed", format_func=t) or "Todos"
+    for c in ciclos:
+        if cat != "Todos" and c["categoria"] != cat:
             continue
-        for l, p in zip(dia["lineas"], partes_del_dia(dia)):
-            l.setdefault("parte", p)
-        n_lineas = max((len(s["sesiones"][s_idx]) for s in semanas if s_idx < len(s["sesiones"])), default=0)
-        for j in range(n_lineas):
-            plan, ejercicio = {}, ""
-            for w, s in enumerate(semanas):
-                if s_idx < len(s["sesiones"]) and j < len(s["sesiones"][s_idx]):
-                    linea = s["sesiones"][s_idx][j]
-                    plan[str(semana_inicio + w)] = linea["prescripcion"]
-                    ejercicio = ejercicio or linea["ejercicio"]
-            dia["lineas"].append({
-                "id": nuevo_id(), "ejercicio": ejercicio or ciclo["nombre"], "prescripcion": next(iter(plan.values()), ""),
-                "sube": 0.0, "base": semana_inicio, "nota": "", "parte": parte, "desde": semana_inicio,
-                "hasta": semana_inicio + len(semanas) - 1, "plan": plan, "ciclo": ciclo["id"]})
-        dia["lineas"] = [l for _, l in sorted(enumerate(dia["lineas"]), key=lambda t: (_letra(t[1]["parte"]), t[0]))]
-    return rut
+        n, ses = len(c["semanas"]), max(len(s["sesiones"]) for s in c["semanas"])
+        with st.container(border=True):
+            candado = "🔒 " if c.get("privado") else ""
+            st.markdown(f"**{candado}{c['nombre']}**  :gray[{c['categoria']} · {n} semanas · {ses} "
+                        f"{'sesión' if ses == 1 else 'sesiones'}/semana]")
+            st.caption(c["descripcion"])
+            with st.expander("Ver semana a semana"):
+                for w, s in enumerate(c["semanas"], start=1):
+                    st.markdown(f"**Semana {w}**")
+                    for i, sesion in enumerate(s["sesiones"], start=1):
+                        txt = "  \n".join(f"{l['ejercicio']}: {l['prescripcion']}".replace("\n", " / ") for l in sesion)
+                        st.markdown(f"- Sesión {i}: {txt}")
+            _empezar_ciclo_ui(c, ses)
 
 
-def quitar_ciclo(rut: dict, ciclo_id: str) -> dict:
-    import copy
-    rut = copy.deepcopy(rut)
-    for d in rut["dias"]:
-        d["lineas"] = [l for l in d["lineas"] if l.get("ciclo") != ciclo_id]
-    return rut
+def _empezar_ciclo_ui(c: dict, n_sesiones: int):
+    quienes = [a for a in visibles() if not c.get("privado") or a in ACCESO_COACH]
+    if not quienes:
+        return
+    with st.popover("▶️ Empezar este ciclo"):
+        atleta = st.selectbox("Para", quienes, key=f"cp_{c['id']}")
+        rut = _rutina_de(atleta)
+        if not rut or not rut.get("dias"):
+            st.caption(f"{atleta} todavía no tiene rutina: créala primero en su pestaña Rutina.")
+            return
+        inicio = st.number_input("Empieza en la semana", 1, 200, int(rut.get("semana_actual") or 1),
+                                 key=f"cs_{c['id']}_{atleta}")
+        ids = [d["id"] for d in rut["dias"]]
+        nombres = {d["id"]: d["nombre"] for d in rut["dias"]}
+        dias = []
+        for i in range(n_sesiones):
+            dias.append(st.selectbox(f"Sesión {i + 1} en", ids, index=min(i * max(1, len(ids) // n_sesiones), len(ids) - 1),
+                                     format_func=nombres.get, key=f"cd_{c['id']}_{atleta}_{i}"))
+        usadas = {p[:1] for d in rut["dias"] for p in partes_del_dia(d)}
+        libre = next((x for x in "BCDEFG" if x not in usadas), "D")
+        letra = st.selectbox("Como parte", list("ABCDEFG"), index="ABCDEFG".index(libre), key=f"cl_{c['id']}_{atleta}",
+                             help="La letra con la que aparecerá en cada día")
+        fin = int(inicio) + len(c["semanas"]) - 1
+        st.caption(f"Irá de la semana {int(inicio)} a la {fin}.")
+        if st.button("Empezar", type="primary", key=f"ce_{c['id']}_{atleta}"):
+            guardar_rutina(atleta, empezar_ciclo(rut, c, int(inicio), dias, letra, _nuevo_id))
+            st.session_state["aviso"] = f"Ciclo añadido a la rutina de {atleta} (semanas {int(inicio)}–{fin})"
+            st.rerun()
 
 
-def ciclos_en_marcha(rut: dict) -> list[dict]:
-    vistos = {}
-    for d in rut.get("dias", []):
-        for l in d["lineas"]:
-            if l.get("ciclo"):
-                c = vistos.setdefault(l["ciclo"], {"id": l["ciclo"], "parte": l["parte"], "desde": l["desde"],
-                                                   "hasta": l["hasta"], "dias": []})
-                if d["nombre"] not in c["dias"]:
-                    c["dias"].append(d["nombre"])
-    return list(vistos.values())
+def _ver_mas(total: int):
+    n = st.session_state.get("coach_n", 25)
+    if total > n and st.button(f"Ver más ({total - n} restantes)", key=f"coach_mas_{n}"):
+        st.session_state["coach_n"] = n + 25
+        st.rerun()
 
 
-def linea_activa(linea: dict, semana: int) -> bool:
-    if semana < int(linea.get("desde") or 0):
-        return False
-    if linea.get("hasta") is not None and semana > int(linea["hasta"]):
-        return False
-    if int(semana) in [int(x) for x in linea.get("saltar") or []]:
-        return False
-    if linea.get("plan") is not None and str(semana) not in linea["plan"]:
-        return False
-    return True
+# ---------------------------------------------------------------- main
+def _idioma_de_atleta():
+    """Al cambiar de persona, pone su idioma (Archchana en francés); luego se puede cambiar arriba."""
+    st.session_state["lang"] = IDIOMA_DEFECTO.get(st.session_state.get("atleta"), "es")
 
 
-# ---------- partes libres: añadir, borrar, letras por posición ----------
-LETRAS = "ABCDEFGHIJ"
+def main():
+    control_contrasena()
+    st.markdown("""<style>
+      h1 {letter-spacing:.02em; text-transform:uppercase}
+      [data-testid="stMetricValue"] {font-variant-numeric: tabular-nums}
+    </style>""", unsafe_allow_html=True)
+    cab, idi = st.columns([4, 1], vertical_alignment="bottom")
+    cab.title(t("Diario de Entrenos"))
+    idi.segmented_control(t("Idioma"), ["es", "fr"], key="lang", default="es", label_visibility="collapsed",
+                          format_func=lambda x: {"es": "🇪🇸 ES", "fr": "🇫🇷 FR"}[x])
 
+    if isinstance(store(), LocalStore):
+        st.caption("Modo local: los datos se guardan en la carpeta `data/`. Configura Supabase para usarla online.")
 
-def _etiqueta_parte(parte: str) -> str:
-    return parte.split(") ", 1)[1] if re.match(r"^[A-Za-z]\)\s", parte or "") else parte
-
-
-def letra_visible(partes_semana: list[str], parte: str) -> str:
-    """La parte tal como se ve esa semana: letra según su posición (A, B, C…) + su nombre."""
-    i = partes_semana.index(parte) if parte in partes_semana else 0
-    return f"{LETRAS[min(i, len(LETRAS) - 1)]}) {_etiqueta_parte(parte).rstrip(' ·')}"
-
-
-def renumerar_partes(rut: dict, dia_id: str) -> dict:
-    """Pone las letras A, B, C… según el orden de las partes en el día (conserva lo validado)."""
-    dia = next(d for d in rut["dias"] if d["id"] == dia_id)
-    actuales = [p for p, _ in agrupar_por_parte(dia)]
-    destino = [f"{LETRAS[i]}) {_etiqueta_parte(p)}" for i, p in enumerate(actuales)]
-    if actuales == destino:
-        return rut
-    # dos pasos para no pisar nombres que se intercambian
-    for i, p in enumerate(actuales):
-        rut = renombrar_parte(rut, dia_id, p, f"{LETRAS[i]}~ {_etiqueta_parte(p)}")
-    for i, p in enumerate(actuales):
-        rut = renombrar_parte(rut, dia_id, f"{LETRAS[i]}~ {_etiqueta_parte(p)}", destino[i])
-    return rut
-
-
-def anadir_parte(rut: dict, dia_id: str, etiqueta: str, ejercicio: str, presc: str, semana: int,
-                 solo_esta: bool, sube: float = 0.0) -> dict:
-    """Parte nueva al final del día. Solo esta semana o desde esta semana en adelante."""
-    import copy
-    import uuid
-    rut = copy.deepcopy(rut)
-    dia = next(d for d in rut["dias"] if d["id"] == dia_id)
-    for l, p in zip(dia["lineas"], partes_del_dia(dia)):
-        l.setdefault("parte", p)
-    usadas = [_letra(p) for p, _ in agrupar_por_parte(dia)]
-    sig = max((LETRAS.index(x) for x in usadas if x in LETRAS), default=-1) + 1
-    parte = f"{LETRAS[min(sig, len(LETRAS) - 1)]}) {etiqueta}"
-    linea = {"id": uuid.uuid4().hex[:8], "ejercicio": ejercicio.strip() or etiqueta, "prescripcion": presc.strip(),
-             "sube": float(sube), "base": int(semana), "nota": "", "parte": parte, "desde": int(semana)}
-    if solo_esta:
-        linea["plan"] = {str(int(semana)): presc.strip()}
-        linea["hasta"] = int(semana)
-    dia["lineas"].append(linea)
-    return rut
-
-
-def quitar_parte(rut: dict, dia_id: str, parte: str, semana: int) -> dict:
-    """Quita la parte desde `semana` (las semanas anteriores se quedan como estaban)."""
-    import copy
-    rut = copy.deepcopy(rut)
-    dia = next(d for d in rut["dias"] if d["id"] == dia_id)
-    nuevas = []
-    for l, p in zip(dia["lineas"], partes_del_dia(dia)):
-        if p != parte:
-            nuevas.append(l)
-        elif int(l.get("desde") or 1) < semana:
-            l["hasta"] = min(int(l.get("hasta") or 10 ** 6), semana - 1)
-            if l.get("plan") is not None:
-                l["plan"] = {k: v for k, v in l["plan"].items() if int(k) < semana}
-            nuevas.append(l)
-    dia["lineas"] = nuevas
-    return rut
-
-
-def sustituir_parte(rut: dict, dia_id: str, parte: str, semana: int, etiqueta: str, ejercicio: str, presc: str,
-                    solo_esta: bool, sube: float = 0.0) -> dict:
-    """Cambia una parte por otra cosa en el mismo hueco: solo esta semana (vuelve la siguiente) o desde esta semana."""
-    import copy
-    import uuid
-    rut = copy.deepcopy(rut)
-    dia = next(d for d in rut["dias"] if d["id"] == dia_id)
-    for l, p in zip(dia["lineas"], partes_del_dia(dia)):
-        l.setdefault("parte", p)
-        if p == parte:
-            if solo_esta:
-                l["saltar"] = sorted({int(x) for x in l.get("saltar") or []} | {int(semana)})
-            elif int(l.get("desde") or 1) < semana:
-                l["hasta"] = min(int(l.get("hasta") or 10 ** 6), semana - 1)
-            else:
-                l["_borrar"] = True
-    dia["lineas"] = [l for l in dia["lineas"] if not l.pop("_borrar", False)]
-    nueva = f"{parte[:1]}) {etiqueta}"
-    if nueva == parte:
-        nueva = f"{parte[:1]}) {etiqueta} ·"
-    linea = {"id": uuid.uuid4().hex[:8], "ejercicio": ejercicio.strip() or etiqueta, "prescripcion": presc.strip(),
-             "sube": float(sube), "base": int(semana), "nota": "", "parte": nueva, "desde": int(semana),
-             "sustituye": parte}
-    if solo_esta:
-        linea["plan"], linea["hasta"] = {str(int(semana)): presc.strip()}, int(semana)
-    dia["lineas"].append(linea)
-    dia["lineas"] = [l for _, l in sorted(enumerate(dia["lineas"]), key=lambda t: (_letra(t[1]["parte"]), t[0]))]
-    return rut
-
-
-def deshacer_sustitucion(rut: dict, dia_id: str, parte_nueva: str, semana: int) -> dict:
-    import copy
-    rut = copy.deepcopy(rut)
-    dia = next(d for d in rut["dias"] if d["id"] == dia_id)
-    nuevas = [l for l in dia["lineas"] if l.get("parte") == parte_nueva and l.get("sustituye")]
-    if not nuevas:
-        return rut
-    original = nuevas[0]["sustituye"]
-    dia["lineas"] = [l for l in dia["lineas"] if l not in nuevas]
-    for l in dia["lineas"]:
-        if l.get("parte") == original:
-            l["saltar"] = [x for x in l.get("saltar") or [] if int(x) != int(semana)]
-            if l.get("hasta") is not None and int(l["hasta"]) == semana - 1 and l.get("plan") is None:
-                l.pop("hasta")
-    return rut
-
-
-# ---------- versiones RX / Inter / Scaled / Elite ----------
-NIVELES = ["RX", "Inter", "Scaled", "Elite"]
-_DB = [5, 7.5, 10, 12.5, 15, 17.5, 20, 22.5, 25, 27.5, 30, 32.5, 35, 40, 45, 50]
-_KB = [8, 12, 16, 20, 24, 28, 32, 40]
-_WB = {"Inter": {9: 6, 6: 4, 14: 9, 10: 6}, "Scaled": {9: 4, 6: 3, 14: 6, 10: 4}, "Elite": {9: 9, 6: 6, 14: 14}}
-_FACTOR = {"Inter": 0.75, "Scaled": 0.55, "Elite": 1.15}
-
-_SUSTITUCIONES = {
-    "Inter": [
-        (r"(?:ring |bar )?muscle[ -]?ups?(?: ring)?|\b[br]?mu'?s?\b(?: ring)?", "C2B pull ups"),
-        (r"strict hspu|strict handstand push ?ups?", "HSPU con abmat"),
-        (r"\bhspu'?s?\b|handstand push ?ups?", "HSPU con abmat"),
-        (r"handstand walks?|\bhw\b", "wall walks"),
-        (r"\bpistols?(?: squats?)?\b", "pistols a caja"),
-        (r"\bc2b\b|chest to bar(?: pull ups?)?", "pull ups"),
-        (r"legless rope climbs?", "rope climbs"),
-    ],
-    "Scaled": [
-        (r"(?:ring |bar )?muscle[ -]?ups?(?: ring)?|\b[br]?mu'?s?\b(?: ring)?", "pull ups con banda"),
-        (r"\bc2b\b|chest to bar(?: pull ups?)?", "pull ups con banda"),
-        (r"(?<!weighted )(?:butterfly |kipping |strict )?pull ?ups?", "ring rows"),
-        (r"strict hspu|strict handstand push ?ups?|\bhspu'?s?\b|handstand push ?ups?", "pike push ups"),
-        (r"handstand walks?|\bhw\b", "bear crawl"),
-        (r"wall walks?|\bww\b", "inchworms"),
-        (r"double[ -]?unders?|\bdu'?s?\b|dble du'?s?", "single unders (x2)"),
-        (r"toes[ -]?to[ -]?bar|\bt2b\b|\bttb\b", "knee raises"),
-        (r"\bpistols?(?: squats?)?\b", "air squats"),
-        (r"(?:legless )?rope climbs?", "rope pulls desde el suelo"),
-        (r"burpees? box jump overs?", "burpees + step ups"),
-        (r"box jump overs?|box jumps?", "box step ups"),
-        (r"ring dips?", "box dips"),
-        (r"ghd sit[ -]?ups?", "abmat sit ups"),
-    ],
-    "Elite": [
-        (r"\bc2b\b|chest to bar(?: pull ups?)?", "bar muscle ups"),
-        (r"(?<!strict )(?<!weighted )(?<!butterfly )pull ?ups?", "C2B pull ups"),
-        (r"(?<!strict )\bhspu'?s?\b", "strict HSPU"),
-    ],
-}
-
-
-def _redondear(v: float, tipo: str) -> float:
-    if tipo == "db":
-        return min(_DB, key=lambda x: abs(x - v))
-    if tipo == "kb":
-        return min(_KB, key=lambda x: abs(x - v))
-    return max(2.5, round(v / 2.5) * 2.5)
-
-
-def _escalar_linea(linea: str, nivel: str) -> str:
-    bajo = linea.lower()
-    tipo = "db" if re.search(r"\bdb|dbs\b|dumbb?ell|mancuerna|dble", bajo) else (
-        "kb" if re.search(r"\bkb\b|kettlebell", bajo) else ("wb" if re.search(r"wall ?balls?|\bwb\b", bajo) else "bar"))
-    f = _FACTOR[nivel]
-
-    def esc(txt: str) -> str:
-        v = float(txt.replace(",", "."))
-        if tipo == "wb":
-            nuevo = _WB[nivel].get(int(v), v * (f if nivel != "Elite" else 1))
+    secciones = {"WODs": "wod", "Conditioning": "conditioning", "Accessories": "accessory", "Movilidad": "mobility"}
+    opciones_vista = ["Personas"] + list(secciones) + ["🔁 Ciclos"] + ([] if solo() else ["🔒 Coach"])
+    vista = st.segmented_control("Ver", opciones_vista, default="Personas", key="vista",
+                                 label_visibility="collapsed", format_func=t) or "Personas"
+    if vista == "Personas":
+        if solo():
+            atleta = solo()
         else:
-            nuevo = _redondear(v * f, tipo)
-        return fmt_num(nuevo)
+            atleta = st.segmented_control("Atleta", atletas(), default=ATLETAS[0], key="atleta",
+                                          label_visibility="collapsed", on_change=_idioma_de_atleta) or ATLETAS[0]
+    else:
+        atleta = vista
+    if vista == "🔒 Coach":
+        seccion_coach()
+        return
+    if vista == "🔁 Ciclos":
+        seccion_ciclos()
+        return
 
-    num = r"\d+(?:[.,]\d+)?"
-    no_sigue = r"(?![\d.,])"
-    patron = re.compile(
-        rf"@\s*(?P<arr>{num}(?:\s*-\s*{num})*){no_sigue}(?!\s*%)"            # @60 / @60-65-70 (no %)
-        rf"|(?P<a>{num})\s*/\s*(?P<b>{num}){no_sigue}(?!\s*(?:cal|''|\"|in\b|m\b|’’|%))"  # 43/30 (no cal/alturas)
-        rf"|(?P<kg>{num})(?=\s*kg)"                                              # 60kg
-        rf"|(?<=\b2x )(?P<dos>{num}){no_sigue}(?!\s*/)",                         # dble db 2x 22,5
-        re.I)
+    if aviso := st.session_state.pop("aviso", None):
+        st.toast(aviso)
 
-    def cambio(m):
-        if m.group("arr"):
-            return "@" + "-".join(esc(x) for x in re.findall(num, m.group("arr")))
-        if m.group("a"):
-            peso = tipo != "bar" or "kg" in bajo or "@" in bajo or float(m.group("a").replace(",", ".")) >= 20
-            return f"{esc(m.group('a'))}/{esc(m.group('b'))}" if peso else m.group(0)
-        if m.group("kg"):
-            return esc(m.group("kg"))
-        if m.group("dos") and tipo in ("db", "kb", "wb"):
-            return esc(m.group("dos"))
-        return m.group(0)
+    try:
+        todos = cargar_todo()
+    except Exception as ex:
+        st.error(f"No se pudieron cargar los datos: {ex}")
+        st.stop()
+    if atleta in secciones:
+        seccion_biblio(secciones[atleta], todos)
+        return
+    mios = [w for w in todos if w["athlete"] == atleta]
 
-    linea = patron.sub(cambio, linea)
-    return linea
-
-
-def escalar(texto: str, nivel: str) -> str:
-    """Versión del texto para un nivel. El texto se toma como RX."""
-    if not texto or nivel == "RX":
-        return texto or ""
-    lineas = [_escalar_linea(l, nivel) for l in texto.split("\n")]
-    out = "\n".join(lineas)
-    reglas = _SUSTITUCIONES.get(nivel, [])
-    if reglas:
-        grande = re.compile("|".join(f"(?P<r{i}>{p})" for i, (p, _) in enumerate(reglas)), re.I)
-        out = grande.sub(lambda m: next(reglas[int(k[1:])][1] for k, v in m.groupdict().items() if v is not None), out)
-    if nivel == "Elite":
-        out += "\n🎯 Elite: todo unbroken siempre que se pueda"
-    return out
+    nombres = [t("Rutina"), t("Registrar"), t("Historial"), t("Progreso")] + ([] if solo() else [t("Grupo")])
+    pestanas = st.tabs(nombres)
+    with pestanas[0]:
+        tab_rutina(atleta, mios)
+    with pestanas[1]:
+        tab_registrar(atleta, mios)
+    with pestanas[2]:
+        tab_historial(atleta, mios)
+    with pestanas[3]:
+        tab_progreso(atleta, mios)
+    if not solo():
+        with pestanas[4]:
+            tab_grupo(todos)
 
 
-def referencias_elite(titulo_y_texto: str, elite: dict) -> list[dict]:
-    """Referencias de atletas de élite si el WOD es un benchmark conocido (Fran, Grace, Open 24.1…)."""
-    t = norm_busqueda(titulo_y_texto[:200])
-    return [r for clave, refs in elite.items() if _contiene(t, clave) for r in refs]
+main()
