@@ -117,3 +117,25 @@ MOVILIDAD = [
 
 REPERTORIO = {"wod": WODS + COMPETICION + HEROES, "conditioning": CONDITIONING, "accessory": ACCESSORIES,
               "mobility": MOVILIDAD}
+
+# Marcas de atletas de élite en benchmarks (para motivar). Clave = nombre que aparece en el WOD.
+ELITE = {
+    "fran": [{"quien": "Noah Ohlsen", "marca": "1:49", "detalle": "récord no oficial, 2022",
+              "fuente": "https://barbend.com/noah-ohlsen-unofficial-world-record-fran"}],
+    "grace": [{"quien": "Jayson Hopper", "marca": "1:01", "detalle": "TYR Cup 2025 (igualó el 1:01 de Dan Bailey)",
+               "fuente": "https://morningchalkup.com/2025/09/22/grace-isabel-2025-tyr-cup/"},
+              {"quien": "Olivia Kerstetter", "marca": "1:06", "detalle": "TYR Cup 2025",
+               "fuente": "https://morningchalkup.com/2025/09/22/grace-isabel-2025-tyr-cup/"}],
+    "isabel": [{"quien": "Pat Vellner", "marca": "0:55", "detalle": "TYR Cup 2025",
+                "fuente": "https://morningchalkup.com/2025/09/22/grace-isabel-2025-tyr-cup/"},
+               {"quien": "Danielle Brandon", "marca": "0:57", "detalle": "TYR Cup 2025",
+                "fuente": "https://morningchalkup.com/2025/09/22/grace-isabel-2025-tyr-cup/"}],
+    "23.1": [{"quien": "Roman Khrennikov", "marca": "306 reps", "detalle": "Open 2023",
+              "fuente": "https://morningchalkup.com/2023/02/23/2023-crossfit-open-workout-23-1-results/"},
+             {"quien": "Emma Cary", "marca": "278 reps", "detalle": "Open 2023",
+              "fuente": "https://morningchalkup.com/2023/02/23/2023-crossfit-open-workout-23-1-results/"}],
+    "24.1": [{"quien": "Colten Mertens", "marca": "5:19", "detalle": "Open 2024, récord del workout",
+              "fuente": "https://bfriendlyfitness.com/friend-of-the-week-colten-mertens-sets-world-record-in-open-workout-24-1/"}],
+    "murph": [{"quien": "Josh Bridges y Kari Pearce", "marca": "ganaron Murph", "detalle": "CrossFit Games 2016",
+               "fuente": "https://en.wikipedia.org/wiki/2016_CrossFit_Games"}],
+}
