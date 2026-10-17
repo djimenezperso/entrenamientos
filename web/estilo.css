@@ -457,3 +457,7 @@ main { padding: 4px 16px 0; display: flex; flex-direction: column; gap: 12px; }
 .mini-btn.azar { color: var(--tinta); }
 .azar-card { box-shadow: none; border: 2px solid var(--tinta); gap: 6px; }
 .azar-card b { font-size: 17px; }
+
+/* demo: solo mirar */
+.banda-demo { margin: 10px 0 2px; padding: 8px 12px; border-radius: 12px; background: rgba(255,255,255,.16);
+  color: #fff; font-size: 13px; font-weight: 600; text-align: center; }
