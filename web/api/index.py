@@ -36,6 +36,8 @@ class handler(BaseHTTPRequestHandler):
         q = {k: v[0] for k, v in parse_qs(url.query).items()}
         ruta = q.get("r") or url.path.rstrip("/").split("/")[-1]
         try:
+            if ruta == "estado" and metodo == "GET":
+                return self._responder(200, servicio.estado())
             if ruta == "login" and metodo == "POST":
                 return self._responder(200, servicio.login(self._cuerpo()))
             if ruta == "vista" and metodo == "GET":
