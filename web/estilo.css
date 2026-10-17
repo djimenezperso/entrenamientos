@@ -386,3 +386,67 @@ main { padding: 4px 16px 0; display: flex; flex-direction: column; gap: 12px; }
 
 .pin-inline { background: #fff; border: 2px solid var(--tinta); border-radius: 18px; padding: 12px; display: flex; flex-direction: column; gap: 8px; }
 .pin-inline span { font-size: 13px; font-weight: 600; }
+
+/* ---------- progreso, historial y PRs ---------- */
+.titulo-pant { display: block; }
+.pest-cab { margin-top: 2px; }
+.cargador.oscuro { border-color: rgba(31,18,8,.15); border-top-color: var(--tinta); margin: 0 auto; }
+.kpis { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+.kpi { background: #fff; border-radius: 20px; padding: 12px; display: flex; flex-direction: column; gap: 2px; box-shadow: var(--sombra); }
+.kpi b { font-family: var(--titulo); font-weight: 800; font-size: 32px; line-height: 1; }
+.kpi span { font-size: 11px; color: var(--suave); font-weight: 600; line-height: 1.25; }
+.kpi.oscuro { background: var(--tinta); } .kpi.oscuro b { color: var(--ambar); } .kpi.oscuro span { color: #FFD9BD; }
+.graf { width: 100%; height: auto; display: block; overflow: visible; }
+.graf .rejilla { stroke: #F1E3D6; stroke-width: 1; }
+.graf .base { stroke: #E6CDB8; stroke-width: 1.5; }
+.graf .eje { font-family: 'Poppins', sans-serif; font-size: 10px; fill: var(--suave); }
+.graf .eje.fuerte { fill: var(--tinta); font-weight: 700; }
+.graf .pt { cursor: pointer; }
+.leyenda { display: flex; flex-wrap: wrap; gap: 12px; font-size: 12px; color: var(--medio); font-weight: 600; }
+.leyenda i { display: inline-block; width: 10px; height: 10px; border-radius: 3px; margin-right: 5px; vertical-align: -1px; }
+.tip { position: fixed; z-index: 80; transform: translate(-50%, -100%); background: var(--tinta); color: #fff; font-size: 12.5px; font-weight: 600;
+  padding: 7px 11px; border-radius: 10px; pointer-events: none; white-space: nowrap; box-shadow: 0 6px 18px rgba(0,0,0,.25); }
+.tip[hidden] { display: none; }
+.consejos { display: flex; flex-direction: column; gap: 10px; }
+.consejo { display: flex; gap: 10px; align-items: flex-start; }
+.consejo .c-ico { width: 30px; height: 30px; border-radius: 10px; display: flex; align-items: center; justify-content: center; flex: none; }
+.consejo b { display: block; font-size: 14px; } .consejo span { font-size: 12.5px; color: var(--medio); line-height: 1.4; }
+.consejo.bien .c-ico { background: #DDF3E7; color: #137A44; } .consejo.mal .c-ico { background: #FBE0DC; color: var(--rojo); }
+.consejo.aviso .c-ico { background: #FFEFC9; color: #8A5E00; } .consejo.info .c-ico { background: #F1E7DE; color: var(--medio); }
+.sel-serie { height: 46px; background: var(--crema) !important; font-weight: 600; font-size: 14px; padding: 0 12px; }
+.stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+.stats div { display: flex; flex-direction: column; }
+.stats small { font-size: 11px; color: var(--suave); font-weight: 600; text-transform: uppercase; letter-spacing: .04em; }
+.stats b { font-family: var(--titulo); font-weight: 800; font-size: 24px; line-height: 1.1; }
+.stats b.sube { color: #137A44; } .stats b.baja { color: var(--rojo); }
+.stats span { font-size: 11px; color: var(--suave); }
+.punto-tipo { display: inline-block; width: 9px; height: 9px; border-radius: 50%; }
+.entreno { gap: 10px; }
+.ent-cab { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.etq-tipo { font-size: 11px; font-weight: 700; letter-spacing: .05em; text-transform: uppercase; color: var(--tinta); display: inline-flex; align-items: center; gap: 6px; }
+.etq-tipo::before { content: ""; width: 10px; height: 10px; border-radius: 50%; background: var(--c); }
+.ent-cuerpo { display: flex; gap: 12px; }
+.ent-foto { width: 84px; height: 84px; border-radius: 16px; border: none; background-size: cover; background-position: center; flex: none; }
+.ent-tit { display: block; font-size: 16px; margin-bottom: 4px; }
+.ent-res { list-style: none; margin: 0 0 4px; padding: 0; display: flex; flex-direction: column; gap: 4px; }
+.ent-res li { display: flex; align-items: center; gap: 8px; font-size: 14px; }
+.ent-res li span { flex: 1; min-width: 0; } .ent-res li b { font-variant-numeric: tabular-nums; }
+.pr { font-style: normal; font-size: 10px; font-weight: 800; background: var(--verde); color: #fff; border-radius: 999px; padding: 2px 7px; }
+.ent-pie { display: flex; justify-content: flex-end; }
+.foto-grande { width: 100%; border-radius: 18px; display: block; }
+.pr-hero { background: var(--tinta); color: #fff; border-radius: 24px; padding: 16px; display: flex; gap: 14px; align-items: center; box-shadow: var(--sombra); }
+.pr-ico { width: 56px; height: 56px; border-radius: 18px; background: var(--ambar); display: flex; align-items: center; justify-content: center; flex: none; }
+.pr-hero small { display: block; color: var(--ambar); font-size: 11px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; }
+.pr-hero b { display: block; font-size: 17px; } .pr-hero span { font-family: var(--titulo); font-weight: 800; font-size: 30px; color: var(--ambar); }
+.prs { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.pr-card { background: #fff; border: none; border-radius: 20px; padding: 14px; display: flex; flex-direction: column; gap: 4px; text-align: left; box-shadow: var(--sombra); }
+.pr-card .n { font-size: 12px; font-weight: 600; color: var(--suave); }
+.pr-card .v { font-family: var(--titulo); font-weight: 800; font-size: 30px; line-height: 1; }
+.pr-card .d { font-size: 11px; color: var(--suave); display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+.nuevo { font-style: normal; background: #DDF3E7; color: #137A44; font-weight: 700; border-radius: 999px; padding: 1px 7px; }
+.pr-grande { font-family: var(--titulo); font-weight: 800; font-size: 54px; line-height: 1; color: var(--brasa); }
+.pr-grande small { display: block; font-family: 'Poppins', sans-serif; font-size: 13px; color: var(--suave); font-weight: 500; margin-top: 4px; }
+.lista-evol { display: flex; flex-direction: column; background: #fff; border-radius: 16px; overflow: hidden; }
+.lista-evol div { display: flex; justify-content: space-between; padding: 10px 14px; font-size: 14px; border-top: 1px solid var(--linea); }
+.lista-evol div:first-child { border-top: none; }
+.quien small svg { display: inline; vertical-align: -3px; }
