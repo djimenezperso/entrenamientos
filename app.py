@@ -231,7 +231,11 @@ def control_contrasena():
     if not clave or st.session_state.get("dentro"):
         return
     cabecera()
-    intento = st.text_input("Contraseña / Mot de passe", type="password").strip()  # el móvil a veces añade espacios
+    st.write("")
+    with st.container(border=True):
+        intento = st.text_input("Contraseña · Mot de passe", type="password").strip()  # el móvil a veces añade espacios
+        st.button("Entrar · Entrer", type="primary", use_container_width=True)
+        st.caption("¿Eres nuevo? Entra con el código que te ha dado Diego.")
     personales = {nombre: str(c).strip() for nombre, c in (secreto("accesos_personales") or {}).items()}
     archchana = str(secreto("CONTRASENA_ARCHCHANA") or "").strip()
     if archchana:
@@ -1252,8 +1256,8 @@ def tab_rutina(atleta: str, entrenos: list[dict]):
         c2.button(t("Marcar la semana {s} como la actual", s=semana), key=f"act_{atleta}",
                   on_click=_cambiar_semana, args=(atleta, rut, semana), use_container_width=True)
     momento = t("esta semana") if semana == actual else (t("semana pasada") if semana < actual else t("semana que viene"))
-    st.markdown(f'<div class="dj-pill"><b>{"Semana de fuego" if lang() == "es" else "Semaine de feu"}:</b> '
-                f'{t("Semana")} {semana} · {nv(atleta)}</div>', unsafe_allow_html=True)
+    st.markdown(f'<div class="dj-pill"><b>{nv(atleta)}</b> · {t("Semana")} {semana} · '
+                f'{"de fuego" if lang() == "es" else "de feu"}</div>', unsafe_allow_html=True)
     st.caption(t("Semana {s} ({m}). Los pesos tras @ suben lo indicado en «Sube» cada semana (2,5 kg por defecto).",
                  s=semana, m=momento))
 
@@ -2281,56 +2285,96 @@ def _idioma_de_atleta():
 
 
 ESTILO = """<style>
-@import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;800&display=swap');
-:root { --fuego: #FF6A00; --fuego2: #FFB400; --brasa: #D93A00; --tinta: #1F1208; }
-html, body, [class*="css"], .stMarkdown, button, input, textarea { font-family: 'Poppins', system-ui, sans-serif; }
-.stApp { background: linear-gradient(180deg, #FF7A1A 0px, #FFA45C 170px, #FFE6CF 420px, #FFF1E4 100%) fixed;
+@import url('https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@700;800&family=Poppins:wght@400;500;600;700&display=swap');
+:root { --fuego:#FF6A00; --ambar:#FFB400; --brasa:#D93A00; --brasa2:#B83200; --tinta:#1F1208; --suave:#8A6A52;
+  --crema:#FFF4EA; --borde:#F0CDB0; }
+html, body, [class*="css"], .stMarkdown, button, input, textarea, select { font-family:'Poppins', system-ui, sans-serif; }
+.stApp { background: linear-gradient(180deg, #FF7A1F 0px, #FFB37A 190px, #FFE6CF 380px, var(--crema) 640px) fixed;
   color: var(--tinta); }
+.block-container { padding-top: 2.2rem !important; max-width: 760px; }
+header[data-testid="stHeader"] { background: transparent; }
+h1, h2, h3 { font-family:'Barlow Condensed', sans-serif !important; font-weight:800 !important; text-transform:uppercase;
+  letter-spacing:.02em; color: var(--tinta); }
+h4, h5 { color: var(--tinta); font-weight:700; }
 /* cabecera */
-.dj-cabecera { display:flex; align-items:center; gap:.6rem; margin:.2rem 0 .1rem; }
-.dj-llama { font-size:2.4rem; filter: drop-shadow(0 0 10px rgba(255,255,255,.7)); }
-.dj-titulo { font-weight:800; font-size:2rem; letter-spacing:.04em; text-transform:uppercase; line-height:1;
-  color:#fff; text-shadow: 0 2px 0 #B83200, 0 0 18px rgba(255,255,255,.35); }
-.dj-lema { color:#fff; opacity:.95; font-size:.85rem; margin-top:.15rem; font-weight:600; }
-.dj-pill { display:inline-block; padding:.45rem 1.1rem; border-radius:999px; background:#1F1208; color:#fff;
-  box-shadow: 0 4px 14px rgba(150,50,0,.35); font-weight:600; margin:.3rem 0 .6rem; }
-.dj-pill b { color: var(--fuego2); text-transform:uppercase; letter-spacing:.03em; }
+.dj-cabecera { display:flex; align-items:center; gap:.8rem; margin:.1rem 0 .2rem; }
+.dj-logo { width:54px; height:54px; border-radius:17px; background:var(--tinta); display:flex; align-items:center;
+  justify-content:center; box-shadow:0 10px 28px rgba(120,30,0,.40); flex:none; }
+.dj-titulo { font-family:'Barlow Condensed', sans-serif; font-weight:800; font-size:2.5rem; letter-spacing:.04em;
+  text-transform:uppercase; line-height:.95; color:#fff; text-shadow:0 3px 0 var(--brasa2); }
+.dj-lema { color:#fff; font-size:.85rem; margin-top:.2rem; font-weight:600; }
+.dj-pill { display:inline-block; padding:.5rem 1.1rem; border-radius:999px; background:var(--tinta); color:var(--ambar);
+  box-shadow:0 6px 16px rgba(150,50,0,.30); font-weight:700; font-size:.8rem; letter-spacing:.08em;
+  text-transform:uppercase; margin:.4rem 0 .6rem; }
+.dj-pill b { color:#fff; }
 /* botones */
-.stButton > button, [data-testid="stFormSubmitButton"] > button, [data-testid="stPopover"] > button {
-  border-radius: 999px !important; border: 1.5px solid rgba(217,58,0,.45) !important; background:#fff !important;
-  color: var(--tinta) !important; font-weight:600; transition: all .15s ease; }
-.stButton > button:hover, [data-testid="stPopover"] > button:hover { border-color: var(--brasa) !important;
-  box-shadow: 0 0 0 3px rgba(255,106,0,.18); }
+.stButton > button, [data-testid="stFormSubmitButton"] > button, [data-testid="stPopover"] > button,
+[data-testid="stDownloadButton"] > button {
+  border-radius:999px !important; border:1.5px solid var(--borde) !important; background:#fff !important;
+  color:var(--tinta) !important; font-weight:600 !important; min-height:42px; transition:all .15s ease; }
+.stButton > button:hover, [data-testid="stPopover"] > button:hover { border-color:var(--brasa) !important;
+  box-shadow:0 0 0 3px rgba(255,106,0,.16); }
 button[kind="primary"], [data-testid="stFormSubmitButton"] > button[kind="primaryFormSubmit"] {
-  background: linear-gradient(135deg, #FF8A1F, var(--fuego) 50%, var(--brasa)) !important; color:#fff !important;
-  font-weight:700 !important; border:none !important; box-shadow: 0 4px 14px rgba(217,58,0,.45); }
+  background:linear-gradient(135deg, #FF8A1F, #FF5A1F 55%, var(--brasa)) !important; color:#fff !important;
+  font-weight:700 !important; border:none !important; min-height:50px; box-shadow:0 10px 24px rgba(217,58,0,.35); }
+button[kind="primary"] * { color:#fff !important; }
 /* tarjetas */
-[data-testid="stVerticalBlockBorderWrapper"] { border-radius: 18px !important; }
+[data-testid="stVerticalBlockBorderWrapper"] { border-radius:24px !important; }
 div[data-testid="stVerticalBlockBorderWrapper"]:has(> div > [data-testid="stVerticalBlock"]) {
-  border: 1.5px solid rgba(217,58,0,.30) !important; background: #fff; box-shadow: 0 6px 20px rgba(160,60,0,.12); }
+  border:none !important; background:#fff; box-shadow:0 8px 24px rgba(150,50,0,.12); padding:.3rem .2rem; }
+[data-testid="stExpander"] details { border-radius:20px; background:#fff; border:none;
+  box-shadow:0 6px 18px rgba(150,50,0,.08); }
+[data-testid="stPopoverBody"] { border-radius:22px !important; background:var(--crema) !important; }
+/* campos */
+input, textarea, [data-baseweb="select"] > div, [data-baseweb="input"] > div, [data-baseweb="textarea"] > div {
+  border-radius:16px !important; }
+[data-baseweb="input"] > div, [data-baseweb="select"] > div, [data-baseweb="textarea"] > div {
+  background:#FFF8F2 !important; border:2px solid #F2C9A8 !important; }
+[data-baseweb="input"] > div:focus-within, [data-baseweb="select"] > div:focus-within { border-color:var(--fuego) !important; }
 /* lo seleccionado, en negro */
+[data-testid="stButtonGroup"] button { border-radius:999px !important; background:#fff;
+  border:1.5px solid var(--borde) !important; font-weight:600; min-height:38px; }
 button[data-testid="stBaseButton-segmented_controlActive"], button[kind="segmented_controlActive"],
-[data-testid="stButtonGroup"] button[aria-pressed="true"], [data-testid="stButtonGroup"] button[aria-checked="true"] {
-  background: #1F1208 !important; color: #FFB400 !important; border-color: #1F1208 !important; }
-button[data-testid="stBaseButton-segmented_controlActive"] *, button[kind="segmented_controlActive"] * { color: #FFB400 !important; }
-[data-testid="stButtonGroup"] button { border-radius: 999px !important; background: #fff; border-color: rgba(217,58,0,.35) !important; }
-[role="radiogroup"] [aria-checked="true"] div:first-child, [data-baseweb="radio"] input:checked + div { background: #1F1208 !important;
-  border-color: #1F1208 !important; }
-[data-baseweb="tag"] { background: #1F1208 !important; color: #FFB400 !important; }
-/* pestañas */
-.stTabs [data-baseweb="tab"] { font-weight:600; color: var(--tinta); }
-.stTabs [aria-selected="true"] { color: #1F1208 !important; font-weight:800 !important; }
-.stTabs [data-baseweb="tab-highlight"] { background: #1F1208 !important; height:3px; }
-/* números */
-[data-testid="stMetricValue"] { font-variant-numeric: tabular-nums; color: var(--brasa); font-weight:800; }
-h1, h2, h3, h4 { letter-spacing:.02em; color: var(--tinta); }
-code { color: #B83200 !important; background: #FFE3CC !important; font-weight:600; }
-[data-testid="stExpander"] details { border-radius: 14px; background: #FFF8F2; border-color: rgba(217,58,0,.2); }
+[data-testid="stButtonGroup"] button[aria-pressed="true"], [data-testid="stButtonGroup"] button[aria-checked="true"],
+button[data-testid="stBaseButton-pillsActive"], button[kind="pillsActive"] {
+  background:var(--tinta) !important; color:var(--ambar) !important; border-color:var(--tinta) !important; }
+button[data-testid="stBaseButton-segmented_controlActive"] *, button[kind="segmented_controlActive"] *,
+button[kind="pillsActive"] * { color:var(--ambar) !important; }
+[role="radiogroup"] [aria-checked="true"] div:first-child, [data-baseweb="radio"] input:checked + div {
+  background:var(--tinta) !important; border-color:var(--tinta) !important; }
+[data-baseweb="tag"] { background:var(--tinta) !important; color:var(--ambar) !important; border-radius:999px !important; }
+[data-baseweb="checkbox"] input:checked + div, [data-testid="stCheckbox"] [aria-checked="true"] {
+  background:var(--tinta) !important; border-color:var(--tinta) !important; }
+/* pestañas como píldoras */
+.stTabs [data-baseweb="tab-list"] { gap:6px; background:#fff; border-radius:999px; padding:4px;
+  box-shadow:0 4px 14px rgba(150,50,0,.08); overflow-x:auto; }
+.stTabs [data-baseweb="tab"] { font-weight:600; color:var(--tinta); border-radius:999px; padding:.45rem 1rem;
+  height:auto; background:transparent; }
+.stTabs [aria-selected="true"] { background:var(--tinta) !important; color:var(--ambar) !important; font-weight:700 !important; }
+.stTabs [aria-selected="true"] * { color:var(--ambar) !important; }
+.stTabs [data-baseweb="tab-highlight"], .stTabs [data-baseweb="tab-border"] { display:none; }
+/* números y avisos */
+[data-testid="stMetric"] { background:#fff; border-radius:20px; padding:.7rem .9rem; box-shadow:0 6px 18px rgba(150,50,0,.08); }
+[data-testid="stMetricValue"] { font-family:'Barlow Condensed', sans-serif; font-weight:800; font-variant-numeric:tabular-nums;
+  color:var(--tinta); }
+[data-testid="stMetricLabel"] { color:var(--suave); font-weight:600; }
+[data-testid="stAlert"] { border-radius:18px; border:none; }
+[data-testid="stProgress"] > div > div > div > div { background:linear-gradient(90deg, #FF8A1F, var(--brasa)) !important; }
+code { color:var(--brasa2) !important; background:#FFF1E4 !important; font-weight:700; border-radius:999px;
+  padding:.1rem .55rem !important; border:1.5px dashed #FF8A3D; }
+[data-testid="stCaptionContainer"] { color:var(--suave) !important; }
+[data-testid="stDataFrame"], [data-testid="stDataEditor"] { border-radius:18px; overflow:hidden; }
+hr { border-color:#F5E1D0 !important; }
 </style>"""
+
+LOGO = ('<svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="#FFB400" stroke-width="1.9" '
+        'stroke-linecap="round" stroke-linejoin="round"><path d="M12 2c1 3.5 5 5.5 5 10a5 5 0 0 1-10 0c0-2.2 1-3.6 '
+        '2.2-4.8C9.6 9.4 10 11 11 11.6 11 8 11.6 4.6 12 2z"/><path d="M12 22a2.6 2.6 0 0 1-2.6-2.6c0-1.6 1.4-2.4 '
+        '2.6-4 1.2 1.6 2.6 2.4 2.6 4A2.6 2.6 0 0 1 12 22z"/></svg>')
 
 
 def cabecera():
-    st.markdown(f"""<div class="dj-cabecera"><span class="dj-llama">🔥</span><div>
+    st.markdown(f"""<div class="dj-cabecera"><div class="dj-logo">{LOGO}</div><div>
       <div class="dj-titulo">Djimenez Prog</div>
       <div class="dj-lema">{"Tu entrenamiento, tu progresión" if lang() == "es" else "Ton entraînement, ta progression"}</div>
     </div></div>""", unsafe_allow_html=True)
