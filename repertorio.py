@@ -22,6 +22,9 @@ WODS = [
     ("EMOM mixto", "EMOM 16': 12 cal row / 10 burpees / 8 DB snatch / descanso"),
     ("Barbell cycling", "AMRAP 10': 10 power clean 60/40 kg, 10 front squat, 10 bar facing burpees"),
     ("Couplet corto", "3 rondas: 15 thrusters 43/30 kg, 15 bar facing burpees"),
+    ("RMU Express (Diego)", "For time 5 rondas: 5 ring muscle ups, 10 cal AAB, 20 wall balls 9/6 kg"),
+    ("Farmer Lunges (Diego)", "5 rondas: 200 m row, 40 DUs, 2x 5 m DB farmer carry walking lunges 2x 32,5/22,5 kg, "
+                              "10 T2B"),
 ]
 
 CONDITIONING = [
