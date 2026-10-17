@@ -8,6 +8,7 @@ from __future__ import annotations
 import datetime as dt
 import io
 import json
+from collections import Counter
 import random
 import re
 import sqlite3
@@ -32,6 +33,7 @@ from logica import (
     CATEGORIAS_WOD, CLAVE_BIBLIOTECA, coincide_busqueda, wods_hechos,
     CLAVES_BIBLIO, NOMBRE_BIBLIO, anadir_linea, biblioteca, tipo_de_linea,
     detectar_entrenos, emparejar_autor, norm_busqueda, parse_whatsapp, CATEGORIAS_MOVILIDAD,
+    TRAMOS_EMOM, carga_maxima, copiar_rutina, duracion_emom, es_emom, rutina_desde_json, tramo_emom,
 )
 from repertorio import COMPETICION, HEROES, REPERTORIO
 from i18n import lang, t
@@ -205,17 +207,33 @@ def fecha_larga(d) -> str:
 
 
 def control_contrasena():
+    """Contraseña general (todo) o contraseña personal (solo el perfil de esa persona)."""
     clave = secreto("APP_PASSWORD")
     if not clave or st.session_state.get("dentro"):
         return
     st.title("Diario de Entrenos")
-    intento = st.text_input("Contraseña", type="password")
-    if intento.strip() == str(clave).strip():  # el móvil a veces añade un espacio al final
-        st.session_state.dentro = True
+    intento = st.text_input("Contraseña / Mot de passe", type="password").strip()  # el móvil a veces añade espacios
+    personales = {nombre: str(c).strip() for nombre, c in (secreto("accesos_personales") or {}).items()}
+    if intento and intento == str(clave).strip():
+        st.session_state.dentro, st.session_state.solo = True, None
+        st.rerun()
+    elif intento and intento in personales.values():
+        nombre = next(n for n, c in personales.items() if c == intento)
+        st.session_state.dentro, st.session_state.solo = True, nombre
+        st.session_state.lang = IDIOMA_DEFECTO.get(nombre, "es")
         st.rerun()
     elif intento:
-        st.error("Contraseña incorrecta.")
+        st.error("Contraseña incorrecta. / Mot de passe incorrect.")
     st.stop()
+
+
+def solo() -> str | None:
+    """Si se entró con una contraseña personal, el nombre de esa persona."""
+    return st.session_state.get("solo")
+
+
+def visibles() -> list[str]:
+    return [solo()] if solo() else ATLETAS
 
 
 def eje_tiempo(fig: go.Figure, valores: list[float], eje: str = "yaxis"):
@@ -427,13 +445,20 @@ def _ia_panel(tipo: str, k: str):
                        key=f"id_{k}")
     estilos = ["Como los nuestros", "Competición (tipo Open)", "Hero WOD"] if tipo == "wod" else ["Como los nuestros"]
     estilo = c2.selectbox(t("Estilo"), estilos, key=f"ie_{k}")
-    persona = c3.selectbox(t("Al estilo de"), ["Todos"] + ATLETAS, key=f"ip_{k}", format_func=t)
+    persona = c3.selectbox(t("Al estilo de"), (["Todos"] if not solo() else []) + visibles(), key=f"ip_{k}",
+                           format_func=t)
+    hay_coach = bool(_datos_coach())
+    con_coach = st.checkbox("Inspirarse también en el coach", value=hay_coach, key=f"ic_{k}") if hay_coach else False
     if st.button(t("✨ Inventar uno") if not st.session_state.get(f"ir_{k}") else t("✨ Otro"), key=f"ib_{k}"):
         grupos = _bib(tipo)
         if persona != "Todos":
             grupos = [g for g in grupos if any(v["atleta"] == persona for v in g["veces"])] or grupos
             estilo += f" (el de {persona})"
         ejemplos = [(g["titulo"], g["texto"]) for g in grupos]
+        if con_coach:
+            del_coach = [i for i in _datos_coach()["items"] if i["tipo"] in COACH_PARA_LINEA.get(tipo, [tipo])]
+            ejemplos = random.sample([(i["nombre"], i["texto"][:400]) for i in del_coach], min(12, len(del_coach))) + ejemplos
+            estilo += " (más exigente, como un coach de competición)"
         if estilo.startswith("Competición") or estilo == "Hero WOD":
             ejemplos = COMPETICION + ejemplos
         elif len(ejemplos) < 5:
@@ -464,7 +489,12 @@ def _bib(tipo: str) -> list[dict]:
             entrenos = cargar_todo()
         except Exception:
             entrenos = []
-        _BIB_RUN[tipo] = biblioteca(rutinas, ATLETAS, entrenos, guardadas.get(CLAVE_BIBLIOTECA), tipo)
+        grupos = biblioteca(rutinas, ATLETAS, entrenos, guardadas.get(CLAVE_BIBLIOTECA), tipo)
+        if solo():
+            for g in grupos:
+                g["veces"] = [v for v in g["veces"] if v["atleta"] == solo()]
+            grupos = [g for g in grupos if g["veces"]]
+        _BIB_RUN[tipo] = grupos
     return _BIB_RUN[tipo]
 
 
@@ -474,10 +504,25 @@ def _titulo_grupo(g: dict) -> str:
     return g["titulo"] or g["texto"].splitlines()[0]
 
 
-def _elegir_contenido(tipo: str, k: str):
-    """✍️ Nuevo / 📚 Ya hechos / 💡 Repertorio. Devuelve (modo, (nombre, texto) | None)."""
-    modo = st.segmented_control("Origen", ["✍️ Nuevo", "📚 Ya hechos", "💡 Repertorio", "✨ IA"], default="✍️ Nuevo",
+def _elegir_contenido(tipo: str, k: str, atleta: str | None = None):
+    """✍️ Nuevo / 📚 Ya hechos / 💡 Repertorio / ✨ IA / 🔒 Coach. Devuelve (modo, (nombre, texto) | None)."""
+    con_coach = coach_abierto() and atleta in ACCESO_COACH and bool(_datos_coach())
+    modos = ["✍️ Nuevo", "📚 Ya hechos", "💡 Repertorio", "✨ IA"] + (["🔒 Coach"] if con_coach else [])
+    modo = st.segmented_control("Origen", modos, default="✍️ Nuevo",
                                 key=f"om_{k}", label_visibility="collapsed", format_func=t) or "✍️ Nuevo"
+    if modo == "🔒 Coach" and con_coach:
+        tipos = COACH_PARA_LINEA.get(tipo, [tipo])
+        q = st.text_input(t("Buscar por movimiento"), key=f"cq_{k}", placeholder="snatch, MU, bike…")
+        ops = [i for i in _datos_coach()["items"] if i["tipo"] in tipos
+               and (not q or coincide_busqueda(i["nombre"] + "\n" + i["texto"], q))][::-1]
+        if not ops:
+            st.caption("Nada del coach con eso.")
+            return modo, None
+        i = st.selectbox(t("Elige"), range(len(ops)), key=f"cs_{k}",
+                         format_func=lambda i: f"{ops[i]['fecha'][:10]} · {ops[i]['nombre']}"[:80])
+        it = ops[min(i, len(ops) - 1)]
+        st.caption(it["texto"].replace("\n", "  \n"))
+        return modo, ("", it["texto"])
     if modo == "✨ IA":
         return modo, _ia_panel(tipo, k)
     if modo == "📚 Ya hechos":
@@ -528,7 +573,7 @@ def _linea_texto_editable(atleta: str, rut: dict, l: dict, txt: str, semana: int
         resumen = resumen[:77] + "…"
     k = f"{atleta}_{semana}_{l['id']}"
     with st.popover(f"{nombre}{resumen} ✏️", use_container_width=True):
-        modo, sel = _elegir_contenido(tipo, k)
+        modo, sel = _elegir_contenido(tipo, k, atleta)
         if modo == "✍️ Nuevo":
             nuevo_nombre = st.text_input(t("Nombre"), l["ejercicio"], key=f"tn_{k}")
             nuevo_txt = st.text_area(t("Qué toca"), txt, height=120, key=f"tt_{k}",
@@ -559,7 +604,7 @@ def _anadir_a_parte(atleta: str, dia: dict, parte: str, semana: int, tipo: str =
     """Botón para añadir un accessory o movilidad (nuevo, ya hecho o del repertorio) a esta parte, desde esta semana."""
     k = f"add_{atleta}_{semana}_{dia['id']}_{parte}"
     with st.popover(t("+ Añadir movilidad") if tipo == "mobility" else t("+ Añadir accessory")):
-        modo, sel = _elegir_contenido(tipo, k)
+        modo, sel = _elegir_contenido(tipo, k, atleta)
         if modo == "✍️ Nuevo":
             nombre = st.text_input(t("Ejercicio"), key=f"an_{k}",
                                    placeholder="Couch stretch" if tipo == "mobility" else "Romanian deadlift")
@@ -568,6 +613,7 @@ def _anadir_a_parte(atleta: str, dia: dict, parte: str, semana: int, tipo: str =
             sel = (nombre, texto) if nombre.strip() else None
         if st.button(t("Añadir"), type="primary", key=f"ag_{k}", disabled=sel is None):
             nombre, texto = sel
+            nombre = nombre or texto.split("\n")[0][:40]
             guardar_rutina(atleta, anadir_linea(_rutina_actual(atleta), dia["id"], parte, nombre, texto, semana))
             st.session_state["aviso"] = f"{nombre} añadido desde la semana {semana}"
             st.rerun()
@@ -579,9 +625,9 @@ def _cambiar_peso(atleta: str, semana: int, lid: str, txt: str, claves: list[str
     if any(v is None for v in vals):
         return
     rut = _rutina_actual(atleta)
-    solo = st.session_state.get(f"solo_sem_{atleta}", False)
+    solo_semana = st.session_state.get(f"solo_sem_{atleta}", False)
     propagar = st.session_state.get(f"propagar_{atleta}", True)
-    nueva, tocados = cambiar_pesos(rut, semana, {lid: poner_pesos(txt, [float(v) for v in vals])}, solo, propagar)
+    nueva, tocados = cambiar_pesos(rut, semana, {lid: poner_pesos(txt, [float(v) for v in vals])}, solo_semana, propagar)
     guardar_rutina(atleta, nueva)
     st.session_state["aviso"] = "Peso guardado" + (f" (también en {', '.join(tocados)})" if tocados else "")
 
@@ -764,11 +810,7 @@ def tab_rutina(atleta: str, entrenos: list[dict]):
 
     rut = _completar_partes(guardadas.get(atleta) or rutinas_iniciales(ATLETAS).get(atleta), atleta)
     if not rut:
-        st.info(f"{atleta} aún no tiene rutina.")
-        if st.button("Crear rutina", key=f"crear_rut_{atleta}", type="primary"):
-            guardar_rutina(atleta, {"semana_actual": 1, "ajustes": {},
-                                    "dias": [{"id": _nuevo_id(), "nombre": "Día 1", "lineas": []}]})
-            st.rerun()
+        crear_rutina(atleta, guardadas)
         return
 
     actual = int(rut.get("semana_actual") or 1)
@@ -847,6 +889,75 @@ def tab_rutina(atleta: str, entrenos: list[dict]):
     if st.button(t("+ Añadir día"), key=f"add_dia_{atleta}"):
         rut2 = dict(rut, dias=rut["dias"] + [{"id": _nuevo_id(), "nombre": f"Día {len(rut['dias']) + 1}", "lineas": []}])
         guardar_rutina(atleta, rut2)
+        st.rerun()
+
+
+def inventar_rutina_con_ia(atleta: str, dias: int, enfoque: str, con_coach: bool) -> dict:
+    ejemplos = []
+    for tipo in ("wod", "conditioning", "accessory", "mobility"):
+        for g in _bib(tipo):
+            if any(v["atleta"] == atleta for v in g["veces"]):
+                ejemplos.append(f"[{tipo}] {g['titulo']}: {g['texto'][:300]}")
+    if con_coach and _datos_coach():
+        muestra = random.sample(_datos_coach()["items"], min(15, len(_datos_coach()["items"])))
+        ejemplos += [f"[coach · {i['tipo']}] {i['texto'][:300]}" for i in muestra]
+    prompt = (
+        f"Diseña una semana de entrenamiento de CrossFit de {dias} días para {atleta}.\n"
+        + (f"Lo que ha hecho hasta ahora (copia su estilo, nivel y movimientos):\n" + "\n".join(ejemplos[:40]) + "\n"
+           if ejemplos else "No hay historial: haz algo equilibrado para nivel intermedio.\n")
+        + (f"Lo que pide: {enfoque}\n" if enfoque else "")
+        + ("Escribe los textos en francés.\n" if lang() == "fr" else "")
+        + "Cada día tiene partes: A) Fuerza o Halterofilia (con pesos tras @ en kg, p. ej. «5x5 @60»), B) WOD y, si encaja, "
+          "C) Conditioning, Accessory o Movilidad.\n"
+          'Responde SOLO con JSON: {"dias": [{"nombre": "Día 1", "lineas": [{"parte": "A) Fuerza", "ejercicio": '
+          '"Back squat", "prescripcion": "5x5 @60"}, {"parte": "B) WOD", "ejercicio": "WOD", "prescripcion": '
+          '"AMRAP 12\': …"}]}]}'
+    )
+    msg = _cliente_ia().messages.create(model=secreto("ANTHROPIC_MODEL", "claude-sonnet-5-5"), max_tokens=3000,
+                                        messages=[{"role": "user", "content": prompt}])
+    texto = "".join(getattr(b, "text", "") for b in msg.content)
+    m = re.search(r"\{.*\}", texto, re.S)
+    return rutina_desde_json(json.loads(m.group(0)) if m else {}, _nuevo_id)
+
+
+def crear_rutina(atleta: str, guardadas: dict):
+    st.info(f"{atleta} aún no tiene rutina." if lang() == "es" else f"{atleta} n'a pas encore de programme.")
+    otras = {a: (guardadas.get(a) or rutinas_iniciales(ATLETAS).get(a)) for a in visibles() if a != atleta}
+    otras = {a: r for a, r in otras.items() if r}
+    opciones = ["Vacía"] + (["Copiar la de otra persona"] if otras else []) + (["✨ Con IA según su estilo"] if ia_disponible() else [])
+    modo = st.radio("Cómo crearla", opciones, key=f"cr_modo_{atleta}", horizontal=True)
+    if modo == "Copiar la de otra persona":
+        origen = st.selectbox("Copiar de", list(otras), key=f"cr_origen_{atleta}")
+        st.caption("Se copian los días, los ejercicios y los pesos actuales; empieza en la semana 1 y luego "
+                   "ajustas los pesos tocándolos.")
+        if st.button("Crear rutina", type="primary", key=f"cr_ok_{atleta}"):
+            guardar_rutina(atleta, copiar_rutina(_completar_partes(otras[origen], origen), _nuevo_id))
+            st.rerun()
+    elif modo == "✨ Con IA según su estilo":
+        c1, c2 = st.columns([1, 2])
+        dias = c1.number_input("Días por semana", 2, 7, 4, key=f"cr_dias_{atleta}")
+        enfoque = c2.text_input("Qué quiere (opcional)", key=f"cr_enf_{atleta}",
+                                placeholder="más movilidad, halterofilia, preparar el Open…")
+        con_coach = bool(_datos_coach()) and st.checkbox("Inspirarse también en el coach", value=False,
+                                                         key=f"cr_coach_{atleta}")
+        st.caption("Usa lo que esta persona tenga en las secciones (WODs, Conditioning…), por ejemplo lo importado de "
+                   "WhatsApp. Cuanto más haya, más se parecerá a su estilo.")
+        if st.button("✨ Crear rutina", type="primary", key=f"cr_ia_{atleta}"):
+            with st.spinner("Pensando la semana…"):
+                try:
+                    rut = inventar_rutina_con_ia(atleta, int(dias), enfoque, con_coach)
+                except Exception as ex:
+                    st.error(f"La IA no ha podido: {ex}")
+                    return
+            if not rut["dias"]:
+                st.error("La IA no ha devuelto una rutina válida. Prueba otra vez.")
+                return
+            guardar_rutina(atleta, rut)
+            st.session_state["aviso"] = "Rutina creada. Revisa los pesos y ajústalos tocándolos."
+            st.rerun()
+    elif st.button("Crear rutina", key=f"crear_rut_{atleta}", type="primary"):
+        guardar_rutina(atleta, {"semana_actual": 1, "ajustes": {},
+                                "dias": [{"id": _nuevo_id(), "nombre": "Día 1", "lineas": []}]})
         st.rerun()
 
 
@@ -1123,21 +1234,30 @@ def seccion_biblio(tipo: str, todos: list[dict]):
         cats_tipo = CATEGORIAS_MOVILIDAD
     else:
         cats_tipo = CATEGORIAS_WOD if tipo == "wod" else [c for c in CATEGORIAS_WOD if "Hero" not in c]
+    if tipo == "wod":
+        cats_tipo = cats_tipo + ["⏱️ EMOM"]
     cat = st.segmented_control(t("Tipo"), cats_tipo, default="Todos", key=f"{k}_cat", format_func=t) or "Todos"
+    tramo = (st.segmented_control("Duración", TRAMOS_EMOM, key=f"{k}_tramo")
+             if cat == "⏱️ EMOM" else None)
     c1, c2 = st.columns([2, 1], vertical_alignment="bottom")
-    quien = c1.multiselect(t("Quién"), ATLETAS, placeholder=t("Todos"), key=f"{k}_quien")
-    solo = c2.toggle(t("Solo los hechos"), value=True, key=f"{k}_solo")
+    quien = [solo()] if solo() else c1.multiselect(t("Quién"), ATLETAS, placeholder=t("Todos"), key=f"{k}_quien")
+    solo_h = c2.toggle(t("Solo los hechos"), value=True, key=f"{k}_solo")
 
     filtrados, por_cat = [], {c: 0 for c in cats_tipo}
     for g in biblioteca(rutinas, ATLETAS, todos, bib, tipo):
-        veces = [v for v in g["veces"] if (not quien or v["atleta"] in quien) and (not solo or v["estado"] == "hecho")]
+        veces = [v for v in g["veces"] if (not quien or v["atleta"] in quien) and (not solo_h or v["estado"] == "hecho")]
         if not veces or (q and not coincide_busqueda(g["titulo"] + "\n" + g["texto"], q)):
             continue
+        texto_g = g["titulo"] + "\n" + g["texto"]
+        emom = tipo == "wod" and es_emom(texto_g)
         por_cat["Todos"] += 1
-        for c in g["categorias"]:
+        for c in g["categorias"] + (["⏱️ EMOM"] if emom else []):
             if c in por_cat:
                 por_cat[c] += 1
-        if cat == "Todos" or cat in g["categorias"]:
+        if cat == "⏱️ EMOM":
+            if emom and (not tramo or tramo_emom(duracion_emom(texto_g)) == tramo):
+                filtrados.append((g, veces))
+        elif cat == "Todos" or cat in g["categorias"]:
             filtrados.append((g, veces))
     st.caption(" · ".join(f"{t(c)}: {n}" for c, n in por_cat.items()))
     if tipo == "wod":
@@ -1184,7 +1304,8 @@ def seccion_biblio(tipo: str, todos: list[dict]):
             nombre = st.text_input("Nombre", placeholder="Fran, Cindy, DT…")
             texto = st.text_area("Qué es", placeholder="21-15-9: thrusters @42,5 + pull ups", height=100)
             c1, c2 = st.columns(2)
-            quien_n = c1.multiselect("Quién lo hizo", ATLETAS, key=f"{k}_nq")
+            quien_n = c1.multiselect("Quién lo hizo", visibles(), key=f"{k}_nq",
+                                     default=[solo()] if solo() else [])
             fecha = c2.date_input("Fecha", dt.date.today(), format="DD/MM/YYYY")
             resultado = st.text_input("Resultado", placeholder="5:41, 18 rondas + 3…")
             if st.form_submit_button("Añadir", type="primary", use_container_width=True):
@@ -1290,16 +1411,16 @@ def importar_whatsapp(bib: dict, tipo_seccion: str):
     st.markdown("**¿Quién es quién?** Cada entreno se marca como hecho por quien lo mandó.")
     mapa = {}
     for autor in sorted({c["autor"] for c in candidatos}):
-        opciones = ATLETAS + [NADIE]
-        sugerido = emparejar_autor(autor, ATLETAS) or (ATLETAS[0] if autor in comunes else NADIE)
+        opciones = visibles() + [NADIE]
+        sugerido = emparejar_autor(autor, visibles()) or (visibles()[0] if autor in comunes else NADIE)
         mapa[autor] = st.selectbox(autor, opciones, index=opciones.index(sugerido), key=f"wa_map_{n}_{autor}")
-    solo = st.multiselect("Importar solo los mandados por", sorted(mapa), default=sorted(mapa), key=f"wa_solo_{n}")
+    autores_sel = st.multiselect("Importar solo los mandados por", sorted(mapa), default=sorted(mapa), key=f"wa_solo_{n}")
 
     ya = {norm_busqueda(item.get("texto", "")) for clave in CLAVES_BIBLIO.values() for item in bib.get(clave, [])}
     filas = [{"Importar": norm_busqueda(c["cuerpo"]) not in ya, "Fecha": c.get("fecha_entreno", c["fecha"]),
               "Mensaje": c["fecha"], "Autor": c["autor"],
               "Chat": c["chat"], "Tipo": TIPO_ETIQUETA[c["tipo"]], "Nombre": c["nombre"], "Entreno": c["cuerpo"]}
-             for c in candidatos if c["autor"] in solo]
+             for c in candidatos if c["autor"] in autores_sel]
     if not filas:
         st.info("Nada que importar con ese filtro.")
         return
@@ -1332,6 +1453,152 @@ def importar_whatsapp(bib: dict, tipo_seccion: str):
         st.rerun()
 
 
+# ---------------------------------------------------------------- 🔒 Coach (privado)
+CLAVE_COACH = "__coach__"
+ACCESO_COACH = ["Yo", "Mi esposa"]  # quién puede usar el material del coach en su rutina
+TIPOS_COACH = {"semanas": "📅 Semanas", "emom": "⏱️ EMOMs", "halterofilia": "🏋️ Halterofilia", "fuerza": "💪 Fuerza",
+               "wod": "🔥 WOD", "gym": "🤸 Gym", "conditioning": "🫀 Conditioning", "accessory": "🧩 Accessories",
+               "mobility": "🧘 Movilidad", "consejo": "💬 Consejos"}
+COACH_PARA_LINEA = {"wod": ["wod", "gym"], "conditioning": ["conditioning"], "accessory": ["accessory", "gym", "fuerza"],
+                    "mobility": ["mobility"]}
+
+
+def _datos_coach() -> dict | None:
+    try:
+        return cargar_rutinas().get(CLAVE_COACH)
+    except Exception:
+        return None
+
+
+def coach_abierto() -> bool:
+    return bool(st.session_state.get("coach_ok")) and not solo()
+
+
+def _subir_coach():
+    archivo = st.file_uploader("Archivo del coach (coach.json)", type=["json"], key="coach_file")
+    if not archivo:
+        return
+    try:
+        data = json.loads(archivo.getvalue().decode("utf-8"))
+        assert isinstance(data.get("items"), list)
+    except Exception:
+        st.error("Ese archivo no es el coach.json que te preparé.")
+        return
+    st.caption(f"{len(data['items'])} bloques y {len(data.get('semanas', []))} semanas completas.")
+    if st.button("Guardar en mi app", type="primary", key="coach_guardar"):
+        guardar_rutina(CLAVE_COACH, data)
+        st.session_state["aviso"] = "Material del coach guardado"
+        st.rerun()
+
+
+def _fecha_txt(f: str) -> str:
+    try:
+        return f"{a_fecha(f):%d/%m/%Y}"
+    except Exception:
+        return str(f)
+
+
+def seccion_coach():
+    pin = secreto("COACH_PIN")
+    if not pin:
+        st.warning("Para activar esta sección, añade `COACH_PIN = \"…\"` en los Secrets de Streamlit.")
+        return
+    if not st.session_state.get("coach_ok"):
+        intento = st.text_input("PIN del coach", type="password", key="coach_pin_in").strip()
+        if intento and intento == str(pin).strip():
+            st.session_state.coach_ok = True
+            st.rerun()
+        elif intento:
+            st.error("PIN incorrecto.")
+        return
+    datos = _datos_coach()
+    if not datos or not datos.get("items"):
+        st.info("Sube el archivo **coach.json** que te preparé. Se guarda solo en tu base de datos, nunca en GitHub.")
+        _subir_coach()
+        return
+    items, semanas = datos["items"], datos.get("semanas", [])
+    conteo = Counter(i["tipo"] for i in items)
+    conteo["semanas"], conteo["emom"] = len(semanas), sum(1 for i in items if i.get("emom"))
+    vista = st.segmented_control("Tipo", list(TIPOS_COACH), default="emom", key="coach_tipo",
+                                 format_func=lambda k: f"{TIPOS_COACH[k]} {conteo.get(k, 0)}",
+                                 label_visibility="collapsed") or "emom"
+    q = st.text_input(t("Buscar por movimiento"), key="coach_q", placeholder="snatch, MU, bike, thruster…")
+    anios = sorted({i["fecha"][:4] for i in items}, reverse=True)
+    c1, c2 = st.columns(2)
+    anio = c1.selectbox("Año", ["Todos"] + anios, key="coach_anio")
+
+    def pasa(texto: str, fecha: str) -> bool:
+        return (anio == "Todos" or fecha.startswith(anio)) and (not q or coincide_busqueda(texto, q))
+
+    if vista == "semanas":
+        lista = [x for x in semanas if pasa(x["texto"], x["fecha"])][::-1]
+        st.caption(f"{len(lista)} semanas")
+        for x in lista[: st.session_state.get("coach_n", 25)]:
+            with st.expander(f"Semana enviada el {_fecha_txt(x['fecha'])}"):
+                st.markdown(x["texto"].replace("\n", "  \n"))
+        _ver_mas(len(lista))
+        return
+
+    if vista == "emom":
+        lista = [i for i in items if i.get("emom")]
+        tramo = c2.segmented_control("Duración", TRAMOS_EMOM + ["?"], key="coach_tramo",
+                                     format_func=lambda x: "sin duración" if x == "?" else x)
+        quien = st.segmented_control("De", ["Coach", "Diego"], key="coach_autor")
+        if tramo:
+            lista = [i for i in lista if (tramo_emom(i.get("emom_min")) or "?") == tramo]
+        if quien:
+            lista = [i for i in lista if i.get("autor", "Coach") == quien]
+    else:
+        lista = [i for i in items if i["tipo"] == vista]
+    lista = [i for i in lista if pasa(i["nombre"] + "\n" + i["texto"], i["fecha"])]
+
+    if vista in ("halterofilia", "fuerza"):
+        levs = [x for x, _ in Counter(i["levantamiento"] for i in lista).most_common()]
+        lev = c2.selectbox("Levantamiento", ["Todos"] + levs, key="coach_lev")
+        if lev != "Todos":
+            lista = [i for i in lista if i["levantamiento"] == lev]
+            sin_pulls = lambda x: "\n".join(l for l in x.split("\n") if "pull" not in l.lower())  # noqa: E731
+            puntos = [(i["fecha"], carga_maxima(sin_pulls(i["texto"]))) for i in lista]
+            puntos = sorted((f, v) for f, v in puntos if v)
+            if len(puntos) >= 2:
+                fig = go.Figure(go.Scatter(x=[f for f, _ in puntos], y=[v for _, v in puntos], mode="markers+lines",
+                                           line=dict(color="#d6312b"), hovertemplate="%{x}: %{y} kg<extra></extra>"))
+                fig.update_layout(height=260, margin=dict(l=10, r=10, t=30, b=10),
+                                  title=f"Progresión {lev}: carga más alta de cada sesión (kg)")
+                st.plotly_chart(fig, use_container_width=True)
+    elif vista not in ("consejo",):
+        cats = sorted({c for i in lista for c in i.get("categorias", [])})
+        if cats:
+            elegidas = c2.multiselect(t("Tipo"), cats, key=f"coach_cats_{vista}", placeholder=t("Todos"))
+            if elegidas:
+                lista = [i for i in lista if set(elegidas) <= set(i.get("categorias", []))]
+
+    lista = lista[::-1]
+    st.caption(f"{len(lista)} resultados")
+    for i in lista[: st.session_state.get("coach_n", 25)]:
+        with st.container(border=True):
+            extra = []
+            if i.get("emom_min"):
+                extra.append(f"⏱️ {i['emom_min']}'")
+            if i.get("autor") == "Diego":
+                extra.append("de Diego")
+            chips = " ".join(f":{COLOR_CAT.get(c, 'gray')}[● {c}]" for c in i.get("categorias", []))
+            st.markdown(f"**{i['nombre']}**  :gray[{_fecha_txt(i['fecha'])} {i.get('dia', '')}] "
+                        f"{' · '.join(extra)}  {chips}")
+            st.markdown(i["texto"].replace("\n", "  \n"))
+    _ver_mas(len(lista))
+
+    with st.expander("Reemplazar el material del coach"):
+        _subir_coach()
+
+
+def _ver_mas(total: int):
+    n = st.session_state.get("coach_n", 25)
+    if total > n and st.button(f"Ver más ({total - n} restantes)", key=f"coach_mas_{n}"):
+        st.session_state["coach_n"] = n + 25
+        st.rerun()
+
+
 # ---------------------------------------------------------------- main
 def _idioma_de_atleta():
     """Al cambiar de persona, pone su idioma (Archchana en francés); luego se puede cambiar arriba."""
@@ -1353,13 +1620,20 @@ def main():
         st.caption("Modo local: los datos se guardan en la carpeta `data/`. Configura Supabase para usarla online.")
 
     secciones = {"WODs": "wod", "Conditioning": "conditioning", "Accessories": "accessory", "Movilidad": "mobility"}
-    vista = st.segmented_control("Ver", ["Personas"] + list(secciones), default="Personas", key="vista",
+    opciones_vista = ["Personas"] + list(secciones) + ([] if solo() else ["🔒 Coach"])
+    vista = st.segmented_control("Ver", opciones_vista, default="Personas", key="vista",
                                  label_visibility="collapsed", format_func=t) or "Personas"
     if vista == "Personas":
-        atleta = st.segmented_control("Atleta", ATLETAS, default=ATLETAS[0], key="atleta",
-                                      label_visibility="collapsed", on_change=_idioma_de_atleta) or ATLETAS[0]
+        if solo():
+            atleta = solo()
+        else:
+            atleta = st.segmented_control("Atleta", ATLETAS, default=ATLETAS[0], key="atleta",
+                                          label_visibility="collapsed", on_change=_idioma_de_atleta) or ATLETAS[0]
     else:
         atleta = vista
+    if vista == "🔒 Coach":
+        seccion_coach()
+        return
 
     if aviso := st.session_state.pop("aviso", None):
         st.toast(aviso)
@@ -1374,17 +1648,19 @@ def main():
         return
     mios = [w for w in todos if w["athlete"] == atleta]
 
-    t0, t1, t2, t3, t4 = st.tabs([t("Rutina"), t("Registrar"), t("Historial"), t("Progreso"), t("Grupo")])
-    with t0:
+    nombres = [t("Rutina"), t("Registrar"), t("Historial"), t("Progreso")] + ([] if solo() else [t("Grupo")])
+    pestanas = st.tabs(nombres)
+    with pestanas[0]:
         tab_rutina(atleta, mios)
-    with t1:
+    with pestanas[1]:
         tab_registrar(atleta, mios)
-    with t2:
+    with pestanas[2]:
         tab_historial(atleta, mios)
-    with t3:
+    with pestanas[3]:
         tab_progreso(atleta, mios)
-    with t4:
-        tab_grupo(todos)
+    if not solo():
+        with pestanas[4]:
+            tab_grupo(todos)
 
 
 main()
