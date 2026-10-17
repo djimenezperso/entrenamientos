@@ -33,6 +33,8 @@ from logica import (
     letra_visible, linea_activa, linea_no_hecha, marcar_linea, marcar_parte, no_hechas_en, norm, norm_busqueda,
     parametros_semana, partes_del_dia, pendientes_para, poner_pesos, prescripcion_semana, referencias_elite,
     resumen_dia, se_repite, semanas_que_sube, sin_validar, tipo_de_linea, versiones_por_movimiento,
+    TIPOS, UNIDADES, duracion_emom, formato_de, mejores_prs, parse_tiempo, parse_valor, peso_principal, fmt_valor,
+    prs_de_entrenos,
 )
 from repertorio import ELITE
 from rutinas_iniciales import migrar, rutinas_iniciales
@@ -45,6 +47,10 @@ IDIOMA_DEFECTO = {"Archchana": "fr"}
 NIVEL_DEFECTO = {"Yo": "RX"}
 ALUMNOS = ["Salatti", "Dario", "Juan", "Mi esposa", "Manu Anel"]
 ABRE_DIA_PENDIENTE = ("Yo", "Mi esposa")
+MOVILIDAD_ES_PARTE = ["Archchana"]  # para ella la movilidad es una parte más (A, B…); para el resto es el Warm up
+SIN_PRS = ["Archchana"]
+CLAVE_PRS = "__prs__"
+CLAVE_SOLICITUDES = "__solicitudes__"
 PROTEGIDOS = ["Yo", "Diego", "Manu Anel", "Salatti", "Mi esposa", "Dario", "Juan", "Archchana"]
 CLAVE_INVITADOS = "__invitados__"
 PLANTILLAS = {"Salatti": "Rutina de Salatti", "Dario": "Rutina de Dario"}
@@ -92,6 +98,23 @@ class Supabase:
         filas = self._pedir("GET", "/rutinas?select=athlete,data&athlete=in.(" + urllib.parse.quote(lista) + ")")
         return {f["athlete"]: f["data"] for f in filas or []}
 
+    def entrenos(self, atleta: str, limite: int = 400) -> list[dict]:
+        return self._pedir("GET", "/workouts?select=*&athlete=eq." + urllib.parse.quote(atleta)
+                           + f"&order=date.desc,created_at.desc&limit={limite}") or []
+
+    def insertar_entreno(self, w: dict):
+        self._pedir("POST", "/workouts", w, {"Prefer": "return=minimal"})
+
+    def subir_foto(self, ruta: str, jpg: bytes) -> str:
+        host = self.base.rsplit("/rest/v1", 1)[0]
+        req = urllib.request.Request(f"{host}/storage/v1/object/fotos/{urllib.parse.quote(ruta)}", data=jpg,
+                                     method="POST", headers={**self.h, "Content-Type": "image/jpeg"})
+        try:
+            urllib.request.urlopen(req, timeout=30).read()
+        except urllib.error.HTTPError as e:
+            raise Error(f"No se pudo subir la foto ({e.code}): {e.read().decode()[:200]}", 502)
+        return ruta
+
     def guardar(self, atleta: str, data: dict):
         self._pedir("POST", "/rutinas", {"athlete": atleta, "data": data,
                                          "updated_at": dt.datetime.now(dt.timezone.utc).isoformat()},
@@ -115,6 +138,21 @@ class Local:
         t = self._todo()
         t[atleta] = data
         self.ruta.write_text(json.dumps(t, ensure_ascii=False))
+
+    def entrenos(self, atleta: str, limite: int = 400) -> list[dict]:
+        ws = [w for w in self._todo().get("__workouts__", []) if w["athlete"] == atleta]
+        return sorted(ws, key=lambda w: (w["date"], w["created_at"]), reverse=True)[:limite]
+
+    def insertar_entreno(self, w: dict):
+        t = self._todo()
+        t.setdefault("__workouts__", []).append(w)
+        self.ruta.write_text(json.dumps(t, ensure_ascii=False))
+
+    def subir_foto(self, ruta: str, jpg: bytes) -> str:
+        carpeta = self.ruta.parent / "fotos-local"
+        (carpeta / ruta).parent.mkdir(parents=True, exist_ok=True)
+        (carpeta / ruta).write_bytes(jpg)
+        return ruta
 
 
 _DATOS = None
@@ -184,9 +222,28 @@ def leer_sesion(token: str) -> dict:
     return s
 
 
-def _sesion_para(solo: str | None) -> dict:
-    return {"token": firmar({"u": solo or "", "exp": int(time.time()) + 120 * 86400}),
-            "solo": solo, "lang": IDIOMA_DEFECTO.get(solo or "", "es")}
+def _sesion_para(solo: str | None, coach: bool = False) -> dict:
+    datos_s = {"u": solo or "", "exp": int(time.time()) + 120 * 86400}
+    if coach:
+        datos_s["c"] = 1
+    return {"token": firmar(datos_s), "solo": solo, "lang": IDIOMA_DEFECTO.get(solo or "", "es"), "coach": coach}
+
+
+def es_coach(sesion: dict) -> bool:
+    return bool(sesion.get("c")) and bool(env("COACH_PIN"))
+
+
+def modo_coach(sesion: dict, c: dict) -> dict:
+    """Activa (con el PIN del coach) o quita el modo coach. Devuelve una sesión nueva."""
+    if c.get("salir"):
+        return _sesion_para(sesion.get("u") or None, False)
+    pin = env("COACH_PIN")
+    if not pin:
+        raise Error("Falta COACH_PIN en las variables de Vercel", 500)
+    if not _igual(str(c.get("pin") or ""), pin):
+        time.sleep(0.8)  # frena a quien pruebe PINs al azar
+        raise Error("PIN incorrecto", 403)
+    return _sesion_para(sesion.get("u") or None, True)
 
 
 def _limpia(txt: str) -> str:
@@ -203,8 +260,8 @@ def _igual(a: str, b: str) -> bool:
     return bool(a) and bool(b) and hmac.compare_digest(a.encode(), b.encode())
 
 
-VERSION = "1.3"
-CLAVES_NECESARIAS = ["SUPABASE_URL", "SUPABASE_KEY", "APP_PASSWORD", "CONTRASENA_ARCHCHANA", "CONTRASENA_INVITADOS",
+VERSION = "2.4"
+CLAVES_NECESARIAS = ["SUPABASE_URL", "SUPABASE_KEY", "APP_PASSWORD", "CONTRASENA_ARCHCHANA", "CONTRASENA_INVITADOS", "COACH_PIN",
                      "APP_ANTIGUA_URL"]
 
 
@@ -311,6 +368,15 @@ def _tipo_ui(parte: str, ejercicio: str = "") -> str:
     return tipo_de_linea(parte, ejercicio) or "fuerza"
 
 
+def es_movilidad(parte: str, lineas: list[dict]) -> bool:
+    return tipo_de_linea(parte, "") == "mobility" or any(tipo_de_linea(parte, l["ejercicio"]) == "mobility" for l in lineas)
+
+
+def movilidad_primero(grupos: list[tuple[str, list[dict]]]) -> list[tuple[str, list[dict]]]:
+    """La movilidad, si la hay, siempre al principio del día (las letras se ponen luego por posición)."""
+    return [g for g in grupos if es_movilidad(*g)] + [g for g in grupos if not es_movilidad(*g)]
+
+
 def wods_de_diego(rut_yo: dict | None) -> list[dict]:
     """Los WODs que Diego marcó como hechos: primero su semana anterior, luego la actual y después el resto."""
     if not rut_yo:
@@ -358,6 +424,50 @@ def _etiqueta_extra(l: dict, txt: str, semana: int, ajuste: bool, subio: bool) -
     return None
 
 
+def crono_de(texto: str, parte: str, ejercicio: str) -> dict | None:
+    """Cómo se cronometra: {modo: fortime|amrap|emom|libre, minutos, intervalo (seg, EMOM)}."""
+    import re
+    todo = f"{_etiqueta_parte(parte)} {ejercicio}\n{texto or ''}"
+    t = todo.lower().replace("’", "'").replace("′", "'")
+    fmts = formato_de(todo)
+    m = re.search(r"(\d+)\s*(?:''|\"|s|seg|sec)?\s*(?:on|trabajo|work)\b[\s/,:-]*(\d+)\s*(?:''|\"|s|seg|sec)?\s*(?:off|descanso|rest)\b", t)
+    if "tabata" in t or m:
+        r = re.search(r"\bx\s*(\d+)\b|(\d+)\s*(?:rondas|rounds|sets|series)", t)
+        return {"modo": "tabata", "trabajo": int(m.group(1)) if m else 20, "descanso": int(m.group(2)) if m else 10,
+                "rondas": int(r.group(1) or r.group(2)) if r else 8}
+    if "emom" in fmts:
+        total = duracion_emom(todo)
+        m = re.search(r"\be(\d)\s*mom", t)
+        intervalo = int(m.group(1)) * 60 if m else 60
+        m = re.search(r"\b(?:every|toutes les|cada)\s*(\d+)(?::(\d{2}))?", t)
+        if m:
+            intervalo = int(m.group(1)) * 60 + int(m.group(2) or 0)
+        return {"modo": "emom", "minutos": total or 12, "intervalo": intervalo}
+    if "amrap" in fmts:
+        m = re.search(r"\bamrap\s*(?:de\s*)?(\d+)", t) or re.search(r"(\d+)\s*(?:'|min)\s*amrap", t)
+        return {"modo": "amrap", "minutos": int(m.group(1)) if m else 12}
+    if "fortime" in fmts or re.search(r"\brondas?\b|\brounds?\b|\d+\s*x\s*\(", t):
+        m = re.search(r"(?:time\s*cap|cap|tope|tc)\s*:?\s*(\d+)", t)
+        return {"modo": "fortime", "minutos": int(m.group(1)) if m else None}
+    return {"modo": "libre", "minutos": None}
+
+
+def registro_inicial(rut: dict, dia: dict, semana: int, lineas: list[dict] | None = None, titulo: str = "") -> dict:
+    """Lo mismo que _inicial_desde_dia de app.py: qué filas sugerir al registrar."""
+    filas, fuerza = [], False
+    for l in [x for x in (dia["lineas"] if lineas is None else lineas) if linea_activa(x, semana)]:
+        txt, _, _ = prescripcion_semana(l, semana, rut.get("ajustes"))
+        if es_metcon(l["ejercicio"]):
+            filas.append({"id": l["id"], "name": l["ejercicio"], "valor": "", "unit": "tiempo"})
+        else:
+            fuerza = True
+            p = peso_principal(txt)
+            filas.append({"id": l["id"], "name": l["ejercicio"], "valor": fmt_num(p) if p is not None else "",
+                          "unit": "kg"})
+    return {"tipo": "fuerza" if fuerza else "wod", "titulo": titulo or f"Semana {semana} · {dia['nombre']}",
+            "filas": filas}
+
+
 def _linea(rut: dict, l: dict, semana: int, parte: str, nivel: str, alumno: bool, sug: dict | None,
            por_ejercicio: bool) -> dict:
     txt, subio, ajuste = prescripcion_semana(l, semana, rut.get("ajustes"))
@@ -386,6 +496,7 @@ def _linea(rut: dict, l: dict, semana: int, parte: str, nivel: str, alumno: bool
             filas = versiones_por_movimiento(txt)
             if filas and not all(f["RX"] == f["Inter"] == f["Scaled"] for f in filas):
                 out["tabla"] = filas
+        out["crono"] = crono_de(txt, parte, l["ejercicio"]) if tipo in TIPOS_WOD + ("conditioning",) else None
         refs = referencias_elite(f"{l['ejercicio']}\n{txt}", ELITE)
         if refs:
             out["elite"] = refs[0]
@@ -442,11 +553,18 @@ def vista(sesion: dict, atleta: str | None, semana: int | None, dia_id: str | No
     atleta = atleta if atleta in personas else personas[0]
     puede_ver(sesion, atleta)
     alumno = es_alumno(atleta, inv)
-    guardadas = datos().rutinas(list({atleta, "Yo"}))
+    guardadas = datos().rutinas(list({atleta, "Yo", CLAVE_SOLICITUDES}))
     rut = rutina(atleta, guardadas)
+    coach = es_coach(sesion)
+    todas_sol = (guardadas.get(CLAVE_SOLICITUDES) or {}).get("lista") or []
     base = {"atleta": atleta, "nombre": nv(atleta), "solo": sesion.get("u") or None,
             "personas": [{"id": p, "nombre": nv(p)} for p in personas], "lang": IDIOMA_DEFECTO.get(atleta, "es"),
-            "app_antigua": env("APP_ANTIGUA_URL")}
+            "app_antigua": env("APP_ANTIGUA_URL"), "tipos": {k: v[0] for k, v in TIPOS.items()},
+            "unidades": UNIDADES, "con_prs": atleta not in SIN_PRS, "coach": coach,
+            "puede_pesos": coach or bool((rut or {}).get("permiso_pesos")),
+            "permiso_pesos": bool((rut or {}).get("permiso_pesos")),
+            "solicitudes": [x for x in todas_sol if coach and (not sesion.get("u") or x["atleta"] == sesion["u"])],
+            "mis_solicitudes": {x["linea"]: x for x in todas_sol if x["atleta"] == atleta}}
     if not rut or not rut.get("dias"):
         return {**base, "sin_rutina": True}
     actual = int(rut.get("semana_actual") or 1)
@@ -464,23 +582,35 @@ def vista(sesion: dict, atleta: str | None, semana: int | None, dia_id: str | No
         por_hacer = next((d["id"] for d in dias if d["estado"] != "hecho" or d["pendientes"]), ids[0])
     dia_id = dia_id if dia_id in ids else por_hacer
     dia = next(d for d in rut["dias"] if d["id"] == dia_id)
-    grupos = agrupar_por_parte(dia, semana)
-    partes_semana = [p for p, _ in grupos]
-    partes = [_parte(rut, dia, p, ls, semana, partes_semana, nivel, alumno, sugs) for p, ls in grupos]
+    grupos = movilidad_primero(agrupar_por_parte(dia, semana))
+    calentar = atleta not in MOVILIDAD_ES_PARTE
+    partes_semana = [p for p, ls in grupos if not (calentar and es_movilidad(p, ls))]
+    partes = []
+    for p_, ls in grupos:
+        x = _parte(rut, dia, p_, ls, semana, partes_semana, nivel, alumno, sugs)
+        if calentar and es_movilidad(p_, ls):  # Warm up: va antes de la A y no lleva letra
+            x.update(letra="", etiqueta="Mobility", calentamiento=True)
+        partes.append(x)
     pendientes = []
     nombres = {d["id"]: d for d in rut["dias"]}
     for so, did, parte in pendientes_para(rut, semana, dia["id"]):
         origen = nombres[did]
         grupos_o = agrupar_por_parte(origen)
         lineas = next((ls for p, ls in grupos_o if p == parte), [])
-        p = _parte(rut, origen, parte, lineas, so, [x for x, _ in agrupar_por_parte(origen, so)], nivel, alumno,
+        p = _parte(rut, origen, parte, lineas, so, [x for x, _ in movilidad_primero(agrupar_por_parte(origen, so))], nivel, alumno,
                    {}, desde=(semana, dia["id"]))
         p["origen"] = f"{origen['nombre']} · semana {so}"
+        p["registro"] = {**registro_inicial(rut, origen, so, lineas, f"Semana {so} · {origen['nombre']} · {parte}"),
+                         "partes": [{"parte": parte, "texto": p["etiqueta"], "semana": so, "dia": did}]}
         pendientes.append(p)
     return {**base, "semana": semana, "actual": actual, "nivel": nivel, "niveles": NIVELES, "alumno": alumno,
             "dias": dias, "dia": {"id": dia["id"], "nombre": dia["nombre"], "estado": resumen_dia(rut, semana, dia),
                                   "por_ejercicio": bool(dia.get("por_ejercicio"))},
             "partes": partes, "pendientes": pendientes,
+            "registro": {**registro_inicial(rut, dia, semana),
+                         "partes": [{"parte": p["parte"], "texto": f"{p['letra']} · {p['etiqueta']}".strip(" ·"),
+                                     "warmup": bool(p.get("calentamiento")), "semana": semana, "dia": dia["id"]}
+                                    for p in partes]},
             "faltan": sin_validar(rut, semana) if semana <= actual else []}
 
 
@@ -504,6 +634,8 @@ def accion(sesion: dict, c: dict) -> dict:
         aviso = {"hecho": "¡Hecho!", "no_hecho": "Apuntado: la semana que viene repite peso",
                  "pospuesto": "Pasado a otro día", None: "Quitada la marca"}[estado]
     elif tipo == "peso":
+        if not (es_coach(sesion) or rut.get("permiso_pesos")):
+            raise Error("Los pesos los decide tu coach. Envíale el cambio para que lo apruebe.", 403)
         valores = [float(v) for v in c.get("valores") or []]
         if not valores or any(v < 0 or v > 1000 for v in valores):
             raise Error("Peso no válido")
@@ -511,6 +643,31 @@ def accion(sesion: dict, c: dict) -> dict:
         rut, tocados = cambiar_pesos(rut, semana, {c["linea"]: nueva_presc}, bool(c.get("solo_semana")),
                                      c.get("propagar", True) is not False)
         aviso = "Peso guardado" + (f" (también en {', '.join(tocados)})" if tocados else "")
+    elif tipo == "solicitar_peso":
+        valores = [float(v) for v in c.get("valores") or []]
+        if not valores or any(v < 0 or v > 1000 for v in valores):
+            raise Error("Peso no válido")
+        l = next((x for d in rut["dias"] for x in d["lineas"] if x["id"] == c.get("linea")), None)
+        if not l:
+            raise Error("No se encontró ese ejercicio")
+        import uuid
+        reg = datos().rutinas([CLAVE_SOLICITUDES]).get(CLAVE_SOLICITUDES) or {}
+        lista = [x for x in reg.get("lista") or [] if not (x["atleta"] == atleta and x["linea"] == l["id"])]
+        lista.append({"id": uuid.uuid4().hex[:10], "atleta": atleta, "nombre": nv(atleta), "linea": l["id"],
+                      "ejercicio": l["ejercicio"], "semana": semana, "texto": c.get("texto") or "",
+                      "antes": [float(x.replace(",", ".")) for x in NUM_PESO.findall(c.get("texto") or "")],
+                      "valores": valores, "solo_semana": bool(c.get("solo_semana")),
+                      "propagar": c.get("propagar", True) is not False, "mensaje": str(c.get("mensaje") or "")[:500],
+                      "fecha": dt.datetime.now(dt.timezone.utc).isoformat()})
+        datos().guardar(CLAVE_SOLICITUDES, {"lista": lista[-200:]})
+        v = vista(sesion, atleta, int(c.get("ver_semana") or semana), c.get("ver_dia"))
+        v["aviso"] = f"Enviado a {nv('Yo')}: te avisará cuando lo apruebe"
+        return v
+    elif tipo == "permiso_pesos":
+        if not es_coach(sesion):
+            raise Error("Solo el coach puede dar permiso", 403)
+        rut = dict(rut, permiso_pesos=bool(c.get("valor")))
+        aviso = f"{nv(atleta)} {'ya puede' if c.get('valor') else 'ya no puede'} cambiar sus pesos"
     elif tipo == "linea_no_hecha":
         rut = marcar_linea(rut, c["linea"], semana, bool(c.get("valor")))
     elif tipo == "semana":
@@ -534,5 +691,109 @@ def accion(sesion: dict, c: dict) -> dict:
         raise Error("Acción desconocida")
     datos().guardar(atleta, rut)
     v = vista(sesion, atleta, int(c.get("ver_semana") or semana), c.get("ver_dia"))
+    v["aviso"] = aviso
+    return v
+
+
+# ===== registrar un entreno =====
+def _fmt_pr(valor: float, unidad: str) -> str:
+    return fmt_valor(valor, unidad) if unidad == "tiempo" else f"{fmt_num(valor)} {unidad}"
+
+
+def registrar(sesion: dict, c: dict) -> dict:
+    """Guarda un entreno igual que formulario_entreno de app.py (tabla workouts + foto en el bucket «fotos»)."""
+    import uuid
+    atleta = c.get("atleta")
+    puede_ver(sesion, atleta)
+    if atleta not in todas_las_personas():
+        raise Error("Persona desconocida")
+    tipo = c.get("tipo") if c.get("tipo") in TIPOS else "otro"
+    try:
+        fecha = dt.date.fromisoformat(str(c.get("fecha") or dt.date.today().isoformat())[:10])
+    except ValueError:
+        raise Error("La fecha no es válida")
+    errores, resultados = [], []
+    dur = None
+    if str(c.get("duracion") or "").strip():
+        dur = parse_tiempo(c["duracion"])
+        if dur is None:
+            errores.append("La duración no se entiende. Usa h:mm:ss, mm:ss o minutos.")
+    for f in c.get("filas") or []:
+        nombre = str(f.get("name") or "").strip()[:120]
+        bruto = str(f.get("valor") or "").strip()
+        unidad = f.get("unit") if f.get("unit") in UNIDADES else "tiempo"
+        if not nombre and not bruto:
+            continue
+        valor = parse_valor(bruto, unidad) if bruto else None
+        if bruto and valor is None:
+            errores.append(f"Revisa «{nombre or bruto}»: los tiempos van como 4:35 y el resto como número.")
+        resultados.append({"name": nombre or "Sin nombre", "value": valor, "unit": unidad})
+    if errores:
+        raise Error(" ".join(errores))
+    if not resultados and not str(c.get("titulo") or "").strip() and not c.get("foto"):
+        raise Error("Apunta al menos un resultado, un título o una foto.")
+    w = {"id": str(uuid.uuid4()), "athlete": atleta, "date": fecha.isoformat(), "type": tipo,
+         "title": str(c.get("titulo") or "").strip()[:200], "duration_sec": dur, "entries": resultados,
+         "notes": str(c.get("notas") or "").strip()[:4000], "photo_path": None,
+         "created_at": dt.datetime.now(dt.timezone.utc).isoformat()}
+
+    aviso_pr = None
+    if atleta not in SIN_PRS:
+        try:
+            previos = datos().entrenos(atleta)
+            guardados = (datos().rutinas([CLAVE_PRS]).get(CLAVE_PRS) or {}).get(atleta, [])
+            antes = mejores_prs(guardados + prs_de_entrenos(previos))
+            for r in prs_de_entrenos([w]):
+                p = antes.get((r["movimiento"], 1 if r["unidad"] == "kg" else 0))
+                mejor = p is not None and (r["valor"] < p["valor"] if r["unidad"] == "tiempo" else r["valor"] > p["valor"])
+                if mejor:
+                    aviso_pr = f"¡Nuevo PR en {r['movimiento']}: {_fmt_pr(r['valor'], r['unidad'])}!"
+        except Error:
+            pass
+
+    if c.get("foto"):
+        try:
+            jpg = base64.b64decode(str(c["foto"]).split(",", 1)[-1])
+        except ValueError:
+            raise Error("La foto no se ha podido leer")
+        if len(jpg) > 4_000_000:
+            raise Error("La foto es demasiado grande")
+        carpeta = norm(atleta).replace(" ", "-") or "sin-nombre"
+        w["photo_path"] = datos().subir_foto(f"{carpeta}/{uuid.uuid4().hex}.jpg", jpg)
+    datos().insertar_entreno(w)
+
+    hechas = [p for p in c.get("partes") or [] if p.get("parte") and p.get("dia")]
+    if hechas:
+        rut = rutina(atleta)
+        for p in hechas:
+            rut = marcar_parte(rut, int(p.get("semana") or rut.get("semana_actual") or 1), p["dia"], p["parte"], "hecho")
+        datos().guardar(atleta, rut)
+    v = vista(sesion, atleta, c.get("ver_semana"), c.get("ver_dia"))
+    v["aviso"] = "Entreno guardado" + (f" · {len(hechas)} parte{'s' if len(hechas) != 1 else ''} hecha{'s' if len(hechas) != 1 else ''}" if hechas else "")
+    if aviso_pr:
+        v["pr"] = aviso_pr
+    return v
+
+
+def resolver_solicitud(sesion: dict, c: dict) -> dict:
+    """El coach aprueba (aplica el cambio) o rechaza una solicitud de cambio de peso."""
+    if not es_coach(sesion):
+        raise Error("Solo el coach puede aprobar cambios", 403)
+    reg = datos().rutinas([CLAVE_SOLICITUDES]).get(CLAVE_SOLICITUDES) or {}
+    lista = reg.get("lista") or []
+    sol = next((x for x in lista if x["id"] == c.get("id")), None)
+    if not sol:
+        raise Error("Esa solicitud ya no existe")
+    aviso = f"Rechazado el cambio de {sol['nombre']}"
+    if c.get("aprobar"):
+        rut = rutina(sol["atleta"])
+        if not rut:
+            raise Error("Esa persona no tiene rutina")
+        presc = poner_pesos(sol["texto"], sol["valores"])
+        rut, _ = cambiar_pesos(rut, int(sol["semana"]), {sol["linea"]: presc}, sol["solo_semana"], sol["propagar"])
+        datos().guardar(sol["atleta"], rut)
+        aviso = f"Aprobado: {sol['ejercicio']} de {sol['nombre']}"
+    datos().guardar(CLAVE_SOLICITUDES, {"lista": [x for x in lista if x["id"] != sol["id"]]})
+    v = vista(sesion, c.get("atleta"), c.get("ver_semana"), c.get("ver_dia"))
     v["aviso"] = aviso
     return v
