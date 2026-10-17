@@ -70,7 +70,7 @@ const FR = {
   "de un registro": "d'un enregistrement", "Cuando tengas más marcas de este movimiento verás aquí su evolución.": "Avec plus de marques, tu verras l'évolution ici.",
   "Movimiento": "Mouvement", "Otro…": "Autre…", "¿Cuál?": "Lequel ?", "Marca": "Marque", "Reps (1 = 1RM)": "Reps (1 = 1RM)",
   "Nota": "Note", "con cinturón…": "avec ceinture…", "Guardar PR": "Enregistrer le record",
-  "Salen solos de lo que registras si el ejercicio se llama igual (por ejemplo «Back squat», «RMU» o «5 km run»).": "Ils viennent aussi de tes séances si l'exercice a le même nom.", "¿Eres Diego? Mete tu PIN de coach y lo cambias directamente": "Tu es Diego ? Mets ton PIN de coach", "Ajustar": "Ajuster", "Último": "Dernier", "Ajustar reps": "Ajuster les reps", "Semana que viene": "Semaine prochaine",
+  "Salen solos de lo que registras si el ejercicio se llama igual (por ejemplo «Back squat», «RMU» o «5 km run»).": "Ils viennent aussi de tes séances si l'exercice a le même nom.", "¿Eres Diego? Mete tu PIN de coach y lo cambias directamente": "Tu es Diego ? Mets ton PIN de coach", "Ajustar": "Ajuster", "Al azar": "Au hasard", "Otro": "Un autre", "Usar este": "Utiliser celui-ci", "Ahora": "Actuel", "No hay más ideas de este tipo todavía": "Pas encore d'autres idées de ce type", "ideas de este tipo (tu biblioteca y el repertorio)": "idées de ce type (ta bibliothèque et le répertoire)", "Último": "Dernier", "Ajustar reps": "Ajuster les reps", "Semana que viene": "Semaine prochaine",
   "Cambiar esta parte": "Changer cette partie", "Añadir parte": "Ajouter une partie", "Novedad de Diego": "Nouveauté de Diego",
   "Diego se lo ha puesto. ¿Te viene bien hoy?": "Diego l'a fait. Ça te va aujourd'hui ?", "Hoy no": "Pas aujourd'hui",
   "Ponérmelo hoy": "Je le fais aujourd'hui", "Lo programa tu coach": "C'est ton coach qui programme",
@@ -374,7 +374,7 @@ function linea(l, p, k) {
         : `<tr><td>${esc(f.RX)}</td><td>${esc(f.Inter)}</td><td>${esc(f.Scaled)}</td></tr>`).join("")}</tbody></table></details>`;
   else if (l.versiones_nivel) html += `<details class="desplegable"><summary>${t("Versiones")} RX · Inter · Scaled · Elite ${ic.abajo}</summary>
     <div class="versiones">${Object.entries(l.versiones_nivel).map(([n, txt]) => `<div><b>${esc(n)}</b><span class="texto-wod">${esc(txt)}</span></div>`).join("")}</div></details>`;
-  if (!p.origen) html += `<div class="acciones-linea"><button class="mini-btn" data-editar="${k}">${ic.lapiz} ${t("Ajustar")}</button>${l.texto_sig && l.texto_sig !== l.texto ? `<span class="mini">${t("Semana que viene")}: ${esc(l.texto_sig.split("\n")[0].slice(0, 60))}</span>` : ""}</div>`;
+  if (!p.origen) html += `<div class="acciones-linea"><button class="mini-btn" data-editar="${k}">${ic.lapiz} ${t("Ajustar")}</button>${l.tipo !== "fuerza" ? `<button class="mini-btn azar" data-azar="${k}">🎲 ${t("Al azar")}</button>` : ""}${l.texto_sig && l.texto_sig !== l.texto ? `<span class="mini">${t("Semana que viene")}: ${esc(l.texto_sig.split("\n")[0].slice(0, 60))}</span>` : ""}</div>`;
   if (l.crono && visto) html += `<button class="btn-crono" data-crono="${k}">${ic.reloj}<span>${t("Cronómetro")}<small>${esc(etiquetaCrono(l.crono))}</small></span>${ic.der.replace(/#FFB400/g, "currentColor")}</button>`;
   if (l.elite) html += `<div class="elite"><span class="ico">${ic.estrella}</span><span><b>${esc(l.elite.quien)}: ${esc(l.elite.marca)}</b> · ${esc(l.elite.detalle)}</span></div>`;
   return html + "</div>";
@@ -456,6 +456,7 @@ function enlazar() {
     const p = parteDe(b.dataset.reg); abrirRegistrar(p.registro, [p.parte]);
   });
   $app.querySelectorAll("[data-editar]").forEach((b) => b.onclick = () => hojaTexto(b.dataset.editar));
+  $app.querySelectorAll("[data-azar]").forEach((b) => b.onclick = () => hojaAzar(b.dataset.azar));
   $app.querySelectorAll("[data-menu]").forEach((b) => b.onclick = () => hojaParte(parteDe(b.dataset.menu)));
   on("b-anadir-parte", () => hojaParte(null));
   $app.querySelectorAll("[data-nov-si]").forEach((b) => b.onclick = () => hacer({ tipo: "ponerme_novedad", id: b.dataset.novSi, dia: E.dia, semana: E.semana }, b));
@@ -699,6 +700,71 @@ async function hojaParte(p) {
         semana: cambiar ? p.semana : E.semana, etiqueta: est.tipo, nombre: h.querySelector("#p-nombre").value, texto, solo_esta: est.solo,
         mensaje: (h.querySelector("#c-msg") || {}).value };
       ev.currentTarget.disabled = true; cerrarHoja(); hacer(cuerpo);
+    };
+  });
+}
+
+// ---------- al azar ----------
+function poolAzar(p, l) {
+  const I = E.ideas || {};
+  const etq = String(p.etiqueta || "").toLowerCase();
+  let pool;
+  if (/volume/.test(etq)) pool = I.volumen;
+  else if (l.tipo === "conditioning") pool = I.conditioning;
+  else if (l.tipo === "accessory") pool = I.accessory;
+  else if (l.tipo === "mobility") pool = I.mobility;
+  else {
+    pool = I.wod || [];
+    const quien = `${p.etiqueta} ${l.ejercicio} ${l.texto || ""}`;
+    const FORM = { emom: /\b(e\d?mom|every|cada \d)/i, amrap: /\bamrap\b/i, fortime: /for time|\brft\b|por tiempo/i };
+    const clave = FORM[l.tipo] ? l.tipo : Object.keys(FORM).find((f) => FORM[f].test(quien));
+    const formato = FORM[clave];
+    if (formato) { const f = pool.filter((x) => formato.test(x.nombre + " " + x.texto)); if (f.length) pool = f; }
+  }
+  const actual = String(l.texto || "").trim().toLowerCase();
+  const vistos = new Set();
+  return (pool || []).filter((x) => {
+    const k = String(x.texto || "").trim().toLowerCase();
+    if (!k || k === actual || vistos.has(k)) return false;
+    vistos.add(k); return true;
+  });
+}
+
+async function hojaAzar(k) {
+  const v = E.vista;
+  const { p, l } = lineaDe(k);
+  if (!E.ideas) { try { E.ideas = await api("ideas"); } catch { E.ideas = {}; } }
+  const pool = poolAzar(p, l);
+  if (!pool.length) return aviso(t("No hay más ideas de este tipo todavía"), true);
+  const est = { solo: true, i: Math.floor(Math.random() * pool.length), usados: new Set() };
+  const pintarIdea = (h) => {
+    const x = pool[est.i];
+    h.querySelector("#az-nombre").textContent = x.nombre || etqParte(p.etiqueta);
+    h.querySelector("#az-texto").textContent = x.texto;
+  };
+  abrirHoja(`${cabHoja(`${p.letra ? p.letra + " · " : ""}${etqParte(p.etiqueta)}`, "🎲 " + t("Al azar"))}
+    ${avisoCoach(v)}
+    <div class="mini">${t("Ahora")}: ${esc((l.texto || "").split("\n")[0].slice(0, 80) || t("por definir"))}</div>
+    <div class="card azar-card"><b id="az-nombre"></b><div class="texto-wod" id="az-texto"></div></div>
+    <button class="btn" id="az-otro">🎲 ${t("Otro")}</button>
+    ${alcanceHtml(est.solo)}
+    ${msgCoach(v)}
+    <button class="btn btn-fuego" id="az-usar">${v.puede_pesos === false ? t("Enviar a Diego para que lo apruebe") : t("Usar este")}</button>
+    <div class="mini">${pool.length} ${t("ideas de este tipo (tu biblioteca y el repertorio)")}</div>`, (h) => {
+    pintarIdea(h);
+    enlazarAlcance(h, est);
+    enlazarPin(h, () => hojaAzar(k));
+    h.querySelector("#az-otro").onclick = () => {
+      est.usados.add(est.i);
+      if (est.usados.size >= pool.length) est.usados.clear();
+      let j; do { j = Math.floor(Math.random() * pool.length); } while ((est.usados.has(j) || j === est.i) && pool.length > 1);
+      est.i = j; pintarIdea(h);
+    };
+    h.querySelector("#az-usar").onclick = (ev) => {
+      const x = pool[est.i];
+      ev.currentTarget.disabled = true; cerrarHoja();
+      hacer({ tipo: "editar_texto", semana: p.semana, linea: l.id, nombre: x.nombre || l.ejercicio, texto: x.texto,
+        solo_esta: est.solo, mensaje: (h.querySelector("#c-msg") || {}).value });
     };
   });
 }
