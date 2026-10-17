@@ -1391,7 +1391,10 @@ def escalar(texto: str, nivel: str) -> str:
     """Versión del texto para un nivel. El texto se toma como RX."""
     if not texto or nivel == "RX":
         return texto or ""
-    lineas = [_escalar_linea(l, nivel) for l in texto.split("\n")]
+    # cada movimiento por separado (una línea puede tener wall balls y KB swings, con pesos distintos)
+    lineas = ["".join(_escalar_linea(trozo, nivel) if i % 2 == 0 else trozo
+                      for i, trozo in enumerate(re.split(r"(,\s+|\s\+\s|;\s*|\s/\s)", l)))
+              for l in texto.split("\n")]
     out = "\n".join(lineas)
     reglas = _SUSTITUCIONES.get(nivel, [])
     if reglas:
@@ -1421,4 +1424,67 @@ def formato_de(texto: str) -> set[str]:
         out.add("fortime")
     if re.search(r"\bamrap\b", t):
         out.add("amrap")
+    return out
+
+
+# ---------- PRs ----------
+CATALOGO_PR = {
+    "🏋️ Halterofilia": [("Snatch", "kg"), ("Clean & Jerk", "kg"), ("Power snatch", "kg"), ("Power clean", "kg"),
+                        ("Squat clean", "kg"), ("Clean", "kg"), ("Jerk", "kg"), ("Overhead squat", "kg")],
+    "💪 Fuerza": [("Back squat", "kg"), ("Front squat", "kg"), ("Deadlift", "kg"), ("Bench press", "kg"),
+                 ("Strict press", "kg"), ("Push press", "kg")],
+    "🤸 Gym": [("Pull ups seguidos", "reps"), ("Strict pull ups", "reps"), ("C2B pull ups", "reps"),
+              ("Bar muscle ups", "reps"), ("Ring muscle ups", "reps"), ("HSPU", "reps"), ("Toes to bar", "reps"),
+              ("Double unders", "reps")],
+    "🏃 Carrera y remo": [("400 m run", "tiempo"), ("1 km run", "tiempo"), ("1 milla", "tiempo"), ("5 km run", "tiempo"),
+                         ("10 km run", "tiempo"), ("500 m row", "tiempo"), ("2000 m row", "tiempo")],
+}
+_ALIAS_PR = {
+    "Clean & Jerk": ["c&j", "clean & jerk", "clean and jerk", "squat clean & jerk", "cj"],
+    "Pull ups seguidos": ["pull ups", "pull up", "dominadas", "kipping pull ups", "butterfly pull ups"],
+    "Bar muscle ups": ["bar muscle up", "bmu", "bar mu"], "Ring muscle ups": ["ring muscle up", "rmu", "ring mu",
+                                                                              "muscle ups"],
+    "HSPU": ["handstand push ups", "hspu"], "Toes to bar": ["t2b", "ttb", "toes to bar"],
+    "Double unders": ["du", "dus", "double unders"], "C2B pull ups": ["c2b", "chest to bar"],
+    "Strict press": ["shoulder press", "press", "strict press"], "Bench press": ["bench", "press banca"],
+    "Deadlift": ["dl", "peso muerto", "deadlift"], "400 m run": ["400m", "400 m"], "1 km run": ["1km", "1000 m run"],
+    "5 km run": ["5k", "5km"], "10 km run": ["10k", "10km"], "2000 m row": ["2k row", "remo 2000 m", "2000m row"],
+    "500 m row": ["500m row", "remo 500 m"],
+}
+
+
+def movimiento_pr(nombre: str) -> tuple[str, str, str] | None:
+    """(categoría, movimiento, unidad) del catálogo al que corresponde un nombre libre, o None."""
+    n = norm_busqueda(nombre)
+    for cat, movs in CATALOGO_PR.items():
+        for mov, unidad in movs:
+            if n == norm_busqueda(mov) or n in {norm_busqueda(a) for a in _ALIAS_PR.get(mov, [])}:
+                return cat, mov, unidad
+    return None
+
+
+def mejores_prs(registros: list[dict]) -> dict:
+    """{(movimiento, reps): mejor registro}. kg y reps: más es mejor; tiempo: menos es mejor."""
+    mejor = {}
+    for r in sorted(registros, key=lambda r: str(r.get("fecha", ""))):
+        k = (r["movimiento"], int(r.get("reps") or 1) if r["unidad"] == "kg" else 0)
+        actual = mejor.get(k)
+        if actual is None or (r["valor"] < actual["valor"] if r["unidad"] == "tiempo" else r["valor"] > actual["valor"]):
+            mejor[k] = r
+    return mejor
+
+
+def prs_de_entrenos(entrenos: list[dict]) -> list[dict]:
+    """Resultados registrados que son de un movimiento del catálogo (para detectar PRs solos)."""
+    out = []
+    for w in entrenos:
+        for e in w.get("entries") or []:
+            m = movimiento_pr(e.get("name", ""))
+            if not m or e.get("value") is None:
+                continue
+            cat, mov, unidad = m
+            if (unidad == "kg") != (e.get("unit") == "kg") or (unidad == "tiempo") != (e.get("unit") == "tiempo"):
+                continue
+            out.append({"categoria": cat, "movimiento": mov, "unidad": unidad, "valor": float(e["value"]), "reps": 1,
+                        "fecha": str(w["date"])[:10], "nota": w.get("title") or "", "origen": "registro"})
     return out
