@@ -224,11 +224,14 @@ def progresar(presc: str, delta: float) -> str:
 
 def prescripcion_semana(linea: dict, semana: int, ajustes: dict | None) -> tuple[str, bool, bool]:
     """(texto para esa semana, ¿ha subido respecto a la base?, ¿es un ajuste solo de esa semana?)."""
-    if semana < int(linea.get("desde") or 0):  # añadida más tarde: no existía esa semana
-        return "", False, False
+    if semana < int(linea.get("desde") or 0) or (linea.get("hasta") is not None and semana > int(linea["hasta"])) \
+            or int(semana) in [int(x) for x in linea.get("saltar") or []]:
+        return "", False, False  # aún no existía, ya se quitó o esa semana se cambió por otra cosa
     aj = (ajustes or {}).get(str(semana), {}).get(linea["id"])
     if aj is not None:
         return aj, False, True
+    if linea.get("plan") is not None:  # ciclo: texto fijado semana a semana
+        return linea["plan"].get(str(semana), ""), False, False
     p = parametros_semana(linea, semana)
     base = p.get("prescripcion") or ""
     delta = semanas_que_sube(p, semana) * float(p.get("sube") or 0)
@@ -366,7 +369,7 @@ def estado_parte(rut: dict, semana: int, dia_id: str, parte: str) -> dict:
 
 def resumen_dia(rut: dict, semana: int, dia: dict) -> str:
     """'hecho', 'no_hecho', 'parcial', 'pospuesto' o 'pendiente'."""
-    ests = [estado_parte(rut, semana, dia["id"], p)["estado"] for p, _ in agrupar_por_parte(dia)]
+    ests = [estado_parte(rut, semana, dia["id"], p)["estado"] for p, _ in agrupar_por_parte(dia, semana)]
     if not ests:
         return "pendiente"
     if all(e == "hecho" for e in ests):
@@ -443,7 +446,7 @@ def pendientes_para(rut: dict, semana: int, dia_id: str) -> list[tuple[int, str,
 def sin_validar(rut: dict, semana: int) -> list[str]:
     out = []
     for d in rut["dias"]:
-        faltan = [p.split(")")[0] for p, _ in agrupar_por_parte(d)
+        faltan = [p.split(")")[0] for p, _ in agrupar_por_parte(d, semana)
                   if estado_parte(rut, semana, d["id"], p)["estado"] == "pendiente"]
         if faltan:
             out.append(f"{d['nombre']} ({', '.join(faltan)})")
@@ -478,10 +481,13 @@ def partes_del_dia(dia: dict) -> list[str]:
     return out
 
 
-def agrupar_por_parte(dia: dict) -> list[tuple[str, list[dict]]]:
-    """[(parte, [líneas])] ordenado por letra, respetando el orden dentro de cada parte."""
+def agrupar_por_parte(dia: dict, semana: int | None = None) -> list[tuple[str, list[dict]]]:
+    """[(parte, [líneas])] ordenado por letra, respetando el orden dentro de cada parte.
+    Con `semana`, solo las líneas que existen esa semana (los ciclos duran unas semanas concretas)."""
     partes = partes_del_dia(dia)
     orden = sorted(range(len(partes)), key=lambda i: (_letra(partes[i]), i))
+    if semana is not None:
+        orden = [i for i in orden if linea_activa(dia["lineas"][i], semana)]
     grupos: list[tuple[str, list[dict]]] = []
     for i in orden:
         if grupos and grupos[-1][0] == partes[i]:
@@ -500,6 +506,9 @@ def fijar_prescripcion(rut: dict, lid: str, semana: int, presc: str, solo_esta: 
     """Fija la prescripción de una línea en `semana` (modifica `rut`). Desde esa semana sigue subiendo."""
     l = _buscar_linea(rut, lid)
     if l is None:
+        return
+    if l.get("plan") is not None:
+        l["plan"][str(semana)] = presc
         return
     ajustes = rut.setdefault("ajustes", {})
     if solo_esta:
@@ -1055,3 +1064,345 @@ def tramo_emom(minutos: int | None) -> str | None:
     if minutos <= 40:
         return TRAMOS_EMOM[3]
     return TRAMOS_EMOM[4]
+
+
+# ---------- ciclos (programas de varias semanas) ----------
+def _firma_progresion(texto: str) -> str:
+    t = norm_busqueda(texto)
+    t = re.sub(r"\d+(?:[.,]\d+)?\s*(kg|%)?", "#", t)
+    t = re.sub(r"[#\s@x-]+", " ", t)
+    return " ".join(t.split()[:8])
+
+
+def ciclos_desde_coach(items: list[dict]) -> list[dict]:
+    """Progresiones de 3+ semanas seguidas (mismo bloque con cargas que cambian), agrupadas en paquetes."""
+    fuerza = sorted([i for i in items if i["tipo"] in ("fuerza", "halterofilia") and i.get("autor", "Coach") == "Coach"],
+                    key=lambda i: i["fecha"])
+    cadenas, usados = [], set()
+    for n, a in enumerate(fuerza):
+        if a["id"] in usados or len(_firma_progresion(a["texto"])) < 4:
+            continue
+        f, cadena = _firma_progresion(a["texto"]), [a]
+        for b in fuerza[n + 1:]:
+            if b["id"] in usados or _firma_progresion(b["texto"]) != f:
+                continue
+            gap = (dt.date.fromisoformat(b["fecha"]) - dt.date.fromisoformat(cadena[-1]["fecha"])).days
+            if 4 <= gap <= 12:
+                cadena.append(b)
+            elif gap > 12:
+                break
+        if len(cadena) >= 3:
+            usados |= {c["id"] for c in cadena}
+            cadenas.append(cadena)
+    # cadenas que empiezan la misma semana y duran lo mismo = un mismo programa (cada una, una sesión)
+    paquetes: list[list[list[dict]]] = []
+    for c in sorted(cadenas, key=lambda c: c[0]["fecha"]):
+        ini = dt.date.fromisoformat(c[0]["fecha"])
+        for p in paquetes:
+            ini_p = dt.date.fromisoformat(p[0][0]["fecha"])
+            if abs((ini - ini_p).days) <= 6 and len(p[0]) == len(c):
+                p.append(c)
+                break
+        else:
+            paquetes.append([c])
+    meses = ["ene", "feb", "mar", "abr", "may", "jun", "jul", "ago", "sep", "oct", "nov", "dic"]
+    ciclos = []
+    for p in paquetes:
+        n = len(p[0])
+        ini = dt.date.fromisoformat(p[0][0]["fecha"])
+        levs = list(dict.fromkeys(c[0]["levantamiento"] or "Fuerza" for c in p))
+        es_fuerza = all(c[0]["tipo"] == "fuerza" for c in p)
+        ciclos.append({
+            "id": "coach-" + p[0][0]["id"],
+            "nombre": f"{' + '.join(levs)} · {n} semanas ({meses[ini.month - 1]} {ini.year})",
+            "categoria": "Fuerza (coach)" if es_fuerza else "Halterofilia (coach)", "privado": True,
+            "descripcion": f"Progresión del coach de {n} semanas con {len(p)} "
+                           f"{'sesión' if len(p) == 1 else 'sesiones'} por semana.",
+            "semanas": [{"sesiones": [[{"ejercicio": c[0]["levantamiento"] or "Fuerza", "prescripcion": c[w]["texto"]}]
+                                      for c in p]} for w in range(n)],
+        })
+    return ciclos
+
+
+def empezar_ciclo(rut: dict, ciclo: dict, semana_inicio: int, dias: list[str], letra: str, nuevo_id) -> dict:
+    """Mete el ciclo en la rutina: una parte «X) Ciclo: …» en los días elegidos (uno por sesión), activa N semanas."""
+    import copy
+    rut = copy.deepcopy(rut)
+    semanas = ciclo["semanas"]
+    parte = f"{letra}) Ciclo: {ciclo['nombre']}"
+    for s_idx, dia_id in enumerate(dias):
+        dia = next((d for d in rut["dias"] if d["id"] == dia_id), None)
+        if dia is None:
+            continue
+        for l, p in zip(dia["lineas"], partes_del_dia(dia)):
+            l.setdefault("parte", p)
+        n_lineas = max((len(s["sesiones"][s_idx]) for s in semanas if s_idx < len(s["sesiones"])), default=0)
+        for j in range(n_lineas):
+            plan, ejercicio = {}, ""
+            for w, s in enumerate(semanas):
+                if s_idx < len(s["sesiones"]) and j < len(s["sesiones"][s_idx]):
+                    linea = s["sesiones"][s_idx][j]
+                    plan[str(semana_inicio + w)] = linea["prescripcion"]
+                    ejercicio = ejercicio or linea["ejercicio"]
+            dia["lineas"].append({
+                "id": nuevo_id(), "ejercicio": ejercicio or ciclo["nombre"], "prescripcion": next(iter(plan.values()), ""),
+                "sube": 0.0, "base": semana_inicio, "nota": "", "parte": parte, "desde": semana_inicio,
+                "hasta": semana_inicio + len(semanas) - 1, "plan": plan, "ciclo": ciclo["id"]})
+        dia["lineas"] = [l for _, l in sorted(enumerate(dia["lineas"]), key=lambda t: (_letra(t[1]["parte"]), t[0]))]
+    return rut
+
+
+def quitar_ciclo(rut: dict, ciclo_id: str) -> dict:
+    import copy
+    rut = copy.deepcopy(rut)
+    for d in rut["dias"]:
+        d["lineas"] = [l for l in d["lineas"] if l.get("ciclo") != ciclo_id]
+    return rut
+
+
+def ciclos_en_marcha(rut: dict) -> list[dict]:
+    vistos = {}
+    for d in rut.get("dias", []):
+        for l in d["lineas"]:
+            if l.get("ciclo"):
+                c = vistos.setdefault(l["ciclo"], {"id": l["ciclo"], "parte": l["parte"], "desde": l["desde"],
+                                                   "hasta": l["hasta"], "dias": []})
+                if d["nombre"] not in c["dias"]:
+                    c["dias"].append(d["nombre"])
+    return list(vistos.values())
+
+
+def linea_activa(linea: dict, semana: int) -> bool:
+    if semana < int(linea.get("desde") or 0):
+        return False
+    if linea.get("hasta") is not None and semana > int(linea["hasta"]):
+        return False
+    if int(semana) in [int(x) for x in linea.get("saltar") or []]:
+        return False
+    if linea.get("plan") is not None and str(semana) not in linea["plan"]:
+        return False
+    return True
+
+
+# ---------- partes libres: añadir, borrar, letras por posición ----------
+LETRAS = "ABCDEFGHIJ"
+
+
+def _etiqueta_parte(parte: str) -> str:
+    return parte.split(") ", 1)[1] if re.match(r"^[A-Za-z]\)\s", parte or "") else parte
+
+
+def letra_visible(partes_semana: list[str], parte: str) -> str:
+    """La parte tal como se ve esa semana: letra según su posición (A, B, C…) + su nombre."""
+    i = partes_semana.index(parte) if parte in partes_semana else 0
+    return f"{LETRAS[min(i, len(LETRAS) - 1)]}) {_etiqueta_parte(parte).rstrip(' ·')}"
+
+
+def renumerar_partes(rut: dict, dia_id: str) -> dict:
+    """Pone las letras A, B, C… según el orden de las partes en el día (conserva lo validado)."""
+    dia = next(d for d in rut["dias"] if d["id"] == dia_id)
+    actuales = [p for p, _ in agrupar_por_parte(dia)]
+    destino = [f"{LETRAS[i]}) {_etiqueta_parte(p)}" for i, p in enumerate(actuales)]
+    if actuales == destino:
+        return rut
+    # dos pasos para no pisar nombres que se intercambian
+    for i, p in enumerate(actuales):
+        rut = renombrar_parte(rut, dia_id, p, f"{LETRAS[i]}~ {_etiqueta_parte(p)}")
+    for i, p in enumerate(actuales):
+        rut = renombrar_parte(rut, dia_id, f"{LETRAS[i]}~ {_etiqueta_parte(p)}", destino[i])
+    return rut
+
+
+def anadir_parte(rut: dict, dia_id: str, etiqueta: str, ejercicio: str, presc: str, semana: int,
+                 solo_esta: bool, sube: float = 0.0) -> dict:
+    """Parte nueva al final del día. Solo esta semana o desde esta semana en adelante."""
+    import copy
+    import uuid
+    rut = copy.deepcopy(rut)
+    dia = next(d for d in rut["dias"] if d["id"] == dia_id)
+    for l, p in zip(dia["lineas"], partes_del_dia(dia)):
+        l.setdefault("parte", p)
+    usadas = [_letra(p) for p, _ in agrupar_por_parte(dia)]
+    sig = max((LETRAS.index(x) for x in usadas if x in LETRAS), default=-1) + 1
+    parte = f"{LETRAS[min(sig, len(LETRAS) - 1)]}) {etiqueta}"
+    linea = {"id": uuid.uuid4().hex[:8], "ejercicio": ejercicio.strip() or etiqueta, "prescripcion": presc.strip(),
+             "sube": float(sube), "base": int(semana), "nota": "", "parte": parte, "desde": int(semana)}
+    if solo_esta:
+        linea["plan"] = {str(int(semana)): presc.strip()}
+        linea["hasta"] = int(semana)
+    dia["lineas"].append(linea)
+    return rut
+
+
+def quitar_parte(rut: dict, dia_id: str, parte: str, semana: int) -> dict:
+    """Quita la parte desde `semana` (las semanas anteriores se quedan como estaban)."""
+    import copy
+    rut = copy.deepcopy(rut)
+    dia = next(d for d in rut["dias"] if d["id"] == dia_id)
+    nuevas = []
+    for l, p in zip(dia["lineas"], partes_del_dia(dia)):
+        if p != parte:
+            nuevas.append(l)
+        elif int(l.get("desde") or 1) < semana:
+            l["hasta"] = min(int(l.get("hasta") or 10 ** 6), semana - 1)
+            if l.get("plan") is not None:
+                l["plan"] = {k: v for k, v in l["plan"].items() if int(k) < semana}
+            nuevas.append(l)
+    dia["lineas"] = nuevas
+    return rut
+
+
+def sustituir_parte(rut: dict, dia_id: str, parte: str, semana: int, etiqueta: str, ejercicio: str, presc: str,
+                    solo_esta: bool, sube: float = 0.0) -> dict:
+    """Cambia una parte por otra cosa en el mismo hueco: solo esta semana (vuelve la siguiente) o desde esta semana."""
+    import copy
+    import uuid
+    rut = copy.deepcopy(rut)
+    dia = next(d for d in rut["dias"] if d["id"] == dia_id)
+    for l, p in zip(dia["lineas"], partes_del_dia(dia)):
+        l.setdefault("parte", p)
+        if p == parte:
+            if solo_esta:
+                l["saltar"] = sorted({int(x) for x in l.get("saltar") or []} | {int(semana)})
+            elif int(l.get("desde") or 1) < semana:
+                l["hasta"] = min(int(l.get("hasta") or 10 ** 6), semana - 1)
+            else:
+                l["_borrar"] = True
+    dia["lineas"] = [l for l in dia["lineas"] if not l.pop("_borrar", False)]
+    nueva = f"{parte[:1]}) {etiqueta}"
+    if nueva == parte:
+        nueva = f"{parte[:1]}) {etiqueta} ·"
+    linea = {"id": uuid.uuid4().hex[:8], "ejercicio": ejercicio.strip() or etiqueta, "prescripcion": presc.strip(),
+             "sube": float(sube), "base": int(semana), "nota": "", "parte": nueva, "desde": int(semana),
+             "sustituye": parte}
+    if solo_esta:
+        linea["plan"], linea["hasta"] = {str(int(semana)): presc.strip()}, int(semana)
+    dia["lineas"].append(linea)
+    dia["lineas"] = [l for _, l in sorted(enumerate(dia["lineas"]), key=lambda t: (_letra(t[1]["parte"]), t[0]))]
+    return rut
+
+
+def deshacer_sustitucion(rut: dict, dia_id: str, parte_nueva: str, semana: int) -> dict:
+    import copy
+    rut = copy.deepcopy(rut)
+    dia = next(d for d in rut["dias"] if d["id"] == dia_id)
+    nuevas = [l for l in dia["lineas"] if l.get("parte") == parte_nueva and l.get("sustituye")]
+    if not nuevas:
+        return rut
+    original = nuevas[0]["sustituye"]
+    dia["lineas"] = [l for l in dia["lineas"] if l not in nuevas]
+    for l in dia["lineas"]:
+        if l.get("parte") == original:
+            l["saltar"] = [x for x in l.get("saltar") or [] if int(x) != int(semana)]
+            if l.get("hasta") is not None and int(l["hasta"]) == semana - 1 and l.get("plan") is None:
+                l.pop("hasta")
+    return rut
+
+
+# ---------- versiones RX / Inter / Scaled / Elite ----------
+NIVELES = ["RX", "Inter", "Scaled", "Elite"]
+_DB = [5, 7.5, 10, 12.5, 15, 17.5, 20, 22.5, 25, 27.5, 30, 32.5, 35, 40, 45, 50]
+_KB = [8, 12, 16, 20, 24, 28, 32, 40]
+_WB = {"Inter": {9: 6, 6: 4, 14: 9, 10: 6}, "Scaled": {9: 4, 6: 3, 14: 6, 10: 4}, "Elite": {9: 9, 6: 6, 14: 14}}
+_FACTOR = {"Inter": 0.75, "Scaled": 0.55, "Elite": 1.15}
+
+_SUSTITUCIONES = {
+    "Inter": [
+        (r"(?:ring |bar )?muscle[ -]?ups?(?: ring)?|\b[br]?mu'?s?\b(?: ring)?", "C2B pull ups"),
+        (r"strict hspu|strict handstand push ?ups?", "HSPU con abmat"),
+        (r"\bhspu'?s?\b|handstand push ?ups?", "HSPU con abmat"),
+        (r"handstand walks?|\bhw\b", "wall walks"),
+        (r"\bpistols?(?: squats?)?\b", "pistols a caja"),
+        (r"\bc2b\b|chest to bar(?: pull ups?)?", "pull ups"),
+        (r"legless rope climbs?", "rope climbs"),
+    ],
+    "Scaled": [
+        (r"(?:ring |bar )?muscle[ -]?ups?(?: ring)?|\b[br]?mu'?s?\b(?: ring)?", "pull ups con banda"),
+        (r"\bc2b\b|chest to bar(?: pull ups?)?", "pull ups con banda"),
+        (r"(?<!weighted )(?:butterfly |kipping |strict )?pull ?ups?", "ring rows"),
+        (r"strict hspu|strict handstand push ?ups?|\bhspu'?s?\b|handstand push ?ups?", "pike push ups"),
+        (r"handstand walks?|\bhw\b", "bear crawl"),
+        (r"wall walks?|\bww\b", "inchworms"),
+        (r"double[ -]?unders?|\bdu'?s?\b|dble du'?s?", "single unders (x2)"),
+        (r"toes[ -]?to[ -]?bar|\bt2b\b|\bttb\b", "knee raises"),
+        (r"\bpistols?(?: squats?)?\b", "air squats"),
+        (r"(?:legless )?rope climbs?", "rope pulls desde el suelo"),
+        (r"burpees? box jump overs?", "burpees + step ups"),
+        (r"box jump overs?|box jumps?", "box step ups"),
+        (r"ring dips?", "box dips"),
+        (r"ghd sit[ -]?ups?", "abmat sit ups"),
+    ],
+    "Elite": [
+        (r"\bc2b\b|chest to bar(?: pull ups?)?", "bar muscle ups"),
+        (r"(?<!strict )(?<!weighted )(?<!butterfly )pull ?ups?", "C2B pull ups"),
+        (r"(?<!strict )\bhspu'?s?\b", "strict HSPU"),
+    ],
+}
+
+
+def _redondear(v: float, tipo: str) -> float:
+    if tipo == "db":
+        return min(_DB, key=lambda x: abs(x - v))
+    if tipo == "kb":
+        return min(_KB, key=lambda x: abs(x - v))
+    return max(2.5, round(v / 2.5) * 2.5)
+
+
+def _escalar_linea(linea: str, nivel: str) -> str:
+    bajo = linea.lower()
+    tipo = "db" if re.search(r"\bdb|dbs\b|dumbb?ell|mancuerna|dble", bajo) else (
+        "kb" if re.search(r"\bkb\b|kettlebell", bajo) else ("wb" if re.search(r"wall ?balls?|\bwb\b", bajo) else "bar"))
+    f = _FACTOR[nivel]
+
+    def esc(txt: str) -> str:
+        v = float(txt.replace(",", "."))
+        if tipo == "wb":
+            nuevo = _WB[nivel].get(int(v), v * (f if nivel != "Elite" else 1))
+        else:
+            nuevo = _redondear(v * f, tipo)
+        return fmt_num(nuevo)
+
+    num = r"\d+(?:[.,]\d+)?"
+    no_sigue = r"(?![\d.,])"
+    patron = re.compile(
+        rf"@\s*(?P<arr>{num}(?:\s*-\s*{num})*){no_sigue}(?!\s*%)"            # @60 / @60-65-70 (no %)
+        rf"|(?P<a>{num})\s*/\s*(?P<b>{num}){no_sigue}(?!\s*(?:cal|''|\"|in\b|m\b|’’|%))"  # 43/30 (no cal/alturas)
+        rf"|(?P<kg>{num})(?=\s*kg)"                                              # 60kg
+        rf"|(?<=\b2x )(?P<dos>{num}){no_sigue}(?!\s*/)",                         # dble db 2x 22,5
+        re.I)
+
+    def cambio(m):
+        if m.group("arr"):
+            return "@" + "-".join(esc(x) for x in re.findall(num, m.group("arr")))
+        if m.group("a"):
+            peso = tipo != "bar" or "kg" in bajo or "@" in bajo or float(m.group("a").replace(",", ".")) >= 20
+            return f"{esc(m.group('a'))}/{esc(m.group('b'))}" if peso else m.group(0)
+        if m.group("kg"):
+            return esc(m.group("kg"))
+        if m.group("dos") and tipo in ("db", "kb", "wb"):
+            return esc(m.group("dos"))
+        return m.group(0)
+
+    linea = patron.sub(cambio, linea)
+    return linea
+
+
+def escalar(texto: str, nivel: str) -> str:
+    """Versión del texto para un nivel. El texto se toma como RX."""
+    if not texto or nivel == "RX":
+        return texto or ""
+    lineas = [_escalar_linea(l, nivel) for l in texto.split("\n")]
+    out = "\n".join(lineas)
+    reglas = _SUSTITUCIONES.get(nivel, [])
+    if reglas:
+        grande = re.compile("|".join(f"(?P<r{i}>{p})" for i, (p, _) in enumerate(reglas)), re.I)
+        out = grande.sub(lambda m: next(reglas[int(k[1:])][1] for k, v in m.groupdict().items() if v is not None), out)
+    if nivel == "Elite":
+        out += "\n🎯 Elite: todo unbroken siempre que se pueda"
+    return out
+
+
+def referencias_elite(titulo_y_texto: str, elite: dict) -> list[dict]:
+    """Referencias de atletas de élite si el WOD es un benchmark conocido (Fran, Grace, Open 24.1…)."""
+    t = norm_busqueda(titulo_y_texto[:200])
+    return [r for clave, refs in elite.items() if _contiene(t, clave) for r in refs]
