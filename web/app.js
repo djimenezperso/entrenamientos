@@ -186,6 +186,7 @@ function pintarEntrar(paso = {}) {
       if (r.invitado) return pintarEntrar({ invitado: true, nuevo: r.nuevo, plantillas: r.plantillas, password: cuerpo.password,
         nombre: cuerpo.nombre, pin: cuerpo.pin });
       E.token = r.token; mem.set("token", r.token);
+      if (r.demo) setTimeout(() => aviso(t("Bienvenido a la demo 👀 Mira todo lo que quieras")), 600);
       if (r.solo) { E.atleta = r.solo; mem.set("atleta", r.solo); }
       E.lang = r.lang || E.lang; mem.set("lang", E.lang);
       await cargar();
@@ -286,6 +287,7 @@ function cabecera(v) {
         <button class="redondo" id="b-ajustes" aria-label="${t("Ajustes")}">${ic.ajustes}</button>
       </div>
     </div>
+    ${v.demo ? `<div class="banda-demo">👀 ${t("Modo demo · solo para mirar")}</div>` : ""}
     ${v.semana ? `<div class="pildora-semana">
       <button id="b-sem-menos" aria-label="Semana anterior" ${v.semana <= 1 ? "disabled style='opacity:.3'" : ""}>${ic.izq}</button>
       <span>${t("Semana")} ${v.semana}${v.semana === v.actual ? ` · <em>${t("de fuego")}</em>` : ""}</span>
@@ -566,13 +568,15 @@ function hojaAjustes() {
       bc.disabled = true;
       try {
         const r = await api("coach", { metodo: "POST", cuerpo: { pin: h.querySelector("#i-pin-coach").value } });
-        E.token = r.token; mem.set("token", r.token); cerrarHoja(); aviso(t("Modo coach activado")); cargar();
+        E.token = r.token; mem.set("token", r.token);
+      if (r.demo) setTimeout(() => aviso(t("Bienvenido a la demo 👀 Mira todo lo que quieras")), 600); cerrarHoja(); aviso(t("Modo coach activado")); cargar();
       } catch (e) { aviso(e.message, true); bc.disabled = false; }
     };
     const bs = h.querySelector("#b-coach-salir");
     if (bs) bs.onclick = async () => {
       const r = await api("coach", { metodo: "POST", cuerpo: { salir: true } });
-      E.token = r.token; mem.set("token", r.token); cerrarHoja(); aviso(t("Modo coach quitado")); cargar();
+      E.token = r.token; mem.set("token", r.token);
+      if (r.demo) setTimeout(() => aviso(t("Bienvenido a la demo 👀 Mira todo lo que quieras")), 600); cerrarHoja(); aviso(t("Modo coach quitado")); cargar();
     };
     const bl = h.querySelector("#b-limpiar");
     if (bl) bl.onclick = async () => {
@@ -616,6 +620,7 @@ function enlazarPin(h, reabrir) {
     try {
       const r = await api("coach", { metodo: "POST", cuerpo: { pin: h.querySelector("#pin-in").value } });
       E.token = r.token; mem.set("token", r.token);
+      if (r.demo) setTimeout(() => aviso(t("Bienvenido a la demo 👀 Mira todo lo que quieras")), 600);
       cerrarHoja(); await cargar(); aviso(t("Modo coach activado")); reabrir();
     } catch (e) { aviso(e.message, true); b.disabled = false; }
   };
