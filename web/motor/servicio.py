@@ -8,6 +8,8 @@ Variables de entorno (en Vercel → Settings → Environment Variables):
   APP_PASSWORD                    contraseña general (ve a todos)
   CONTRASENA_ARCHCHANA            contraseña solo de Archchana
   CONTRASENA_INVITADOS            contraseña para invitados (nombre + PIN)
+  CONTRASENA_DEMO                 opcional: contraseña de "solo mirar" para enseñar la app (no puede cambiar nada)
+  DEMO_ATLETA                     opcional: qué rutina ve la demo (por defecto la de Diego, "Yo")
   ACCESOS_PERSONALES              opcional, JSON {"Salatti": "su-clave", …}
   SESION_SECRETO                  opcional; si falta se deriva de las otras claves
   APP_ANTIGUA_URL                 opcional: enlace a la app de Streamlit (para lo que aún no está aquí)
@@ -259,11 +261,27 @@ def leer_sesion(token: str) -> dict:
     return s
 
 
-def _sesion_para(solo: str | None, coach: bool = False) -> dict:
-    datos_s = {"u": solo or "", "exp": int(time.time()) + 120 * 86400}
+def _sesion_para(solo: str | None, coach: bool = False, demo: bool = False) -> dict:
+    datos_s = {"u": solo or "", "exp": int(time.time()) + (14 if demo else 120) * 86400}
     if coach:
         datos_s["c"] = 1
-    return {"token": firmar(datos_s), "solo": solo, "lang": IDIOMA_DEFECTO.get(solo or "", "es"), "coach": coach}
+    if demo:
+        datos_s["d"] = 1
+    return {"token": firmar(datos_s), "solo": solo, "lang": IDIOMA_DEFECTO.get(solo or "", "es"), "coach": coach,
+            "demo": demo}
+
+
+MENSAJE_DEMO = "👀 Esto es una demo: aquí solo se puede mirar. Si te gusta, ¡díselo a Diego!"
+
+
+def es_demo(sesion: dict) -> bool:
+    return bool(sesion.get("d"))
+
+
+def solo_lectura(sesion: dict) -> None:
+    """La demo puede mirarlo todo pero no cambia nada (ni pesos, ni registros, ni modo coach)."""
+    if es_demo(sesion):
+        raise Error(MENSAJE_DEMO, 403)
 
 
 def es_coach(sesion: dict) -> bool:
@@ -272,6 +290,7 @@ def es_coach(sesion: dict) -> bool:
 
 def modo_coach(sesion: dict, c: dict) -> dict:
     """Activa (con el PIN del coach) o quita el modo coach. Devuelve una sesión nueva."""
+    solo_lectura(sesion)
     if c.get("salir"):
         return _sesion_para(sesion.get("u") or None, False)
     pin = env("COACH_PIN")
@@ -297,9 +316,9 @@ def _igual(a: str, b: str) -> bool:
     return bool(a) and bool(b) and hmac.compare_digest(a.encode(), b.encode())
 
 
-VERSION = "3.4"
+VERSION = "3.6"
 CLAVES_NECESARIAS = ["SUPABASE_URL", "SUPABASE_KEY", "APP_PASSWORD", "CONTRASENA_ARCHCHANA", "CONTRASENA_INVITADOS", "COACH_PIN",
-                     "APP_ANTIGUA_URL"]
+                     "APP_ANTIGUA_URL", "CONTRASENA_DEMO"]
 
 
 def estado() -> dict:
@@ -349,6 +368,9 @@ def login(cuerpo: dict) -> dict:
     for nombre, clave in personales.items():
         if _igual(intento, clave):
             return _sesion_para(nombre)
+    if _igual(intento, env("CONTRASENA_DEMO")):
+        quien = env("DEMO_ATLETA") or "Yo"
+        return _sesion_para(quien if quien in ATLETAS else "Yo", demo=True)
     inv_clave = env("CONTRASENA_INVITADOS")
     if _igual(intento, inv_clave):
         return _login_invitado(cuerpo)
@@ -634,7 +656,7 @@ def vista(sesion: dict, atleta: str | None, semana: int | None, dia_id: str | No
     base = {"atleta": atleta, "nombre": nv(atleta), "solo": sesion.get("u") or None,
             "personas": [{"id": p, "nombre": nv(p)} for p in personas], "lang": IDIOMA_DEFECTO.get(atleta, "es"),
             "app_antigua": env("APP_ANTIGUA_URL"), "tipos": {k: v[0] for k, v in TIPOS.items()},
-            "unidades": UNIDADES, "con_prs": atleta not in SIN_PRS, "coach": coach,
+            "unidades": UNIDADES, "con_prs": atleta not in SIN_PRS, "coach": coach, "demo": es_demo(sesion),
             "puede_pesos": coach or bool((rut or {}).get("permiso_pesos")),
             "permiso_pesos": bool((rut or {}).get("permiso_pesos")),
             "solicitudes": [x for x in todas_sol if coach and (not sesion.get("u") or x["atleta"] == sesion["u"])],
@@ -645,7 +667,8 @@ def vista(sesion: dict, atleta: str | None, semana: int | None, dia_id: str | No
     aviso_semana = None
     if semana is None and atleta in ABRE_DIA_PENDIENTE and semana_completa(rut, actual):
         rut = dict(rut, semana_actual=actual + 1)  # semana validada entera: se pasa sola a la siguiente
-        datos().guardar(atleta, rut)
+        if not es_demo(sesion):
+            datos().guardar(atleta, rut)
         aviso_semana = f"¡Semana {actual} completada! Empiezas la {actual + 1} 🔥"
         actual += 1
     semana = int(semana or actual)
@@ -773,6 +796,86 @@ def parece_entreno(texto: str, nombre: str = "") -> bool:
     return buenas >= 1 and buenas > malas
 
 
+_MOVS_NOMBRE = [  # (palabras que lo detectan, nombre que se ve), en orden de prioridad
+    (("muscle up", "rmu", "bmu", "ring mu"), "Muscle ups"), (("thruster",), "Thrusters"), (("wall ball", "wb"), "Wall balls"),
+    (("burpee",), "Burpees"), (("toes to bar", "t2b", "ttb"), "T2B"), (("c2b", "chest to bar"), "C2B"),
+    (("pull up", "pull-up", "pullup", "dominada"), "Pull ups"), (("hspu", "handstand push"), "HSPU"),
+    (("double under", "dus", " du "), "DU"), (("db snatch",), "DB snatch"), (("kb swing", "swing"), "KB swings"),
+    (("box jump", "box step"), "Box jumps"), (("deadlift", "peso muerto"), "Deadlift"), (("squat clean", "power clean", "clean"), "Cleans"),
+    (("snatch",), "Snatch"), (("lunge", "zancada", "fente"), "Lunges"), (("farmer",), "Farmer carry"),
+    (("push up", "flexion"), "Push ups"), (("air squat", "squats"), "Squats"), (("sit up", "situp"), "Sit ups"),
+    (("rope climb", "cuerda"), "Rope climbs"), (("run", "correr", "corriendo", "milla", "mile", "carrera"), "Run"),
+    (("row", "remo"), "Row"), (("ski",), "Ski"), (("bike", "bici", "assault", "echo", "aab"), "Bike"),
+]
+_CARDIO = {"Run", "Row", "Ski", "Bike"}
+_GENERICOS = {"wod", "conditioning", "accessory", "mobility", "movilidad", "emom", "amrap", "for time", "gym", "metcon", "cardio"}
+
+
+def _limpia_texto_idea(texto: str) -> str:
+    """Quita las frases de chat que haya antes del entreno («Mañana me haces solo cardio»…)."""
+    import re
+    lineas = [l.rstrip() for l in (texto or "").split("\n")]
+    while lineas and lineas[0].strip() and not re.search(r"\d", lineas[0]) and \
+            not any(w in lineas[0].lower() for w in ("emom", "amrap", "for time", "every", "tabata", "rondas", "rounds")):
+        lineas.pop(0)
+    while lineas and not lineas[0].strip():
+        lineas.pop(0)
+    return "\n".join(lineas).strip() or (texto or "").strip()
+
+
+def nombre_idea(texto: str, nombre: str = "") -> str:
+    """Un nombre corto y útil: el que tenía si es bueno; si no, formato + movimientos principales."""
+    import re
+    t = " " + (texto or "").lower().replace("’", "'").replace("′", "'") + " "
+    primera = (texto or "").strip().split("\n")[0].strip().lower()
+    n = (nombre or "").strip()
+    charla = re.search(r"\b(me|te|mañana|manana|hoy|haces|hacemos|quieres|vamos)\b|\?", n.lower())
+    if n and n.lower() != primera and norm(n) not in _GENERICOS and not charla and len(n) <= 40:
+        return n
+    formato = ""
+    m = re.search(r"\bevery\s*(\d+(?::\d{2})?)\s*'?\s*x\s*(\d+)", t) or re.search(r"\bcada\s*(\d+(?::\d{2})?)\s*'?\s*x\s*(\d+)", t)
+    if m:
+        formato = f"Every {m.group(1)}' x{m.group(2)}"
+    elif re.search(r"\be(\d)mom", t):
+        k = re.search(r"\be(\d)mom\s*x?\s*(\d+)?", t)
+        formato = f"E{k.group(1)}MOM" + (f" x{k.group(2)}" if k.group(2) else "")
+    elif "emom" in t:
+        k = re.search(r"emom\s*(\d+)", t)
+        formato = f"EMOM {k.group(1)}'" if k else "EMOM"
+    elif "amrap" in t:
+        k = re.search(r"amrap\s*(\d+)", t)
+        formato = f"AMRAP {k.group(1)}'" if k else "AMRAP"
+    elif "tabata" in t:
+        formato = "Tabata"
+    elif re.search(r"for time|\brft\b|por tiempo", t):
+        k = re.search(r"(\d+)\s*(?:rondas|rounds|rft)", t)
+        formato = f"{k.group(1)} RFT" if k else "For time"
+    else:
+        k = re.search(r"\b(\d+)\s*(?:rondas|rounds)\b", t)
+        if k:
+            formato = f"{k.group(1)} rondas"
+        elif re.match(r"\s*\d+-\d+-\d+", t.strip()):
+            formato = re.match(r"\s*(\d+(?:-\d+)+)", t.strip()).group(1)
+    if not formato or formato == "For time":
+        k = re.match(r"\s*(?:for time\s*)?(\d+)\s*x\s", t.strip() + " ")
+        if k:
+            formato = f"{k.group(1)} RFT" if formato == "For time" or "for time" in t else f"{k.group(1)} rondas"
+    resto, encontrados = t, []
+    for claves, visto in _MOVS_NOMBRE:  # de más concreto a más general: «DB snatch» antes que «snatch»
+        pos = [resto.find(c) for c in claves if c in resto]
+        if pos and visto not in [v for _, v in encontrados]:
+            encontrados.append((min(pos), visto))
+            for c in claves:
+                resto = resto.replace(c, " " * len(c))
+    movs = [v for _, v in sorted(encontrados)]
+    if not movs:
+        return n or ((texto or "").strip().split("\n")[0][:40])
+    if not formato:
+        formato = "Cardio" if set(movs) <= _CARDIO else ("Chipper" if len(movs) >= 4 else "")
+    cuerpo = " · ".join(movs[:4]) + (" …" if len(movs) > 4 else "")
+    return f"{formato}: {cuerpo}" if formato else cuerpo
+
+
 def limpiar_biblioteca(sesion: dict, c: dict) -> dict:
     """Quita de la biblioteca lo que no sea un entreno. Con «probar» solo cuenta lo que quitaría."""
     if not es_coach(sesion):
@@ -795,8 +898,16 @@ def ideas() -> dict:
     """Ideas para rellenar una parte: el repertorio + lo ya guardado en la biblioteca."""
     bib = datos().rutinas([CLAVE_BIBLIOTECA]).get(CLAVE_BIBLIOTECA) or {}
     def de_bib(clave):
-        return [{"nombre": i.get("nombre") or "", "texto": i.get("texto", "")} for i in reversed(bib.get(clave) or [])
-                if parece_entreno(i.get("texto", ""), i.get("nombre", ""))][:40]
+        out, vistos = [], set()
+        for i in reversed(bib.get(clave) or []):
+            if not parece_entreno(i.get("texto", ""), i.get("nombre", "")):
+                continue
+            texto = _limpia_texto_idea(i.get("texto", ""))
+            if norm_busqueda(texto) in vistos:
+                continue
+            vistos.add(norm_busqueda(texto))
+            out.append({"nombre": nombre_idea(texto, i.get("nombre", "")), "texto": texto})
+        return out[:40]
     rep = lambda k: [{"nombre": n, "texto": t} for n, t in REPERTORIO.get(k, [])]
     return {"volumen": [{"nombre": n, "texto": t} for n, t in VOLUMEN],
             "wod": de_bib("wods") + rep("wod") + [{"nombre": n, "texto": t} for n, t in EXTRA_WODS], "conditioning": de_bib("conditionings") + rep("conditioning"),
