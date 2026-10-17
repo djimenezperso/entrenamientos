@@ -151,9 +151,46 @@ def _salatti():
     }
 
 
+def _archchana():
+    """En casa: 2 mancuernas ligeras, gomas y elíptica. En francés, con mucha movilidad. Propuesta para ajustar."""
+    def m(i, nombre, txt, parte):
+        return _l(i, nombre, txt, sube=0, parte=parte)
+    return {
+        "semana_actual": 1, "ajustes": {}, "nivel": "RX",
+        "material": "2 haltères légers, élastiques, elliptique (pas de barre, pas d'anneaux)",
+        "dias": [
+            {"id": "d1", "nombre": "Jour 1", "por_ejercicio": True, "lineas": [
+                m("a11", "Goblet squat DB", "4x12 tempo 3'' en descente", "A) Force"),
+                m("a12", "DB romanian deadlift", "4x12", "A) Force"),
+                _metcon("a13", "WOD", "AMRAP 12' : 10 DB thrusters, 10 fentes alternées, 200 m elliptique",
+                        parte="B) WOD"),
+                m("a14", "Mobilité hanches", "90/90 3x8 par côté + couch stretch 2x60''", "C) Movilidad"),
+            ]},
+            {"id": "d2", "nombre": "Jour 2", "lineas": [
+                _metcon("a21", "Conditioning", "10x 1' rapide / 1' lent elliptique", parte="A) Conditioning"),
+                m("a22", "Rowing élastique", "3x15", "B) Accessory"),
+                m("a23", "Face pull élastique", "3x15", "B) Accessory"),
+                m("a24", "Mobilité épaules", "Dislocates élastique 3x15 + wall slides 3x10", "C) Movilidad"),
+            ]},
+            {"id": "d3", "nombre": "Jour 3", "por_ejercicio": True, "lineas": [
+                m("a31", "Bulgarian split squat DB", "3x10 par jambe", "A) Force"),
+                m("a32", "DB push press", "4x10", "A) Force"),
+                _metcon("a33", "EMOM", "EMOM 16' : 1) 12 DB snatch alternés 2) 15 squats sautés "
+                        "3) 12 rowing élastique 4) repos", parte="B) EMOM"),
+                m("a34", "Mobilité dos", "Cat-cow 2x10 + open book 2x10 par côté", "C) Movilidad"),
+            ]},
+            {"id": "d4", "nombre": "Jour 4", "lineas": [
+                _metcon("a41", "Conditioning", "30' elliptique zone 2", parte="A) Conditioning"),
+                m("a42", "Flow mobilité", "Flujo de 15' : world's greatest stretch, deep squat hold, pigeon, "
+                  "pancake", "B) Movilidad"),
+            ]},
+        ],
+    }
+
+
 def rutinas_iniciales(atletas: list[str]) -> dict:
     """Asocia por posición: 0 = yo, 1 = Manu, 2 = Salatti, 3 = pareja. El resto empieza sin rutina."""
-    fabricas = {0: _yo, 1: _manu, 2: _salatti, 3: _pareja}
+    fabricas = {0: _yo, 1: _manu, 2: _salatti, 3: _pareja, 5: _archchana}
     return {a: fabricas[i]() for i, a in enumerate(atletas) if i in fabricas}
 
 
@@ -164,6 +201,8 @@ DINAMICO_1X10 = {"y31", "y32", "y33", "y34", "y51", "y52", "y53", "y54"}
 def migrar(rut: dict, atleta: str, atletas: list[str]) -> dict:
     if len(atletas) > 2 and atleta == atletas[2] and not any(d.get("lineas") for d in rut.get("dias", [])):
         return _salatti()  # tenía una rutina vacía: se pone la propuesta de 4 días
+    if len(atletas) > 5 and atleta == atletas[5] and not any(d.get("lineas") for d in rut.get("dias", [])):
+        return _archchana()
     if len(atletas) > 3 and atleta == atletas[3]:  # pareja: cada ejercicio de fuerza se puede marcar como no hecho
         hechas = rut.setdefault("migraciones", [])
         if "pareja_por_ejercicio" not in hechas:
