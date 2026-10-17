@@ -38,7 +38,7 @@ from logica import (
     ciclos_desde_coach, ciclos_en_marcha, empezar_ciclo, linea_activa, quitar_ciclo,
     LETRAS, _etiqueta_parte, anadir_parte, letra_visible, quitar_parte, deshacer_sustitucion, sustituir_parte,
     NIVELES, escalar, referencias_elite, FORMATOS, formato_de,
-    CATALOGO_PR, mejores_prs, movimiento_pr, prs_de_entrenos,
+    CATALOGO_PR, mejores_prs, movimiento_pr, prs_de_entrenos, versiones_por_movimiento,
 )
 from repertorio import CASA, COMPETICION, ELITE, HEROES, REPERTORIO
 from ciclos import CICLOS
@@ -694,7 +694,7 @@ def _contenido_elegido(tipo: str, l: dict, sel: tuple) -> tuple[str, str]:
 
 
 NIVEL_DEFECTO = {"Yo": "RX"}  # el resto empieza en Inter
-ALUMNOS = ["Salatti", "Dario", "Juan", "Mi esposa"]  # reciben los WODs que hizo «Yo» la semana anterior
+ALUMNOS = ["Salatti", "Dario", "Juan", "Mi esposa", "Manu Anel"]  # reciben los WODs que hizo «Yo» la semana anterior
 _SUG_RUN: dict = {}
 TIPOS_WOD_UI = ("wod", "emom", "fortime", "amrap")
 
@@ -766,6 +766,21 @@ def _versiones(texto: str, titulo: str = "", clave: str = ""):
             st.markdown(f"🏆 **{r['quien']}**: {r['marca']} ({r['detalle']}) · [fuente]({r['fuente']})")
 
 
+def _tabla_versiones(texto: str):
+    """RX · Inter · Scaled movimiento a movimiento (para los alumnos)."""
+    filas = versiones_por_movimiento(texto)
+    if not filas or all(f["RX"] == f["Inter"] == f["Scaled"] for f in filas):
+        return
+    lineas = []
+    for f in filas:
+        if f["RX"] == f["Inter"] == f["Scaled"]:
+            lineas.append(f"- {f['RX']}")
+        else:
+            lineas.append(f"- **RX** {f['RX']}  \n  :blue[**Inter**] {f['Inter']}  \n  :green[**Scaled**] {f['Scaled']}")
+    with st.expander("📋 RX · Inter · Scaled por movimiento"):
+        st.markdown("\n".join(lineas))
+
+
 def _reto_elite(texto: str, titulo: str = ""):
     refs = referencias_elite(f"{titulo}\n{texto}", ELITE)
     if refs:
@@ -827,6 +842,8 @@ def _linea_texto_editable(atleta: str, rut: dict, l: dict, txt: str, semana: int
     if txt and escalable and tipo in ("wod", "emom", "fortime", "amrap", "conditioning", "accessory"):
         if nivel != "RX":
             st.caption(f"Versión {nivel} · el RX está en 🎚️ Versiones")
+        if atleta in ALUMNOS:
+            _tabla_versiones(txt)
         _reto_elite(txt, l["ejercicio"])
         _versiones(txt, l["ejercicio"], k)
 
