@@ -297,7 +297,7 @@ def _igual(a: str, b: str) -> bool:
     return bool(a) and bool(b) and hmac.compare_digest(a.encode(), b.encode())
 
 
-VERSION = "3.2"
+VERSION = "3.3"
 CLAVES_NECESARIAS = ["SUPABASE_URL", "SUPABASE_KEY", "APP_PASSWORD", "CONTRASENA_ARCHCHANA", "CONTRASENA_INVITADOS", "COACH_PIN",
                      "APP_ANTIGUA_URL"]
 
@@ -745,11 +745,58 @@ def guardar_en_biblioteca(tipo: str, nombre: str, texto: str, atleta: str):
         pass
 
 
+_MOVIMIENTOS = ("squat", "deadlift", "clean", "snatch", "jerk", "press", "thruster", "burpee", "pull", "push", "row", "remo",
+                "bike", "ski", "run", "correr", "carrera", "wall ball", "wb", "kb", "db", "dumbbell", "mancuerna", "swing",
+                "lunge", "zancada", "box", "du ", "double", "t2b", "toes", "muscle", "rmu", "bmu", "hspu", "sit up", "situp",
+                "plank", "plancha", "cal ", "cals", "amrap", "emom", "e2mom", "e3mom", "for time", "ronda", "round", "tabata",
+                "every", "stretch", "mobility", "movilidad", "mobilite", "hip", "couch", "pigeon", "90/90", "banded", "hold",
+                "carry", "farmer", "rope", "pistol", "dip", "ring", "handstand", "step", "jump", "sprint", "metros", " m ",
+                "km", "rest", "descanso", "reps", "series", "x10", "x5", "@", "rm", "goblet", "hollow", "elliptique",
+                "elíptica", "eliptica", "haltere", "fente", "gainage", "pont", "etirement", "étirement", "squats", "curl",
+                "dislocate", "pancake", "bridge", "raise", "extension", "flexion", "abs", "core")
+_NO_ENTRENO = ("niña", "nina", "perro", "ruta ", "rutas", "planning", "granada", "cueva", "embalse", "planes", "plan ",
+               "playa", "restaurante", "vistas", "excursion", "excursión", "alhambra", "hotel", "viaje", "cumpleaños",
+               "te preparo", "si quieres", "¿prefieres", "prefieres", "jaja", "jeje")
+
+
+def parece_entreno(texto: str, nombre: str = "") -> bool:
+    """¿Es un entreno (WOD, conditioning, accessory, movilidad) y no una conversación o un plan cualquiera?"""
+    import re
+    t = f"{nombre}\n{texto or ''}".lower()
+    if not texto or len(texto) > 900 or not re.search(r"\d", t):
+        return False
+    malas = sum(1 for w in _NO_ENTRENO if w in t)
+    emojis = len(re.findall(r"[\U0001F300-\U0001FAFF\u2600-\u27BF]", t))
+    if malas >= 2 or emojis > 4 or t.count("?") > 2:
+        return False
+    buenas = sum(1 for w in _MOVIMIENTOS if w in f" {t} ") + len(re.findall(r"\b\d+\s*x\s*\d+", t))
+    return buenas >= 1 and buenas > malas
+
+
+def limpiar_biblioteca(sesion: dict, c: dict) -> dict:
+    """Quita de la biblioteca lo que no sea un entreno. Con «probar» solo cuenta lo que quitaría."""
+    if not es_coach(sesion):
+        raise Error("Solo el coach puede limpiar la biblioteca", 403)
+    bib = dict(datos().rutinas([CLAVE_BIBLIOTECA]).get(CLAVE_BIBLIOTECA) or {})
+    quitados, nuevo = [], {}
+    for clave, val in bib.items():
+        if clave in CLAVES_BIBLIO.values() and isinstance(val, list):
+            buenos = [i for i in val if parece_entreno(i.get("texto", ""), i.get("nombre", ""))]
+            quitados += [(i.get("nombre") or i.get("texto", "")[:60]).strip() for i in val if i not in buenos]
+            nuevo[clave] = buenos
+        else:
+            nuevo[clave] = val
+    if not c.get("probar") and quitados:
+        datos().guardar(CLAVE_BIBLIOTECA, nuevo)
+    return {"quitados": len(quitados), "ejemplos": quitados[:8], "hecho": not c.get("probar")}
+
+
 def ideas() -> dict:
     """Ideas para rellenar una parte: el repertorio + lo ya guardado en la biblioteca."""
     bib = datos().rutinas([CLAVE_BIBLIOTECA]).get(CLAVE_BIBLIOTECA) or {}
     def de_bib(clave):
-        return [{"nombre": i.get("nombre") or "", "texto": i.get("texto", "")} for i in reversed(bib.get(clave) or [])][:25]
+        return [{"nombre": i.get("nombre") or "", "texto": i.get("texto", "")} for i in reversed(bib.get(clave) or [])
+                if parece_entreno(i.get("texto", ""), i.get("nombre", ""))][:40]
     rep = lambda k: [{"nombre": n, "texto": t} for n, t in REPERTORIO.get(k, [])]
     return {"volumen": [{"nombre": n, "texto": t} for n, t in VOLUMEN],
             "wod": de_bib("wods") + rep("wod") + [{"nombre": n, "texto": t} for n, t in EXTRA_WODS], "conditioning": de_bib("conditionings") + rep("conditioning"),
