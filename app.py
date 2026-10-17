@@ -56,7 +56,7 @@ ATLETAS = ["Yo", "Manu Anel", "Salatti", "Mi esposa", "Dario", "Archchana", "Jua
 IDIOMA_DEFECTO = {"Archchana": "fr"}  # el resto, español
 # Nombre que se ve (por dentro «Yo» sigue siendo la misma persona, con todos sus datos)
 NOMBRE_VISIBLE = {"Yo": "Diego"}
-ICONO = {"Yo": "💪"}  # icono junto al nombre en el selector de personas
+ICONO = {"Yo": "💪", "Mi esposa": "🔥"}  # icono junto al nombre en el selector de personas
 # Orden en el que salen las personas arriba
 ORDEN_VISTA = ["Yo", "Mi esposa", "Manu Anel", "Salatti", "Dario", "Archchana", "Juan"]
 
@@ -481,14 +481,35 @@ def _etiqueta_extra(l: dict, txt: str, semana: int, ajuste: bool, subio: bool) -
 
 
 # ---------------------------------------------------------------- IA (opcional)
+TIPOS_IA = ("wod", "emom", "fortime", "amrap")  # la IA solo inventa WODs, y solo al pulsar el botón
+
+
 def ia_disponible() -> bool:
-    return bool(secreto("ANTHROPIC_API_KEY"))
+    return bool(secreto("OPENAI_API_KEY") or secreto("ANTHROPIC_API_KEY"))
 
 
 @st.cache_resource
-def _cliente_ia():
+def _cliente_openai():
+    from openai import OpenAI
+    return OpenAI(api_key=secreto("OPENAI_API_KEY"))
+
+
+@st.cache_resource
+def _cliente_anthropic():
     import anthropic
     return anthropic.Anthropic(api_key=secreto("ANTHROPIC_API_KEY"))
+
+
+def preguntar_ia(prompt: str, max_tokens: int = 2000) -> str:
+    """Una pregunta a la IA: OpenAI si hay OPENAI_API_KEY, si no Anthropic."""
+    if secreto("OPENAI_API_KEY"):
+        r = _cliente_openai().chat.completions.create(
+            model=secreto("OPENAI_MODEL", "gpt-5-mini"), max_completion_tokens=max_tokens,
+            messages=[{"role": "user", "content": prompt}])
+        return r.choices[0].message.content or ""
+    msg = _cliente_anthropic().messages.create(model=secreto("ANTHROPIC_MODEL", "claude-sonnet-5-5"),
+                                               max_tokens=max_tokens, messages=[{"role": "user", "content": prompt}])
+    return "".join(getattr(b, "text", "") for b in msg.content)
 
 
 QUE_ES = {"wod": "WOD de CrossFit", "conditioning": "sesión de conditioning (motor, cardio, intervalos)",
@@ -515,9 +536,7 @@ def inventar_con_ia(tipo: str, ejemplos: list[tuple[str, str]], idea: str, durac
           'Responde SOLO con JSON: {"nombre": "...", "texto": "..."}. '
           'En accessories, "nombre" es el ejercicio y "texto" las series, por ejemplo "3x10 @40".'
     )
-    msg = _cliente_ia().messages.create(model=secreto("ANTHROPIC_MODEL", "claude-sonnet-5-5"), max_tokens=500,
-                                        messages=[{"role": "user", "content": prompt}])
-    texto = "".join(getattr(b, "text", "") for b in msg.content)
+    texto = preguntar_ia(prompt, 3000)
     m = re.search(r"\{.*\}", texto, re.S)
     try:
         data = json.loads(m.group(0)) if m else {}
@@ -529,7 +548,7 @@ def inventar_con_ia(tipo: str, ejemplos: list[tuple[str, str]], idea: str, durac
 def _ia_panel(tipo: str, k: str, atleta: str | None = None):
     """Pide a la IA uno nuevo al estilo de lo hecho. Devuelve (nombre, texto) o None."""
     if not ia_disponible():
-        st.caption("La IA no está activada. Añade ANTHROPIC_API_KEY en los Secrets de Streamlit (lo explica el README).")
+        st.caption("La IA no está activada. Añade OPENAI_API_KEY en los Secrets de Streamlit.")
         return None
     idea = st.text_input(t("Idea (opcional)"), key=f"ii_{k}", placeholder="thrusters y pull ups, algo corto e intenso…")
     c1, c2, c3 = st.columns(3)
@@ -606,8 +625,8 @@ def _elegir_contenido(tipo: str, k: str, atleta: str | None = None):
     """✍️ Nuevo / 📚 Ya hechos / 💡 Repertorio / ✨ IA / 🔒 Coach. Devuelve (modo, (nombre, texto) | None)."""
     con_coach = atleta in ACCESO_COACH and not solo() and bool(secreto("COACH_PIN"))
     con_diego = es_alumno(atleta) and tipo in TIPOS_WOD_UI
-    modos = (["🎓 De Diego"] if con_diego else []) + ["✍️ Nuevo", "📚 Ya hechos", "💡 Repertorio", "✨ IA"] + (
-        ["🔒 Coach"] if con_coach else [])
+    modos = (["🎓 De Diego"] if con_diego else []) + ["✍️ Nuevo", "📚 Ya hechos", "💡 Repertorio"] + (
+        ["✨ IA"] if tipo in TIPOS_IA else []) + (["🔒 Coach"] if con_coach else [])
     formato = tipo if tipo in FORMATOS else None
     modo = st.segmented_control("Origen", modos, default="✍️ Nuevo",
                                 key=f"om_{k}", label_visibility="collapsed", format_func=t) or "✍️ Nuevo"
@@ -1319,9 +1338,7 @@ def inventar_rutina_con_ia(atleta: str, dias: int, enfoque: str, con_coach: bool
           '"Back squat", "prescripcion": "5x5 @60"}, {"parte": "B) WOD", "ejercicio": "WOD", "prescripcion": '
           '"AMRAP 12\': …"}]}]}'
     )
-    msg = _cliente_ia().messages.create(model=secreto("ANTHROPIC_MODEL", "claude-sonnet-5-5"), max_tokens=3000,
-                                        messages=[{"role": "user", "content": prompt}])
-    texto = "".join(getattr(b, "text", "") for b in msg.content)
+    texto = preguntar_ia(prompt, 8000)
     m = re.search(r"\{.*\}", texto, re.S)
     return rutina_desde_json(json.loads(m.group(0)) if m else {}, _nuevo_id)
 
@@ -1330,7 +1347,7 @@ def crear_rutina(atleta: str, guardadas: dict):
     st.info(f"{nv(atleta)} aún no tiene rutina." if lang() == "es" else f"{nv(atleta)} n'a pas encore de programme.")
     otras = {a: (guardadas.get(a) or rutinas_iniciales(ATLETAS).get(a)) for a in visibles() if a != atleta}
     otras = {a: r for a, r in otras.items() if r}
-    opciones = ["Vacía"] + (["Copiar la de otra persona"] if otras else []) + (["✨ Con IA según su estilo"] if ia_disponible() else [])
+    opciones = ["Vacía"] + (["Copiar la de otra persona"] if otras else [])
     modo = st.radio("Cómo crearla", opciones, key=f"cr_modo_{atleta}", horizontal=True)
     if modo == "Copiar la de otra persona":
         origen = st.selectbox("Copiar de", list(otras), key=f"cr_origen_{atleta}", format_func=nv)
@@ -1741,16 +1758,17 @@ def seccion_biblio(tipo: str, todos: list[dict]):
     with st.expander(t("📲 Importar de WhatsApp")):
         importar_whatsapp(bib, tipo)
 
-    with st.expander(t("✨ Inventar con IA")):
-        res = _ia_panel(tipo, f"sec_{tipo}")
-        if res and st.button("Guardar en la lista como idea", key=f"ig_{tipo}"):
-            bib2 = dict(bib, **{clave: bib.get(clave, []) + [{
-                "id": uuid.uuid4().hex[:8], "nombre": res[0], "texto": res[1], "quien": [],
-                "fecha": dt.date.today().isoformat(), "resultado": "", "idea": True}]})
-            guardar_rutina(CLAVE_BIBLIOTECA, bib2)
-            st.session_state.pop(f"ir_sec_{tipo}", None)
-            st.session_state["aviso"] = "Guardado como idea (quita «Solo los hechos» para verlo)"
-            st.rerun()
+    if tipo == "wod":
+        with st.expander(t("✨ Inventar con IA")):
+            res = _ia_panel(tipo, f"sec_{tipo}")
+            if res and st.button("Guardar en la lista", key=f"ig_{tipo}"):
+                bib2 = dict(bib, **{clave: bib.get(clave, []) + [{
+                    "id": uuid.uuid4().hex[:8], "nombre": res[0], "texto": res[1], "quien": [],
+                    "fecha": dt.date.today().isoformat(), "resultado": "", "idea": True}]})
+                guardar_rutina(CLAVE_BIBLIOTECA, bib2)
+                st.session_state.pop(f"ir_sec_{tipo}", None)
+                st.session_state["aviso"] = "Guardado en la lista de WODs"
+                st.rerun()
 
     with st.expander(t("💡 Ideas del repertorio")):
         q2 = st.text_input(t("Buscar en el repertorio"), key=f"{k}_rq", placeholder="thruster, row…")
