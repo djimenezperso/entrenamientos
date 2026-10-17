@@ -58,7 +58,10 @@ class Error(Exception):
 
 
 def env(nombre: str, defecto: str = "") -> str:
-    return (os.environ.get(nombre) or defecto).strip()
+    v = (os.environ.get(nombre) or defecto).strip()
+    if len(v) >= 2 and v[0] == v[-1] and v[0] in "\"'":  # si se pegó con comillas, como en los secrets de Streamlit
+        v = v[1:-1].strip()
+    return v
 
 
 def nv(atleta: str) -> str:
@@ -70,7 +73,8 @@ class Supabase:
     """La tabla `rutinas` (athlete, data) por la API REST de Supabase."""
 
     def __init__(self, url: str, key: str):
-        self.base = url.rstrip("/") + "/rest/v1"
+        u = urllib.parse.urlparse(url.strip() if "://" in url else "https://" + url.strip())
+        self.base = f"{u.scheme}://{u.netloc}/rest/v1"  # solo el dominio, aunque se pegue con /rest/v1 u otra cosa detrás
         self.h = {"apikey": key, "Authorization": f"Bearer {key}", "Content-Type": "application/json"}
 
     def _pedir(self, metodo: str, ruta: str, cuerpo=None, extra: dict | None = None):
@@ -185,6 +189,46 @@ def _sesion_para(solo: str | None) -> dict:
             "solo": solo, "lang": IDIOMA_DEFECTO.get(solo or "", "es")}
 
 
+def _limpia(txt: str) -> str:
+    """Para comparar contraseñas: sin comillas alrededor, sin espacios de más, mismos acentos."""
+    import unicodedata
+    v = unicodedata.normalize("NFC", str(txt or "")).replace("\u00a0", " ").strip()
+    if len(v) >= 2 and v[0] == v[-1] and v[0] in "\"'":
+        v = v[1:-1]
+    return " ".join(v.split())
+
+
+def _igual(a: str, b: str) -> bool:
+    a, b = _limpia(a), _limpia(b)
+    return bool(a) and bool(b) and hmac.compare_digest(a.encode(), b.encode())
+
+
+CLAVES_NECESARIAS = ["SUPABASE_URL", "SUPABASE_KEY", "APP_PASSWORD", "CONTRASENA_ARCHCHANA", "CONTRASENA_INVITADOS",
+                     "APP_ANTIGUA_URL"]
+
+
+def estado() -> dict:
+    """Qué variables le llegan al servidor (nunca su valor) y si los datos responden."""
+    out = {}
+    for k in CLAVES_NECESARIAS:
+        crudo = os.environ.get(k)
+        if crudo is None:
+            out[k] = "FALTA"
+            continue
+        avisos = []
+        if crudo != crudo.strip():
+            avisos.append("espacios al principio o al final")
+        if crudo.strip()[:1] in "\"'" and crudo.strip()[-1:] == crudo.strip()[:1]:
+            avisos.append("tiene comillas")
+        out[k] = "ok" + (" · " + ", ".join(avisos) if avisos else "")
+    try:
+        n = len(datos().rutinas(ATLETAS))
+        out["datos"] = f"ok · {n} rutinas en {'Supabase' if isinstance(datos(), Supabase) else 'modo local (faltan claves de Supabase)'}"
+    except Exception as e:  # noqa: BLE001
+        out["datos"] = f"ERROR: {e}"[:300]
+    return out
+
+
 def _hash(nombre: str, pin: str) -> str:
     return hashlib.sha256(f"{nombre.lower()}|{pin}".encode()).hexdigest()
 
@@ -203,13 +247,13 @@ def login(cuerpo: dict) -> dict:
         pass
     if env("CONTRASENA_ARCHCHANA"):
         personales["Archchana"] = env("CONTRASENA_ARCHCHANA")
-    if hmac.compare_digest(intento, general):
+    if _igual(intento, general):
         return _sesion_para(None)
     for nombre, clave in personales.items():
-        if clave and hmac.compare_digest(intento, clave):
+        if _igual(intento, clave):
             return _sesion_para(nombre)
     inv_clave = env("CONTRASENA_INVITADOS")
-    if inv_clave and hmac.compare_digest(intento, inv_clave):
+    if _igual(intento, inv_clave):
         return _login_invitado(cuerpo)
     raise Error("Contraseña incorrecta · Mot de passe incorrect", 401)
 
