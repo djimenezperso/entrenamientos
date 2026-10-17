@@ -27,7 +27,7 @@ class handler(BaseHTTPRequestHandler):
 
     def _cuerpo(self) -> dict:
         n = int(self.headers.get("Content-Length") or 0)
-        if n > 200_000:
+        if n > 4_500_000:
             raise servicio.Error("Demasiado grande", 413)
         return json.loads(self.rfile.read(n) or b"{}") if n else {}
 
@@ -44,6 +44,12 @@ class handler(BaseHTTPRequestHandler):
                 return self._responder(200, servicio.vista(self._sesion(), q.get("atleta"),
                                                            int(q["semana"]) if q.get("semana") else None,
                                                            q.get("dia")))
+            if ruta == "registrar" and metodo == "POST":
+                return self._responder(200, servicio.registrar(self._sesion(), self._cuerpo()))
+            if ruta == "coach" and metodo == "POST":
+                return self._responder(200, servicio.modo_coach(self._sesion(), self._cuerpo()))
+            if ruta == "resolver" and metodo == "POST":
+                return self._responder(200, servicio.resolver_solicitud(self._sesion(), self._cuerpo()))
             if ruta == "accion" and metodo == "POST":
                 return self._responder(200, servicio.accion(self._sesion(), self._cuerpo()))
             return self._responder(404, {"error": "No existe"})
