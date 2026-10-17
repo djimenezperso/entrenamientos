@@ -116,9 +116,44 @@ def _pareja():
     }
 
 
+def _salatti():
+    """Propuesta de 4 días (semana 1). Cambiar con lo que hizo de verdad tocando cada parte."""
+    nota = "propuesta: cámbialo por lo que hiciste"
+    return {
+        "semana_actual": 1,
+        "ajustes": {},
+        "nivel": "Inter",
+        "dias": [
+            {"id": "d1", "nombre": "Día 1", "por_ejercicio": True, "lineas": [
+                _l("s11", "Back squat", "5x5 @80", nota=nota),
+                _l("s12", "Strict press", "4x6 @40", nota=nota),
+                _metcon("s13", "WOD", "AMRAP 12': 10 wall balls 9/6 kg, 10 box jumps, 10 KB swings 24/16 kg",
+                        nota=nota),
+            ]},
+            {"id": "d2", "nombre": "Día 2", "por_ejercicio": True, "lineas": [
+                _l("s21", "Power clean", "5x3 @60", nota=nota),
+                _l("s22", "Front squat", "4x4 @70", nota=nota),
+                _metcon("s23", "For time", "For time 3 rondas: 400 m run, 15 thrusters 43/30 kg, 12 pull ups",
+                        nota=nota, parte="B) For time"),
+            ]},
+            {"id": "d3", "nombre": "Día 3", "lineas": [
+                _metcon("s31", "EMOM", "EMOM 16': 12 cal row / 10 burpees / 8 DB snatch 22,5/15 / descanso",
+                        nota=nota, parte="A) EMOM"),
+                _l("s32", "Romanian deadlift", "3x10 @60", sube=0, nota=nota, parte="B) Accessory"),
+                _l("s33", "DB row", "3x12 por brazo", sube=0, nota=nota, parte="B) Accessory"),
+            ]},
+            {"id": "d4", "nombre": "Día 4", "por_ejercicio": True, "lineas": [
+                _l("s41", "Deadlift", "5x3 @100", nota=nota),
+                _l("s42", "Bench press", "4x6 @60", nota=nota),
+                _metcon("s43", "Conditioning", "4x 500 m row · R 1:30", nota=nota, parte="B) Conditioning"),
+            ]},
+        ],
+    }
+
+
 def rutinas_iniciales(atletas: list[str]) -> dict:
-    """Asocia por posición: 0 = yo, 1 = Manu, 3 = pareja. El resto empieza sin rutina."""
-    fabricas = {0: _yo, 1: _manu, 3: _pareja}
+    """Asocia por posición: 0 = yo, 1 = Manu, 2 = Salatti, 3 = pareja. El resto empieza sin rutina."""
+    fabricas = {0: _yo, 1: _manu, 2: _salatti, 3: _pareja}
     return {a: fabricas[i]() for i, a in enumerate(atletas) if i in fabricas}
 
 
@@ -127,6 +162,8 @@ DINAMICO_1X10 = {"y31", "y32", "y33", "y34", "y51", "y52", "y53", "y54"}
 
 
 def migrar(rut: dict, atleta: str, atletas: list[str]) -> dict:
+    if len(atletas) > 2 and atleta == atletas[2] and not any(d.get("lineas") for d in rut.get("dias", [])):
+        return _salatti()  # tenía una rutina vacía: se pone la propuesta de 4 días
     if len(atletas) > 3 and atleta == atletas[3]:  # pareja: cada ejercicio de fuerza se puede marcar como no hecho
         hechas = rut.setdefault("migraciones", [])
         if "pareja_por_ejercicio" not in hechas:
