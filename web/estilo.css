@@ -383,3 +383,6 @@ main { padding: 4px 16px 0; display: flex; flex-direction: column; gap: 12px; }
 .nov-botones { display: grid; grid-template-columns: 1fr 1.4fr; gap: 8px; }
 .nov-botones .btn:not(.btn-fuego) { background: rgba(255,255,255,.1); border-color: rgba(255,255,255,.25); color: #fff; }
 .sol-texto { background: var(--crema); border-radius: 14px; padding: 10px 12px; font-size: 14px; white-space: pre-line; line-height: 1.45; }
+
+.pin-inline { background: #fff; border: 2px solid var(--tinta); border-radius: 18px; padding: 12px; display: flex; flex-direction: column; gap: 8px; }
+.pin-inline span { font-size: 13px; font-weight: 600; }
