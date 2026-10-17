@@ -297,7 +297,7 @@ def _igual(a: str, b: str) -> bool:
     return bool(a) and bool(b) and hmac.compare_digest(a.encode(), b.encode())
 
 
-VERSION = "3.1"
+VERSION = "3.2"
 CLAVES_NECESARIAS = ["SUPABASE_URL", "SUPABASE_KEY", "APP_PASSWORD", "CONTRASENA_ARCHCHANA", "CONTRASENA_INVITADOS", "COACH_PIN",
                      "APP_ANTIGUA_URL"]
 
@@ -704,6 +704,27 @@ def vista(sesion: dict, atleta: str | None, semana: int | None, dia_id: str | No
 
 
 # ===== biblioteca y novedades =====
+# Más ideas para «Al azar» (se suman al repertorio y a la biblioteca)
+EXTRA_WODS = [
+    ("EMOM 12' cleans", "EMOM 12': 3 power cleans @70%"),
+    ("EMOM 14' engine", "EMOM 14':\nmin 1: 14/12 cal row\nmin 2: 12 burpees"),
+    ("EMOM 20' 4 estaciones", "EMOM 20':\nmin 1: 15 wall balls\nmin 2: 12 T2B\nmin 3: 14/11 cal bike\nmin 4: descanso"),
+    ("EMOM 16' gym", "EMOM 16':\nimpar: 5 strict pull ups\npar: 10 HSPU (o 15 pike push ups)"),
+    ("E2MOM x6 thrusters", "E2MOM x6: 10 thrusters @43/30 + 20 DU"),
+    ("EMOM 18' DB", "EMOM 18':\nmin 1: 12 DB snatch alternos\nmin 2: 10 DB box step overs\nmin 3: 30\" plank"),
+    ("E3MOM x5 run", "E3MOM x5: 400 m run + 10 burpees"),
+    ("EMOM 10' snatch", "EMOM 10': 2 squat snatch @75%"),
+    ("AMRAP 12' clásico", "AMRAP 12': 9 KB swings, 12 box jumps, 15 wall balls"),
+    ("AMRAP 15' run", "AMRAP 15': 200 m run, 10 T2B, 15 air squats"),
+    ("AMRAP 10' DB", "AMRAP 10': 8 DB thrusters, 8 DB renegade rows, 8 burpees"),
+    ("AMRAP 20' chipper", "AMRAP 20': 5 pull ups, 10 push ups, 15 air squats, 20 DU"),
+    ("For time 21-15-9 DB", "For time 21-15-9: DB snatch @22,5 + burpees over DB"),
+    ("For time 5 rondas", "5 rondas for time: 15 cal row, 12 deadlifts @60, 9 bar facing burpees"),
+    ("For time pirámide", "For time 10-9-8…1: KB swings + goblet squats"),
+    ("For time 1000 m", "For time: 1000 m row, 50 thrusters @20 kg, 30 pull ups · cap 15'"),
+]
+
+
 def guardar_en_biblioteca(tipo: str, nombre: str, texto: str, atleta: str):
     """Igual que en app.py: lo creado a mano en la rutina se guarda también en su sección para reutilizarlo."""
     tipo = {"emom": "wod", "fortime": "wod", "amrap": "wod"}.get(tipo, tipo)
@@ -731,7 +752,7 @@ def ideas() -> dict:
         return [{"nombre": i.get("nombre") or "", "texto": i.get("texto", "")} for i in reversed(bib.get(clave) or [])][:25]
     rep = lambda k: [{"nombre": n, "texto": t} for n, t in REPERTORIO.get(k, [])]
     return {"volumen": [{"nombre": n, "texto": t} for n, t in VOLUMEN],
-            "wod": de_bib("wods") + rep("wod"), "conditioning": de_bib("conditionings") + rep("conditioning"),
+            "wod": de_bib("wods") + rep("wod") + [{"nombre": n, "texto": t} for n, t in EXTRA_WODS], "conditioning": de_bib("conditionings") + rep("conditioning"),
             "accessory": de_bib("accessories") + rep("accessory"), "mobility": de_bib("movilidad") + rep("mobility"),
             "tipos": TIPOS_PARTE}
 
