@@ -70,7 +70,7 @@ const FR = {
   "de un registro": "d'un enregistrement", "Cuando tengas más marcas de este movimiento verás aquí su evolución.": "Avec plus de marques, tu verras l'évolution ici.",
   "Movimiento": "Mouvement", "Otro…": "Autre…", "¿Cuál?": "Lequel ?", "Marca": "Marque", "Reps (1 = 1RM)": "Reps (1 = 1RM)",
   "Nota": "Note", "con cinturón…": "avec ceinture…", "Guardar PR": "Enregistrer le record",
-  "Salen solos de lo que registras si el ejercicio se llama igual (por ejemplo «Back squat», «RMU» o «5 km run»).": "Ils viennent aussi de tes séances si l'exercice a le même nom.", "¿Eres Diego? Mete tu PIN de coach y lo cambias directamente": "Tu es Diego ? Mets ton PIN de coach", "Ajustar": "Ajuster", "Ajustar reps": "Ajuster les reps", "Semana que viene": "Semaine prochaine",
+  "Salen solos de lo que registras si el ejercicio se llama igual (por ejemplo «Back squat», «RMU» o «5 km run»).": "Ils viennent aussi de tes séances si l'exercice a le même nom.", "¿Eres Diego? Mete tu PIN de coach y lo cambias directamente": "Tu es Diego ? Mets ton PIN de coach", "Ajustar": "Ajuster", "Último": "Dernier", "Ajustar reps": "Ajuster les reps", "Semana que viene": "Semaine prochaine",
   "Cambiar esta parte": "Changer cette partie", "Añadir parte": "Ajouter une partie", "Novedad de Diego": "Nouveauté de Diego",
   "Diego se lo ha puesto. ¿Te viene bien hoy?": "Diego l'a fait. Ça te va aujourd'hui ?", "Hoy no": "Pas aujourd'hui",
   "Ponérmelo hoy": "Je le fais aujourd'hui", "Lo programa tu coach": "C'est ton coach qui programme",
@@ -342,6 +342,8 @@ function corto(o) {
   return "→ " + (n ? "D" + n : dia.slice(0, 6)) + (sem ? " " + sem : "");
 }
 
+const ultimoHtml = (l) => l.ultimo ? `<div class="ultimo">${ic.reloj.replace('width="22" height="22"', 'width="14" height="14"')}<span>${t("Último")}: <b>${esc(l.ultimo.valor)}</b> · ${esc(l.ultimo.fecha)}</span></div>` : "";
+
 function linea(l, p, k) {
   const extra = l.extra ? ` <span class="etq ${l.extra.tono}">${esc(l.extra.texto)}</span>` : "";
   const nota = l.nota ? `<div class="mini">${esc(l.nota)}</div>` : "";
@@ -354,7 +356,7 @@ function linea(l, p, k) {
     return `<div class="linea" data-l="${k}">
       ${p.lineas.length > 1 || extra ? `<div class="linea-cab"><b>${p.lineas.length > 1 ? esc(l.ejercicio) : ""}${extra}</b></div>` : ""}
       ${l.esquema ? `<div class="esquema">${esc(l.esquema)}</div>` : ""}
-      <div class="pesos">${pesos}</div>${nota}
+      <div class="pesos">${pesos}</div>${nota}${ultimoHtml(l)}
       ${p.origen ? "" : `<div class="acciones-linea"><button class="mini-btn" data-editar="${k}">${ic.lapiz} ${t("Ajustar reps")}</button>${l.texto_sig && l.texto_sig !== l.texto ? `<span class="mini">${t("Semana que viene")}: ${esc(l.texto_sig.slice(0, 60))}</span>` : ""}</div>`}
       ${l.no_hecha !== undefined ? `<label class="check"><input type="checkbox" data-nh="${k}" ${l.no_hecha ? "checked" : ""}> ${t("No lo hice (repite peso la semana que viene)")}</label>` : ""}
     </div>`;
@@ -363,7 +365,7 @@ function linea(l, p, k) {
   const nombre = l.solo_bloque || (p.lineas.length === 1) ? "" : `<b>${esc(l.ejercicio)}</b>`;
   let html = `<div class="linea" data-l="${k}">
     ${nombre || extra || (l.nivel && l.nivel !== "RX") ? `<div class="linea-cab">${nombre}<span>${extra}${l.nivel && l.nivel !== "RX" && visto ? ` <span class="etq nivel">${esc(l.nivel)}</span>` : ""}</span></div>` : ""}
-    <div class="texto-wod">${visto ? esc(visto) : `<span class="mini">${t("por definir")}</span>`}</div>${nota}`;
+    <div class="texto-wod">${visto ? esc(visto) : `<span class="mini">${t("por definir")}</span>`}</div>${nota}${ultimoHtml(l)}`;
   if (l.sugerencia) html += `<div class="sug">${ic.llama("#8A5E00", 20)}<span>${t("WOD de Diego · semana")} ${l.sugerencia.semana}, ${esc(l.sugerencia.dia)}</span>
     <button data-fijar="${k}">${t("Fijar")}</button></div>`;
   if (l.tabla) html += `<details class="desplegable"><summary>${t("RX · Inter · Scaled por movimiento")} ${ic.abajo}</summary>
