@@ -1,0 +1,11 @@
+{
+  "functions": {
+    "api/index.py": { "includeFiles": "motor/**", "maxDuration": 20 }
+  },
+  "rewrites": [
+    { "source": "/api/:ruta*", "destination": "/api/index?r=:ruta" }
+  ],
+  "headers": [
+    { "source": "/motor/(.*)", "headers": [{ "key": "X-Robots-Tag", "value": "noindex" }] }
+  ]
+}

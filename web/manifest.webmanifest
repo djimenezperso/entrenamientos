@@ -1,0 +1,17 @@
+{
+  "name": "Djimenez Prog",
+  "short_name": "Djimenez",
+  "description": "Tu entrenamiento, tu progresión",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#FF7A1F",
+  "theme_color": "#FF7A1F",
+  "lang": "es",
+  "icons": [
+    { "src": "icono-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "icono-512.png", "sizes": "512x512", "type": "image/png" },
+    { "src": "icono-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}
