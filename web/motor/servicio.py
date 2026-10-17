@@ -297,7 +297,7 @@ def _igual(a: str, b: str) -> bool:
     return bool(a) and bool(b) and hmac.compare_digest(a.encode(), b.encode())
 
 
-VERSION = "3.0"
+VERSION = "3.1"
 CLAVES_NECESARIAS = ["SUPABASE_URL", "SUPABASE_KEY", "APP_PASSWORD", "CONTRASENA_ARCHCHANA", "CONTRASENA_INVITADOS", "COACH_PIN",
                      "APP_ANTIGUA_URL"]
 
@@ -412,6 +412,37 @@ def es_movilidad(parte: str, lineas: list[dict]) -> bool:
 def movilidad_primero(grupos: list[tuple[str, list[dict]]]) -> list[tuple[str, list[dict]]]:
     """La movilidad, si la hay, siempre al principio del día (las letras se ponen luego por posición)."""
     return [g for g in grupos if es_movilidad(*g)] + [g for g in grupos if not es_movilidad(*g)]
+
+
+def semana_completa(rut: dict, semana: int) -> bool:
+    """Todas las partes de la semana validadas (hechas, no hechas o pasadas) y sin pendientes por hacer en ella."""
+    if not rut.get("dias") or not any(agrupar_por_parte(d, semana) for d in rut["dias"]):
+        return False
+    return not sin_validar(rut, semana) and not any(pendientes_para(rut, semana, d["id"]) for d in rut["dias"])
+
+
+def avanzar_si_completa(atleta: str, rut: dict) -> tuple[dict, str | None]:
+    """Si con este cambio queda validada toda la semana actual, pasa a la siguiente (solo Diego y su mujer)."""
+    actual = int(rut.get("semana_actual") or 1)
+    if atleta in ABRE_DIA_PENDIENTE and semana_completa(rut, actual):
+        return dict(rut, semana_actual=actual + 1), f"¡Semana {actual} completada! La próxima vez se abre la {actual + 1} 🔥"
+    return rut, None
+
+
+def ultimos_resultados(atleta: str) -> dict:
+    """{ejercicio normalizado: {valor, fecha}} con lo último que registró de cada ejercicio."""
+    try:
+        ws = datos().entrenos(atleta, 120)
+    except Error:
+        return {}
+    out = {}
+    for w in ws:  # vienen de más nuevo a más viejo
+        for e in w.get("entries") or []:
+            k = norm(e.get("name", ""))
+            if k and k not in out and e.get("value") is not None:
+                d = a_fecha(w["date"])
+                out[k] = {"valor": fmt_valor(e["value"], e.get("unit", "")), "fecha": f"{d.day} {MESES_ES[d.month - 1]}"}
+    return out
 
 
 def wods_de_diego(rut_yo: dict | None) -> list[dict]:
@@ -611,6 +642,12 @@ def vista(sesion: dict, atleta: str | None, semana: int | None, dia_id: str | No
     if not rut or not rut.get("dias"):
         return {**base, "sin_rutina": True}
     actual = int(rut.get("semana_actual") or 1)
+    aviso_semana = None
+    if semana is None and atleta in ABRE_DIA_PENDIENTE and semana_completa(rut, actual):
+        rut = dict(rut, semana_actual=actual + 1)  # semana validada entera: se pasa sola a la siguiente
+        datos().guardar(atleta, rut)
+        aviso_semana = f"¡Semana {actual} completada! Empiezas la {actual + 1} 🔥"
+        actual += 1
     semana = int(semana or actual)
     nivel = rut.get("nivel") or NIVEL_DEFECTO.get(atleta, "Inter")
     sugs = sugerencias(rut, semana, wods_de_diego(rutina("Yo", guardadas))) if alumno else {}
@@ -646,6 +683,14 @@ def vista(sesion: dict, atleta: str | None, semana: int | None, dia_id: str | No
         p["registro"] = {**registro_inicial(rut, origen, so, lineas, f"Semana {so} · {origen['nombre']} · {parte}"),
                          "partes": [{"parte": parte, "texto": p["etiqueta"], "semana": so, "dia": did}]}
         pendientes.append(p)
+    ultimos = ultimos_resultados(atleta)
+    for p_ in partes + pendientes:
+        for l in p_["lineas"]:
+            u = ultimos.get(norm(l["ejercicio"]))
+            if u:
+                l["ultimo"] = u
+    if aviso_semana:
+        base["aviso"] = aviso_semana
     return {**base, "semana": semana, "actual": actual, "nivel": nivel, "niveles": NIVELES, "alumno": alumno,
             "dias": dias, "dia": {"id": dia["id"], "nombre": dia["nombre"], "estado": resumen_dia(rut, semana, dia),
                                   "por_ejercicio": bool(dia.get("por_ejercicio"))},
@@ -885,9 +930,10 @@ def accion(sesion: dict, c: dict) -> dict:
         aviso = "WOD de Diego fijado"
     else:
         raise Error("Acción desconocida")
+    rut, fin_semana = avanzar_si_completa(atleta, rut)
     datos().guardar(atleta, rut)
     v = vista(sesion, atleta, int(c.get("ver_semana") or semana), c.get("ver_dia"))
-    v["aviso"] = aviso
+    v["aviso"] = fin_semana or aviso
     return v
 
 
@@ -963,9 +1009,12 @@ def registrar(sesion: dict, c: dict) -> dict:
         rut = rutina(atleta)
         for p in hechas:
             rut = marcar_parte(rut, int(p.get("semana") or rut.get("semana_actual") or 1), p["dia"], p["parte"], "hecho")
+        rut, fin_semana = avanzar_si_completa(atleta, rut)
         datos().guardar(atleta, rut)
+    else:
+        fin_semana = None
     v = vista(sesion, atleta, c.get("ver_semana"), c.get("ver_dia"))
-    v["aviso"] = "Entreno guardado" + (f" · {len(hechas)} parte{'s' if len(hechas) != 1 else ''} hecha{'s' if len(hechas) != 1 else ''}" if hechas else "")
+    v["aviso"] = fin_semana or "Entreno guardado" + (f" · {len(hechas)} parte{'s' if len(hechas) != 1 else ''} hecha{'s' if len(hechas) != 1 else ''}" if hechas else "")
     if aviso_pr:
         v["pr"] = aviso_pr
     return v
