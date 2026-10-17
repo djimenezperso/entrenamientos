@@ -8,6 +8,8 @@ Variables de entorno (en Vercel → Settings → Environment Variables):
   APP_PASSWORD                    contraseña general (ve a todos)
   CONTRASENA_ARCHCHANA            contraseña solo de Archchana
   CONTRASENA_INVITADOS            contraseña para invitados (nombre + PIN)
+  CONTRASENA_DEMO                 opcional: contraseña de "solo mirar" para enseñar la app (no puede cambiar nada)
+  DEMO_ATLETA                     opcional: qué rutina ve la demo (por defecto la de Diego, "Yo")
   ACCESOS_PERSONALES              opcional, JSON {"Salatti": "su-clave", …}
   SESION_SECRETO                  opcional; si falta se deriva de las otras claves
   APP_ANTIGUA_URL                 opcional: enlace a la app de Streamlit (para lo que aún no está aquí)
@@ -259,11 +261,27 @@ def leer_sesion(token: str) -> dict:
     return s
 
 
-def _sesion_para(solo: str | None, coach: bool = False) -> dict:
-    datos_s = {"u": solo or "", "exp": int(time.time()) + 120 * 86400}
+def _sesion_para(solo: str | None, coach: bool = False, demo: bool = False) -> dict:
+    datos_s = {"u": solo or "", "exp": int(time.time()) + (14 if demo else 120) * 86400}
     if coach:
         datos_s["c"] = 1
-    return {"token": firmar(datos_s), "solo": solo, "lang": IDIOMA_DEFECTO.get(solo or "", "es"), "coach": coach}
+    if demo:
+        datos_s["d"] = 1
+    return {"token": firmar(datos_s), "solo": solo, "lang": IDIOMA_DEFECTO.get(solo or "", "es"), "coach": coach,
+            "demo": demo}
+
+
+MENSAJE_DEMO = "👀 Esto es una demo: aquí solo se puede mirar. Si te gusta, ¡díselo a Diego!"
+
+
+def es_demo(sesion: dict) -> bool:
+    return bool(sesion.get("d"))
+
+
+def solo_lectura(sesion: dict) -> None:
+    """La demo puede mirarlo todo pero no cambia nada (ni pesos, ni registros, ni modo coach)."""
+    if es_demo(sesion):
+        raise Error(MENSAJE_DEMO, 403)
 
 
 def es_coach(sesion: dict) -> bool:
@@ -272,6 +290,7 @@ def es_coach(sesion: dict) -> bool:
 
 def modo_coach(sesion: dict, c: dict) -> dict:
     """Activa (con el PIN del coach) o quita el modo coach. Devuelve una sesión nueva."""
+    solo_lectura(sesion)
     if c.get("salir"):
         return _sesion_para(sesion.get("u") or None, False)
     pin = env("COACH_PIN")
@@ -297,9 +316,9 @@ def _igual(a: str, b: str) -> bool:
     return bool(a) and bool(b) and hmac.compare_digest(a.encode(), b.encode())
 
 
-VERSION = "3.5"
+VERSION = "3.6"
 CLAVES_NECESARIAS = ["SUPABASE_URL", "SUPABASE_KEY", "APP_PASSWORD", "CONTRASENA_ARCHCHANA", "CONTRASENA_INVITADOS", "COACH_PIN",
-                     "APP_ANTIGUA_URL"]
+                     "APP_ANTIGUA_URL", "CONTRASENA_DEMO"]
 
 
 def estado() -> dict:
@@ -349,6 +368,9 @@ def login(cuerpo: dict) -> dict:
     for nombre, clave in personales.items():
         if _igual(intento, clave):
             return _sesion_para(nombre)
+    if _igual(intento, env("CONTRASENA_DEMO")):
+        quien = env("DEMO_ATLETA") or "Yo"
+        return _sesion_para(quien if quien in ATLETAS else "Yo", demo=True)
     inv_clave = env("CONTRASENA_INVITADOS")
     if _igual(intento, inv_clave):
         return _login_invitado(cuerpo)
@@ -634,7 +656,7 @@ def vista(sesion: dict, atleta: str | None, semana: int | None, dia_id: str | No
     base = {"atleta": atleta, "nombre": nv(atleta), "solo": sesion.get("u") or None,
             "personas": [{"id": p, "nombre": nv(p)} for p in personas], "lang": IDIOMA_DEFECTO.get(atleta, "es"),
             "app_antigua": env("APP_ANTIGUA_URL"), "tipos": {k: v[0] for k, v in TIPOS.items()},
-            "unidades": UNIDADES, "con_prs": atleta not in SIN_PRS, "coach": coach,
+            "unidades": UNIDADES, "con_prs": atleta not in SIN_PRS, "coach": coach, "demo": es_demo(sesion),
             "puede_pesos": coach or bool((rut or {}).get("permiso_pesos")),
             "permiso_pesos": bool((rut or {}).get("permiso_pesos")),
             "solicitudes": [x for x in todas_sol if coach and (not sesion.get("u") or x["atleta"] == sesion["u"])],
@@ -645,7 +667,8 @@ def vista(sesion: dict, atleta: str | None, semana: int | None, dia_id: str | No
     aviso_semana = None
     if semana is None and atleta in ABRE_DIA_PENDIENTE and semana_completa(rut, actual):
         rut = dict(rut, semana_actual=actual + 1)  # semana validada entera: se pasa sola a la siguiente
-        datos().guardar(atleta, rut)
+        if not es_demo(sesion):
+            datos().guardar(atleta, rut)
         aviso_semana = f"¡Semana {actual} completada! Empiezas la {actual + 1} 🔥"
         actual += 1
     semana = int(semana or actual)
