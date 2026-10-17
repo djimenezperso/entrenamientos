@@ -1,4 +1,4 @@
-"""Diario de Entrenos — Streamlit.
+"""Djimenez Prog — Streamlit.
 
 Un apartado por persona, con foto, tiempos, notas, progresión y consejos.
 Datos en Supabase si hay credenciales en los secrets; si no, en local (SQLite).
@@ -38,6 +38,7 @@ from logica import (
     ciclos_desde_coach, ciclos_en_marcha, empezar_ciclo, linea_activa, quitar_ciclo,
     LETRAS, _etiqueta_parte, anadir_parte, letra_visible, quitar_parte, deshacer_sustitucion, sustituir_parte,
     NIVELES, escalar, referencias_elite, FORMATOS, formato_de,
+    CATALOGO_PR, mejores_prs, movimiento_pr, prs_de_entrenos,
 )
 from repertorio import CASA, COMPETICION, ELITE, HEROES, REPERTORIO
 from ciclos import CICLOS
@@ -59,7 +60,7 @@ CLAVE_INVITADOS = "__invitados__"
 COLORES_ATLETA = ["#16202b", "#d6312b", "#1f5fbf", "#2a8c4a", "#d9a200", "#8e44ad", "#e67e22", "#7f8994"]
 # ===================================
 
-st.set_page_config(page_title="Diario de Entrenos", page_icon="🏋️", layout="centered")
+st.set_page_config(page_title="Djimenez Prog", page_icon="🏋️", layout="centered")
 
 
 # ---------------------------------------------------------------- almacenamiento
@@ -219,7 +220,7 @@ def control_contrasena():
     clave = secreto("APP_PASSWORD")
     if not clave or st.session_state.get("dentro"):
         return
-    st.title("Diario de Entrenos")
+    st.title("Djimenez Prog")
     intento = st.text_input("Contraseña / Mot de passe", type="password").strip()  # el móvil a veces añade espacios
     personales = {nombre: str(c).strip() for nombre, c in (secreto("accesos_personales") or {}).items()}
     otras = str(secreto("CONTRASENA_INVITADOS") or "").strip()  # otra llave de entrada, con el mismo acceso
@@ -366,6 +367,8 @@ def formulario_entreno(atleta: str, entrenos: list[dict], clave: str, inicial: d
         "title": titulo.strip(), "duration_sec": dur, "entries": resultados, "notes": notas.strip(),
         "photo_path": None, "created_at": dt.datetime.now(dt.timezone.utc).isoformat(),
     }
+    if atleta not in SIN_PRS:
+        _avisar_prs_nuevos(atleta, [w], entrenos)
     try:
         with st.spinner("Guardando…"):
             store().guardar(w, preparar_foto(foto) if foto else None)
@@ -376,7 +379,7 @@ def formulario_entreno(atleta: str, entrenos: list[dict], clave: str, inicial: d
     if al_guardar and hechas:
         al_guardar(hechas)
     st.session_state[f"form_n_{clave}"] = n + 1
-    st.session_state["aviso"] = "Entreno guardado"
+    st.session_state.setdefault("aviso", "Entreno guardado")
     st.rerun()
 
 
@@ -714,7 +717,7 @@ def wods_de_diego() -> list[dict]:
                 if estado_parte(rut, sem, d["id"], parte)["estado"] != "hecho":
                     continue
                 for l in lineas:
-                    if _tipo_ui(parte, l["ejercicio"]) not in TIPOS_WOD_UI:
+                    if _tipo_ui(parte, l["ejercicio"]) not in TIPOS_WOD_UI + ("conditioning",):
                         continue
                     txt = prescripcion_semana(l, sem, rut.get("ajustes"))[0]
                     if txt and norm_busqueda(txt) not in vistos:
@@ -771,12 +774,13 @@ def _reto_elite(texto: str, titulo: str = ""):
 
 
 def _linea_texto_editable(atleta: str, rut: dict, l: dict, txt: str, semana: int, metcon: bool, nombre: str,
-                          extra: str, tipo: str = "wod"):
+                          extra: str, tipo: str = "wod", escalable: bool = True):
     """WOD, conditioning o accessory: se ve el texto y al tocarlo se edita o se elige de lo hecho / el repertorio."""
     sug = _SUG_RUN.get(l["id"]) if not txt else None
     if sug:
         txt = sug["texto"]
-    nivel = nivel_de(atleta) if tipo in ("wod", "emom", "fortime", "amrap", "conditioning", "accessory") else "RX"
+    nivel = nivel_de(atleta) if escalable and tipo in ("wod", "emom", "fortime", "amrap", "conditioning",
+                                                       "accessory") else "RX"
     visto = escalar(txt, nivel) if txt and nivel != "RX" else txt
     resumen = (visto or t("por definir")).replace("\n", " / ")
     if len(resumen) > 80:
@@ -820,7 +824,7 @@ def _linea_texto_editable(atleta: str, rut: dict, l: dict, txt: str, semana: int
             st.rerun()
     if extra.strip():
         st.caption(extra.strip())
-    if txt and tipo in ("wod", "emom", "fortime", "amrap", "conditioning", "accessory"):
+    if txt and escalable and tipo in ("wod", "emom", "fortime", "amrap", "conditioning", "accessory"):
         if nivel != "RX":
             st.caption(f"Versión {nivel} · el RX está en 🎚️ Versiones")
         _reto_elite(txt, l["ejercicio"])
@@ -908,7 +912,8 @@ def _lineas(rut: dict, lineas: list[dict], semana: int, parte: str, atleta: str 
         if atleta:
             volcar()
             _linea_texto_editable(atleta, rut, l, txt, semana, metcon, nombre, extra + nota,
-                                  _tipo_ui(parte, l["ejercicio"]) if _tipo_ui(parte, l["ejercicio"]) != "fuerza" else "wod")
+                                  _tipo_ui(parte, l["ejercicio"]) if _tipo_ui(parte, l["ejercicio"]) != "fuerza" else "wod",
+                                  escalable=norm_busqueda(_etiqueta_parte(parte)) != "gym")  # el gym ya va a su medida
             continue
         if txt:
             linea = f"- {nombre}`{txt}`"
@@ -1966,6 +1971,99 @@ def seccion_coach():
         _subir_coach()
 
 
+# ---------------------------------------------------------------- 🏆 PRs
+CLAVE_PRS = "__prs__"
+SIN_PRS = ["Archchana"]
+
+
+def _prs_guardados() -> dict:
+    try:
+        return cargar_rutinas().get(CLAVE_PRS) or {}
+    except Exception:
+        return {}
+
+
+def _fmt_pr(valor: float, unidad: str) -> str:
+    return fmt_tiempo(valor) if unidad == "tiempo" else (f"{fmt_num(valor)} kg" if unidad == "kg" else f"{fmt_num(valor)} reps")
+
+
+def tab_prs(atleta: str, entrenos: list[dict]):
+    manuales = _prs_guardados().get(atleta, [])
+    todos = manuales + prs_de_entrenos(entrenos)
+    mejores = mejores_prs(todos)
+    st.caption("Tus mejores marcas. Se apuntan a mano y también salen solas de lo que registras "
+               "(si el ejercicio se llama igual, por ejemplo «Back squat», «RMU» o «5 km run»).")
+
+    with st.popover("➕ Apuntar un PR", use_container_width=True):
+        with st.form(f"pr_{atleta}", clear_on_submit=True):
+            cat = st.selectbox("Tipo", list(CATALOGO_PR), key=f"prc_{atleta}")
+            movs = [m for m, _ in CATALOGO_PR[cat]]
+            mov = st.selectbox("Movimiento", movs + ["Otro…"], key=f"prm_{atleta}")
+            otro = st.text_input("Si es otro, ¿cuál?", key=f"pro_{atleta}")
+            unidad = dict(CATALOGO_PR[cat]).get(mov, "kg" if "Halter" in cat or "Fuerza" in cat else
+                                                "tiempo" if "Carrera" in cat else "reps")
+            c1, c2 = st.columns(2)
+            valor_txt = c1.text_input("Marca", key=f"prv_{atleta}",
+                                      placeholder={"kg": "120", "reps": "15", "tiempo": "21:30"}[unidad])
+            reps = c2.number_input("Repeticiones (1 = 1RM)", 1, 20, 1, key=f"prr_{atleta}") if unidad == "kg" else 1
+            fecha = st.date_input("Fecha", dt.date.today(), format="DD/MM/YYYY", key=f"prf_{atleta}")
+            nota = st.text_input("Nota", key=f"prn_{atleta}", placeholder="con cinturón, en competi…")
+            if st.form_submit_button("Guardar PR", type="primary", use_container_width=True):
+                valor = parse_tiempo(valor_txt) if unidad == "tiempo" else parse_valor(valor_txt, "kg")
+                nombre = otro.strip() if mov == "Otro…" else mov
+                if not valor or not nombre:
+                    st.error("Pon el movimiento y la marca (los tiempos como 21:30).")
+                else:
+                    nuevo = {"categoria": cat, "movimiento": nombre, "unidad": unidad, "valor": float(valor),
+                             "reps": int(reps), "fecha": fecha.isoformat(), "nota": nota.strip(), "origen": "manual"}
+                    previo = mejores.get((nombre, int(reps) if unidad == "kg" else 0))
+                    mejora = previo is None or (valor < previo["valor"] if unidad == "tiempo" else valor > previo["valor"])
+                    datos = dict(_prs_guardados())
+                    datos[atleta] = datos.get(atleta, []) + [nuevo]
+                    guardar_rutina(CLAVE_PRS, datos)
+                    st.session_state["aviso"] = "🎉 ¡Nuevo PR!" if mejora else "Marca guardada (no supera tu PR)"
+                    if mejora:
+                        st.session_state["globos"] = True
+                    st.rerun()
+
+    if not mejores:
+        st.info("Todavía no hay PRs. Apunta el primero con ➕.")
+        return
+    hace_30 = (dt.date.today() - dt.timedelta(days=30)).isoformat()
+    for cat in CATALOGO_PR:
+        filas = [(k, r) for k, r in mejores.items() if r.get("categoria") == cat
+                 or (r.get("categoria") is None and movimiento_pr(k[0]) and movimiento_pr(k[0])[0] == cat)]
+        if not filas:
+            continue
+        st.subheader(cat)
+        orden = [m for m, _ in CATALOGO_PR[cat]]
+        filas.sort(key=lambda x: (orden.index(x[0][0]) if x[0][0] in orden else 99, x[0][1]))
+        for (mov, reps), r in filas:
+            rm = f" · {reps}RM" if r["unidad"] == "kg" else ""
+            nuevo = " :green[🆕 este mes]" if str(r["fecha"]) >= hace_30 else ""
+            origen = " :gray[(de un registro)]" if r.get("origen") == "registro" else ""
+            st.markdown(f"**{mov}**{rm}: `{_fmt_pr(r['valor'], r['unidad'])}` :gray[{_fecha_txt(r['fecha'])}]"
+                        f"{nuevo}{origen}" + (f" — _{r['nota']}_" if r.get("nota") else ""))
+        historial = [r for r in todos if r.get("categoria") == cat or (movimiento_pr(r["movimiento"]) or ("",))[0] == cat]
+        if len(historial) > len(filas):
+            with st.expander("Historial"):
+                for r in sorted(historial, key=lambda r: str(r["fecha"]), reverse=True):
+                    st.markdown(f"- {_fecha_txt(r['fecha'])} · {r['movimiento']}"
+                                f"{' · ' + str(r.get('reps', 1)) + 'RM' if r['unidad'] == 'kg' else ''}: "
+                                f"{_fmt_pr(r['valor'], r['unidad'])}")
+
+
+def _avisar_prs_nuevos(atleta: str, nuevos: list[dict], entrenos_previos: list[dict]):
+    """Tras registrar un entreno: si alguna marca supera el PR, se celebra."""
+    antes = mejores_prs(_prs_guardados().get(atleta, []) + prs_de_entrenos(entrenos_previos))
+    for r in prs_de_entrenos(nuevos):
+        p = antes.get((r["movimiento"], 1 if r["unidad"] == "kg" else 0))
+        if p is None or (r["valor"] < p["valor"] if r["unidad"] == "tiempo" else r["valor"] > p["valor"]):
+            if p is not None:
+                st.session_state["aviso"] = f"🎉 ¡Nuevo PR en {r['movimiento']}: {_fmt_pr(r['valor'], r['unidad'])}!"
+                st.session_state["globos"] = True
+
+
 # ---------------------------------------------------------------- 🔁 Ciclos
 @st.cache_data(show_spinner=False)
 def _ciclos_coach_de(items_json: str) -> list[dict]:
@@ -2084,7 +2182,7 @@ def main():
       [data-testid="stMetricValue"] {font-variant-numeric: tabular-nums}
     </style>""", unsafe_allow_html=True)
     cab, idi = st.columns([4, 1], vertical_alignment="bottom")
-    cab.title(t("Diario de Entrenos"))
+    cab.title(t("Djimenez Prog"))
     idi.segmented_control(t("Idioma"), ["es", "fr"], key="lang", default="es", label_visibility="collapsed",
                           format_func=lambda x: {"es": "🇪🇸 ES", "fr": "🇫🇷 FR"}[x])
 
@@ -2112,6 +2210,8 @@ def main():
 
     if aviso := st.session_state.pop("aviso", None):
         st.toast(aviso)
+    if st.session_state.pop("globos", False):
+        st.balloons()
 
     try:
         todos = cargar_todo()
@@ -2123,7 +2223,9 @@ def main():
         return
     mios = [w for w in todos if w["athlete"] == atleta]
 
-    nombres = [t("Rutina"), t("Registrar"), t("Historial"), t("Progreso")] + ([] if solo() else [t("Grupo")])
+    con_prs = atleta not in SIN_PRS
+    nombres = [t("Rutina"), t("Registrar"), t("Historial"), t("Progreso")] + (["🏆 PRs"] if con_prs else []) + (
+        [] if solo() else [t("Grupo")])
     pestanas = st.tabs(nombres)
     with pestanas[0]:
         tab_rutina(atleta, mios)
@@ -2133,8 +2235,11 @@ def main():
         tab_historial(atleta, mios)
     with pestanas[3]:
         tab_progreso(atleta, mios)
-    if not solo():
+    if con_prs:
         with pestanas[4]:
+            tab_prs(atleta, mios)
+    if not solo():
+        with pestanas[-1]:
             tab_grupo(todos)
 
 
