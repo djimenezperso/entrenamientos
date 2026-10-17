@@ -151,6 +151,54 @@ def _salatti():
     }
 
 
+def _dario():
+    """Misma estructura que Salatti, con más carga (está más fuerte) y gym más guiado (le cuesta más).
+    Propuesta: que él ajuste los pesos tocándolos."""
+    nota = "propuesta: ajusta el peso"
+    gym = "propuesta de gym"
+    return {
+        "semana_actual": 1,
+        "ajustes": {},
+        "nivel": "Inter",
+        "dias": [
+            {"id": "d1", "nombre": "Día 1", "por_ejercicio": True, "lineas": [
+                _l("r11", "Back squat", "5x5 @100", nota=nota),
+                _l("r12", "Strict press", "4x6 @50", nota=nota),
+                _metcon("r13", "Gym", "4x: 5 strict pull ups (con banda si hace falta) + 20'' hollow hold · R 1'",
+                        nota=gym, parte="B) Gym"),
+                _metcon("r14", "WOD", "AMRAP 12': 10 wall balls 9/6 kg, 10 box jumps, 10 KB swings 24/16 kg",
+                        parte="C) WOD"),
+            ]},
+            {"id": "d2", "nombre": "Día 2", "por_ejercicio": True, "lineas": [
+                _l("r21", "Power clean", "5x3 @75", nota=nota),
+                _l("r22", "Front squat", "4x4 @85", nota=nota),
+                _metcon("r23", "Gym", "EMOM 8': 1) 5 toes to bar (o knee raises) 2) 30'' handstand hold en pared",
+                        nota=gym, parte="B) Gym"),
+                _metcon("r24", "For time", "For time 3 rondas: 400 m run, 15 thrusters 43/30 kg, 12 pull ups",
+                        parte="C) For time"),
+            ]},
+            {"id": "d3", "nombre": "Día 3", "lineas": [
+                _metcon("r31", "EMOM", "EMOM 16': 12 cal row / 10 burpees / 8 DB snatch 22,5/15 / descanso",
+                        parte="A) EMOM"),
+                _l("r32", "Romanian deadlift", "3x10 @80", sube=0, nota=nota, parte="B) Accessory"),
+                _l("r33", "DB row", "3x12 por brazo @25", sube=0, nota=nota, parte="B) Accessory"),
+            ]},
+            {"id": "d4", "nombre": "Día 4", "por_ejercicio": True, "lineas": [
+                _l("r41", "Deadlift", "5x3 @130", nota=nota),
+                _l("r42", "Bench press", "4x6 @75", nota=nota),
+                _metcon("r43", "Gym", "5x: 3 negativas de pull up (5'') + 5 ring rows estrictos · R 1'",
+                        nota=gym, parte="B) Gym"),
+                _metcon("r44", "Conditioning", "4x 500 m row · R 1:30", parte="C) Conditioning"),
+            ]},
+        ],
+    }
+
+
+def _juan():
+    """Misma rutina que Salatti (4 días). Que la ajuste a sus pesos."""
+    return _salatti()
+
+
 def _archchana():
     """En casa: 2 mancuernas ligeras, gomas y elíptica. En francés, con mucha movilidad. Propuesta para ajustar."""
     def m(i, nombre, txt, parte):
@@ -190,7 +238,7 @@ def _archchana():
 
 def rutinas_iniciales(atletas: list[str]) -> dict:
     """Asocia por posición: 0 = yo, 1 = Manu, 2 = Salatti, 3 = pareja. El resto empieza sin rutina."""
-    fabricas = {0: _yo, 1: _manu, 2: _salatti, 3: _pareja, 5: _archchana}
+    fabricas = {0: _yo, 1: _manu, 2: _salatti, 3: _pareja, 4: _dario, 5: _archchana, 6: _juan}
     return {a: fabricas[i]() for i, a in enumerate(atletas) if i in fabricas}
 
 
@@ -201,6 +249,10 @@ DINAMICO_1X10 = {"y31", "y32", "y33", "y34", "y51", "y52", "y53", "y54"}
 def migrar(rut: dict, atleta: str, atletas: list[str]) -> dict:
     if len(atletas) > 2 and atleta == atletas[2] and not any(d.get("lineas") for d in rut.get("dias", [])):
         return _salatti()  # tenía una rutina vacía: se pone la propuesta de 4 días
+    if len(atletas) > 4 and atleta == atletas[4] and not any(d.get("lineas") for d in rut.get("dias", [])):
+        return _dario()
+    if len(atletas) > 6 and atleta == atletas[6] and not any(d.get("lineas") for d in rut.get("dias", [])):
+        return _juan()
     if len(atletas) > 5 and atleta == atletas[5] and not any(d.get("lineas") for d in rut.get("dias", [])):
         return _archchana()
     if len(atletas) > 3 and atleta == atletas[3]:  # pareja: cada ejercicio de fuerza se puede marcar como no hecho
@@ -238,6 +290,20 @@ def migrar(rut: dict, atleta: str, atletas: list[str]) -> dict:
                             if l["id"] in sem and "x" not in sem[l["id"]].lower():
                                 sem[l["id"]] = f"{series[l['id']]} {sem[l['id']]}"
             rut["migraciones"].append("series_d2_y_d4")
+        if "wods_diego_s2" not in rut.setdefault("migraciones", []):
+            # WODs que Diego hizo en la semana 2 (me los contó por el chat): se apuntan y se marcan como hechos
+            from logica import partes_del_dia, prescripcion_semana
+            hechos_s2 = {"y55": "For time 5 rondas: 5 ring muscle ups, 10 cal AAB, 20 wall balls 9/6 kg",
+                         "y35": "5 rondas: 200 m row, 40 DUs, 2x 5 m DB farmer carry walking lunges 2x 32,5/22,5 kg, "
+                                "10 T2B"}
+            ajustes = rut.setdefault("ajustes", {})
+            estados = rut.setdefault("estados", {})
+            for d in rut.get("dias", []):
+                for l, p in zip(d["lineas"], partes_del_dia(d)):
+                    if l["id"] in hechos_s2 and not prescripcion_semana(l, 2, ajustes)[0]:
+                        ajustes.setdefault("2", {})[l["id"]] = hechos_s2[l["id"]]
+                        estados.setdefault(f"2|{d['id']}|{p}", {"estado": "hecho"})
+            rut["migraciones"].append("wods_diego_s2")
         # El día 5 repite la fuerza del día 3 (mismos pesos y repes): se iguala una vez.
         hechas = rut.setdefault("migraciones", [])
         if "d5_igual_d3" not in hechas:
