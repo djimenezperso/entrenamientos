@@ -230,7 +230,7 @@ def control_contrasena():
     clave = secreto("APP_PASSWORD")
     if not clave or st.session_state.get("dentro"):
         return
-    st.title("Djimenez Prog")
+    cabecera()
     intento = st.text_input("Contraseña / Mot de passe", type="password").strip()  # el móvil a veces añade espacios
     personales = {nombre: str(c).strip() for nombre, c in (secreto("accesos_personales") or {}).items()}
     archchana = str(secreto("CONTRASENA_ARCHCHANA") or "").strip()
@@ -500,6 +500,17 @@ def _cliente_anthropic():
     return anthropic.Anthropic(api_key=secreto("ANTHROPIC_API_KEY"))
 
 
+def _pin_ia() -> str:
+    """PIN para usar la IA: IA_PIN si existe; si no, el mismo del Coach."""
+    return str(secreto("IA_PIN") or secreto("COACH_PIN") or "").strip()
+
+
+def ia_desbloqueada() -> bool:
+    if not _pin_ia():
+        return False  # sin PIN configurado, nadie la usa
+    return bool(st.session_state.get("ia_ok") or (st.session_state.get("coach_ok") and not secreto("IA_PIN")))
+
+
 def preguntar_ia(prompt: str, max_tokens: int = 2000) -> str:
     """Una pregunta a la IA: OpenAI si hay OPENAI_API_KEY, si no Anthropic."""
     if secreto("OPENAI_API_KEY"):
@@ -549,6 +560,16 @@ def _ia_panel(tipo: str, k: str, atleta: str | None = None):
     """Pide a la IA uno nuevo al estilo de lo hecho. Devuelve (nombre, texto) o None."""
     if not ia_disponible():
         st.caption("La IA no está activada. Añade OPENAI_API_KEY en los Secrets de Streamlit.")
+        return None
+    if not ia_desbloqueada():
+        pin = st.text_input("🔒 PIN para usar la IA", type="password", key=f"iapin_{k}").strip()
+        if pin and pin == _pin_ia():
+            st.session_state.ia_ok = True
+            st.rerun()
+        elif pin:
+            st.error("PIN incorrecto.")
+        else:
+            st.caption("Solo Diego y su mujer pueden inventar WODs con IA.")
         return None
     idea = st.text_input(t("Idea (opcional)"), key=f"ii_{k}", placeholder="thrusters y pull ups, algo corto e intenso…")
     c1, c2, c3 = st.columns(3)
@@ -1231,6 +1252,8 @@ def tab_rutina(atleta: str, entrenos: list[dict]):
         c2.button(t("Marcar la semana {s} como la actual", s=semana), key=f"act_{atleta}",
                   on_click=_cambiar_semana, args=(atleta, rut, semana), use_container_width=True)
     momento = t("esta semana") if semana == actual else (t("semana pasada") if semana < actual else t("semana que viene"))
+    st.markdown(f'<div class="dj-pill"><b>{"Semana de fuego" if lang() == "es" else "Semaine de feu"}:</b> '
+                f'{t("Semana")} {semana} · {nv(atleta)}</div>', unsafe_allow_html=True)
     st.caption(t("Semana {s} ({m}). Los pesos tras @ suben lo indicado en «Sube» cada semana (2,5 kg por defecto).",
                  s=semana, m=momento))
 
@@ -2243,14 +2266,59 @@ def _idioma_de_atleta():
     st.session_state["lang"] = IDIOMA_DEFECTO.get(st.session_state.get("atleta"), "es")
 
 
+ESTILO = """<style>
+@import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;800&display=swap');
+:root { --fuego: #FF6A00; --fuego2: #FFB400; --brasa: #FF3D00; --carbon: #0B0B0D; --panel: #16161B; }
+html, body, [class*="css"], .stMarkdown, button, input, textarea { font-family: 'Poppins', system-ui, sans-serif; }
+.stApp { background: radial-gradient(ellipse at top, #24120a 0%, #0B0B0D 55%) fixed; }
+/* cabecera */
+.dj-cabecera { display:flex; align-items:center; gap:.6rem; margin:.2rem 0 .1rem; }
+.dj-llama { font-size:2.4rem; filter: drop-shadow(0 0 12px rgba(255,106,0,.8)); }
+.dj-titulo { font-weight:800; font-size:2rem; letter-spacing:.04em; text-transform:uppercase; line-height:1;
+  background: linear-gradient(90deg, var(--fuego2), var(--fuego) 45%, var(--brasa));
+  -webkit-background-clip:text; background-clip:text; color:transparent; }
+.dj-lema { color:#c9c3bd; font-size:.85rem; margin-top:.15rem; }
+.dj-pill { display:inline-block; padding:.45rem 1.1rem; border-radius:999px; border:1.5px solid var(--fuego);
+  box-shadow: 0 0 14px rgba(255,106,0,.45), inset 0 0 10px rgba(255,106,0,.15); font-weight:600; margin:.3rem 0 .6rem; }
+.dj-pill b { color: var(--fuego2); text-transform:uppercase; letter-spacing:.03em; }
+/* botones */
+.stButton > button, .stDownloadButton > button, [data-testid="stFormSubmitButton"] > button, [data-testid="stPopover"] > button {
+  border-radius: 999px !important; border: 1px solid rgba(255,106,0,.45) !important; transition: all .15s ease; }
+.stButton > button:hover, [data-testid="stPopover"] > button:hover { border-color: var(--fuego) !important;
+  box-shadow: 0 0 14px rgba(255,106,0,.5); }
+button[kind="primary"], [data-testid="stFormSubmitButton"] > button[kind="primaryFormSubmit"] {
+  background: linear-gradient(135deg, var(--fuego2), var(--fuego) 50%, var(--brasa)) !important; color:#120800 !important;
+  font-weight:700 !important; border:none !important; box-shadow: 0 0 18px rgba(255,106,0,.55); }
+/* tarjetas */
+[data-testid="stVerticalBlockBorderWrapper"] { border-radius: 18px !important; }
+div[data-testid="stVerticalBlockBorderWrapper"]:has(> div > [data-testid="stVerticalBlock"]) {
+  border-color: rgba(255,106,0,.35) !important; box-shadow: 0 0 22px rgba(255,106,0,.08); background: rgba(22,22,27,.7); }
+/* pestañas */
+.stTabs [data-baseweb="tab"] { font-weight:600; }
+.stTabs [aria-selected="true"] { color: var(--fuego2) !important; }
+.stTabs [data-baseweb="tab-highlight"] { background: linear-gradient(90deg, var(--fuego2), var(--brasa)) !important; height:3px; }
+/* números */
+[data-testid="stMetricValue"] { font-variant-numeric: tabular-nums; color: var(--fuego2); font-weight:800; }
+h1, h2, h3, h4 { letter-spacing:.02em; }
+h4 { color: #fff; }
+code { color: var(--fuego2) !important; background: rgba(255,106,0,.12) !important; }
+[data-testid="stExpander"] details { border-radius: 14px; border-color: rgba(255,255,255,.08); }
+</style>"""
+
+
+def cabecera():
+    st.markdown(f"""<div class="dj-cabecera"><span class="dj-llama">🔥</span><div>
+      <div class="dj-titulo">Djimenez Prog</div>
+      <div class="dj-lema">{"Tu entrenamiento, tu progresión" if lang() == "es" else "Ton entraînement, ta progression"}</div>
+    </div></div>""", unsafe_allow_html=True)
+
+
 def main():
+    st.markdown(ESTILO, unsafe_allow_html=True)
     control_contrasena()
-    st.markdown("""<style>
-      h1 {letter-spacing:.02em; text-transform:uppercase}
-      [data-testid="stMetricValue"] {font-variant-numeric: tabular-nums}
-    </style>""", unsafe_allow_html=True)
     cab, idi = st.columns([4, 1], vertical_alignment="bottom")
-    cab.title(t("Djimenez Prog"))
+    with cab:
+        cabecera()
     idi.segmented_control(t("Idioma"), ["es", "fr"], key="lang", default="es", label_visibility="collapsed",
                           format_func=lambda x: {"es": "🇪🇸 ES", "fr": "🇫🇷 FR"}[x])
 
