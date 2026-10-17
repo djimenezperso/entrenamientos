@@ -1292,6 +1292,8 @@ def tab_rutina(atleta: str, entrenos: list[dict]):
     ids_dias = [d["id"] for d in rut["dias"]]
     por_hacer = next((d["id"] for d in rut["dias"] if resumen_dia(rut, semana, d) != "hecho"
                       or pendientes_para(rut, semana, d["id"])), ids_dias[0] if ids_dias else None)
+    if atleta not in ("Yo", "Mi esposa"):  # solo Diego y su mujer abren directamente el día que les toca
+        por_hacer = ids_dias[0] if ids_dias else None
     etiqueta_de = dict(zip(ids_dias, etiquetas))
     clave_dia = f"dia_sel_{atleta}_{semana}"
     if st.session_state.get(clave_dia) not in ids_dias:
@@ -2306,10 +2308,19 @@ button[kind="primary"], [data-testid="stFormSubmitButton"] > button[kind="primar
 [data-testid="stVerticalBlockBorderWrapper"] { border-radius: 18px !important; }
 div[data-testid="stVerticalBlockBorderWrapper"]:has(> div > [data-testid="stVerticalBlock"]) {
   border: 1.5px solid rgba(217,58,0,.30) !important; background: #fff; box-shadow: 0 6px 20px rgba(160,60,0,.12); }
+/* lo seleccionado, en negro */
+button[data-testid="stBaseButton-segmented_controlActive"], button[kind="segmented_controlActive"],
+[data-testid="stButtonGroup"] button[aria-pressed="true"], [data-testid="stButtonGroup"] button[aria-checked="true"] {
+  background: #1F1208 !important; color: #FFB400 !important; border-color: #1F1208 !important; }
+button[data-testid="stBaseButton-segmented_controlActive"] *, button[kind="segmented_controlActive"] * { color: #FFB400 !important; }
+[data-testid="stButtonGroup"] button { border-radius: 999px !important; background: #fff; border-color: rgba(217,58,0,.35) !important; }
+[role="radiogroup"] [aria-checked="true"] div:first-child, [data-baseweb="radio"] input:checked + div { background: #1F1208 !important;
+  border-color: #1F1208 !important; }
+[data-baseweb="tag"] { background: #1F1208 !important; color: #FFB400 !important; }
 /* pestañas */
 .stTabs [data-baseweb="tab"] { font-weight:600; color: var(--tinta); }
-.stTabs [aria-selected="true"] { color: var(--brasa) !important; }
-.stTabs [data-baseweb="tab-highlight"] { background: var(--brasa) !important; height:3px; }
+.stTabs [aria-selected="true"] { color: #1F1208 !important; font-weight:800 !important; }
+.stTabs [data-baseweb="tab-highlight"] { background: #1F1208 !important; height:3px; }
 /* números */
 [data-testid="stMetricValue"] { font-variant-numeric: tabular-nums; color: var(--brasa); font-weight:800; }
 h1, h2, h3, h4 { letter-spacing:.02em; color: var(--tinta); }
