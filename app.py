@@ -39,7 +39,7 @@ from logica import (
     LETRAS, _etiqueta_parte, anadir_parte, letra_visible, quitar_parte, deshacer_sustitucion, sustituir_parte,
     NIVELES, escalar, referencias_elite, FORMATOS, formato_de,
 )
-from repertorio import COMPETICION, ELITE, HEROES, REPERTORIO
+from repertorio import CASA, COMPETICION, ELITE, HEROES, REPERTORIO
 from ciclos import CICLOS
 from i18n import lang, t
 from rutinas_iniciales import migrar, rutinas_iniciales
@@ -469,12 +469,14 @@ QUE_ES = {"wod": "WOD de CrossFit", "conditioning": "sesión de conditioning (mo
           "accessory": "ejercicio accesorio de fuerza con sus series y repeticiones"}
 
 
-def inventar_con_ia(tipo: str, ejemplos: list[tuple[str, str]], idea: str, duracion: str, estilo: str) -> tuple[str, str]:
+def inventar_con_ia(tipo: str, ejemplos: list[tuple[str, str]], idea: str, duracion: str, estilo: str,
+                    material: str = "") -> tuple[str, str]:
     lista = "\n".join(f"- {n}: {t}" if n else f"- {t}" for n, t in ejemplos[:25]) or "(todavía no hay ejemplos)"
     prompt = (
         f"Inventa un {QUE_ES[tipo]} nuevo y original para un grupo de amigos que entrena CrossFit.\n"
         f"Inspírate en el estilo, el volumen y los movimientos de estos (no los copies):\n{lista}\n\n"
         f"Duración: {duracion}. Estilo: {estilo}.\n"
+        + (f"MATERIAL DISPONIBLE (usa solo esto y peso corporal): {material}\n" if material else "")
         + ("Escribe en francés.\n" if lang() == "fr" else "")
         + (f"Lo que pide el atleta: {idea}\n" if idea else "")
         + "Usa pesos RX hombre/mujer en kg cuando haya carga. Escribe en español, con los nombres de los movimientos "
@@ -493,7 +495,7 @@ def inventar_con_ia(tipo: str, ejemplos: list[tuple[str, str]], idea: str, durac
     return str(data.get("nombre", "")).strip(), str(data.get("texto", texto)).strip()
 
 
-def _ia_panel(tipo: str, k: str):
+def _ia_panel(tipo: str, k: str, atleta: str | None = None):
     """Pide a la IA uno nuevo al estilo de lo hecho. Devuelve (nombre, texto) o None."""
     if not ia_disponible():
         st.caption("La IA no está activada. Añade ANTHROPIC_API_KEY en los Secrets de Streamlit (lo explica el README).")
@@ -528,7 +530,8 @@ def _ia_panel(tipo: str, k: str):
             ejemplos += REPERTORIO.get(BASE_TIPO.get(tipo, tipo), [])
         with st.spinner("Pensando…"):
             try:
-                st.session_state[f"ir_{k}"] = inventar_con_ia(tipo, ejemplos, idea, dur, estilo)
+                st.session_state[f"ir_{k}"] = inventar_con_ia(tipo, ejemplos, idea, dur, estilo,
+                                                              material_de(atleta or (persona if persona != "Todos" else None)))
             except Exception as ex:
                 st.error(f"La IA no ha podido responder: {ex}")
     res = st.session_state.get(f"ir_{k}")
@@ -571,10 +574,23 @@ def _titulo_grupo(g: dict) -> str:
 def _elegir_contenido(tipo: str, k: str, atleta: str | None = None):
     """✍️ Nuevo / 📚 Ya hechos / 💡 Repertorio / ✨ IA / 🔒 Coach. Devuelve (modo, (nombre, texto) | None)."""
     con_coach = atleta in ACCESO_COACH and not solo() and bool(secreto("COACH_PIN"))
-    modos = ["✍️ Nuevo", "📚 Ya hechos", "💡 Repertorio", "✨ IA"] + (["🔒 Coach"] if con_coach else [])
+    con_diego = atleta in ALUMNOS and tipo in TIPOS_WOD_UI
+    modos = (["🎓 De Diego"] if con_diego else []) + ["✍️ Nuevo", "📚 Ya hechos", "💡 Repertorio", "✨ IA"] + (
+        ["🔒 Coach"] if con_coach else [])
     formato = tipo if tipo in FORMATOS else None
     modo = st.segmented_control("Origen", modos, default="✍️ Nuevo",
                                 key=f"om_{k}", label_visibility="collapsed", format_func=t) or "✍️ Nuevo"
+    if modo == "🎓 De Diego":
+        ops = [w for w in wods_de_diego() if not formato or formato in formato_de(w["texto"])]
+        if not ops:
+            st.caption("Diego aún no ha marcado ningún WOD como hecho.")
+            return modo, None
+        _boton_azar(f"dg_{k}", len(ops))
+        i = st.selectbox(t("Elige"), range(len(ops)), key=f"dg_{k}",
+                         format_func=lambda i: f"Semana {ops[i]['semana']} · {ops[i]['dia']} · {ops[i]['texto']}"[:80])
+        w = ops[min(i, len(ops) - 1)]
+        st.caption(w["texto"].replace("\n", "  \n"))
+        return modo, ("", w["texto"])
     if modo == "🔒 Coach" and con_coach:
         if not coach_abierto():
             if _pedir_pin(f"pin_{k}"):
@@ -598,7 +614,7 @@ def _elegir_contenido(tipo: str, k: str, atleta: str | None = None):
         st.caption(it["texto"].replace("\n", "  \n"))
         return modo, ("", it["texto"])
     if modo == "✨ IA":
-        return modo, _ia_panel(tipo, k)
+        return modo, _ia_panel(tipo, k, atleta)
     if modo == "📚 Ya hechos":
         q = st.text_input(t("Buscar por movimiento"), key=f"oq_{k}", placeholder="thruster, row, pull up…")
         base = BASE_TIPO.get(tipo, tipo)
@@ -619,6 +635,12 @@ def _elegir_contenido(tipo: str, k: str, atleta: str | None = None):
         q = st.text_input(t("Buscar por movimiento"), key=f"rq_{k}", placeholder="thruster, row, pull up…")
         fuente = ([x for x in REPERTORIO["wod"] + REPERTORIO["conditioning"] if formato in formato_de(x[1])]
                   if formato else REPERTORIO.get(BASE_TIPO.get(tipo, tipo), []))
+        if material_de(atleta):
+            casa = CASA.get(BASE_TIPO.get(tipo, tipo), [])
+            if formato:
+                casa = [x for x in CASA["wod"] + CASA["conditioning"] if formato in formato_de(x[1])]
+            solo_casa = st.toggle("🏠 Solo lo que se puede hacer con su material", value=True, key=f"casa_{k}")
+            fuente = casa if solo_casa else casa + fuente
         ops = [x for x in fuente if not q or coincide_busqueda(x[0] + "\n" + x[1], q)]
         if not ops:
             st.caption("Nada en el repertorio con eso.")
@@ -669,6 +691,55 @@ def _contenido_elegido(tipo: str, l: dict, sel: tuple) -> tuple[str, str]:
 
 
 NIVEL_DEFECTO = {"Yo": "RX"}  # el resto empieza en Inter
+ALUMNOS = ["Salatti", "Dario", "Juan", "Mi esposa"]  # reciben los WODs que hizo «Yo» la semana anterior
+_SUG_RUN: dict = {}
+TIPOS_WOD_UI = ("wod", "emom", "fortime", "amrap")
+
+
+def material_de(atleta: str | None) -> str:
+    rut = _rutina_de(atleta) if atleta else None
+    return ((rut or {}).get("material") or "").strip()
+
+
+def wods_de_diego() -> list[dict]:
+    """WODs que «Yo» marcó como hechos: primero los de su semana anterior, luego los de esta y después los demás."""
+    rut = _rutina_de(ATLETAS[0])
+    if not rut:
+        return []
+    actual = int(rut.get("semana_actual") or 1)
+    vistos, por_semana = set(), {}
+    for sem in range(actual, 0, -1):
+        for d in rut["dias"]:
+            for parte, lineas in agrupar_por_parte(d, sem):
+                if estado_parte(rut, sem, d["id"], parte)["estado"] != "hecho":
+                    continue
+                for l in lineas:
+                    if _tipo_ui(parte, l["ejercicio"]) not in TIPOS_WOD_UI:
+                        continue
+                    txt = prescripcion_semana(l, sem, rut.get("ajustes"))[0]
+                    if txt and norm_busqueda(txt) not in vistos:
+                        vistos.add(norm_busqueda(txt))
+                        por_semana.setdefault(sem, []).append({"texto": txt, "semana": sem, "dia": d["nombre"],
+                                                               "nombre": l["ejercicio"]})
+    orden = [actual - 1, actual] + [x for x in range(actual - 2, 0, -1)]
+    return [w for sem in orden for w in por_semana.get(sem, [])]
+
+
+def _preparar_sugerencias(atleta: str, rut: dict, semana: int):
+    """A cada WOD vacío del alumno esa semana, uno de Diego (el primero al primero, el segundo al segundo…)."""
+    _SUG_RUN.clear()
+    if atleta not in ALUMNOS:
+        return
+    de_diego = wods_de_diego()
+    if not de_diego:
+        return
+    i = 0
+    for d in rut["dias"]:
+        for parte, lineas in agrupar_por_parte(d, semana):
+            for l in lineas:
+                if _tipo_ui(parte, l["ejercicio"]) in TIPOS_WOD_UI and not prescripcion_semana(l, semana, rut.get("ajustes"))[0]:
+                    _SUG_RUN[l["id"]] = de_diego[i % len(de_diego)]
+                    i += 1
 _NIVEL_RUN: dict = {}
 
 
@@ -702,6 +773,9 @@ def _reto_elite(texto: str, titulo: str = ""):
 def _linea_texto_editable(atleta: str, rut: dict, l: dict, txt: str, semana: int, metcon: bool, nombre: str,
                           extra: str, tipo: str = "wod"):
     """WOD, conditioning o accessory: se ve el texto y al tocarlo se edita o se elige de lo hecho / el repertorio."""
+    sug = _SUG_RUN.get(l["id"]) if not txt else None
+    if sug:
+        txt = sug["texto"]
     nivel = nivel_de(atleta) if tipo in ("wod", "emom", "fortime", "amrap", "conditioning", "accessory") else "RX"
     visto = escalar(txt, nivel) if txt and nivel != "RX" else txt
     resumen = (visto or t("por definir")).replace("\n", " / ")
@@ -736,6 +810,14 @@ def _linea_texto_editable(atleta: str, rut: dict, l: dict, txt: str, semana: int
             st.rerun()
     if "\n" in (visto or ""):
         st.caption(visto.replace("\n", "  \n"))
+    if sug:
+        c1, c2 = st.columns([3, 1], vertical_alignment="center")
+        c1.caption(f"🎓 WOD de Diego (lo hizo en su semana {sug['semana']}, {sug['dia']})")
+        if c2.button("📌 Fijar", key=f"fijar_{k}"):
+            guardar_rutina(atleta, editar_texto_linea(_rutina_actual(atleta), l["id"], semana, l["ejercicio"],
+                                                      sug["texto"], l.get("nota", ""), True))
+            st.session_state["aviso"] = "WOD de Diego fijado"
+            st.rerun()
     if extra.strip():
         st.caption(extra.strip())
     if txt and tipo in ("wod", "emom", "fortime", "amrap", "conditioning", "accessory"):
@@ -1086,6 +1168,11 @@ def tab_rutina(atleta: str, entrenos: list[dict]):
         guardar_rutina(atleta, dict(rut, nivel=nuevo_nivel))
         st.rerun()
     _NIVEL_RUN[atleta] = nuevo_nivel or nivel_actual
+    material = st.text_input("🧰 Material disponible (vacío = box completo)", rut.get("material", ""),
+                             key=f"mat_{atleta}", placeholder="2 mancuernas de 5 kg, gomas, elíptica…")
+    if material.strip() != (rut.get("material") or "").strip():
+        guardar_rutina(atleta, dict(rut, material=material.strip()))
+        st.rerun()
     st.caption(t("Toca un peso para cambiarlo: se guarda solo y las semanas siguientes se recalculan. ")
                + t("Los WOD, conditionings y accessories se editan tocándolos. ")
                + t("En las pestañas: ✓ hecho · ◐ a medias · ↷ pasado · ✗ no hecho · • tiene pendientes."))
@@ -1098,6 +1185,7 @@ def tab_rutina(atleta: str, entrenos: list[dict]):
         st.warning(t("Sin validar en la semana {s}: {f}. Marca cada parte como hecha o pásala a otro día.",
                      s=semana, f="; ".join(faltan)))
 
+    _preparar_sugerencias(atleta, rut, semana)
     dias = {d["id"]: d for d in rut["dias"]}
     icono = {"hecho": " ✓", "parcial": " ◐", "pospuesto": " ↷", "no_hecho": " ✗", "pendiente": ""}
     etiquetas = []
@@ -1169,6 +1257,7 @@ def inventar_rutina_con_ia(atleta: str, dias: int, enfoque: str, con_coach: bool
         + (f"Lo que ha hecho hasta ahora (copia su estilo, nivel y movimientos):\n" + "\n".join(ejemplos[:40]) + "\n"
            if ejemplos else "No hay historial: haz algo equilibrado para nivel intermedio.\n")
         + (f"Lo que pide: {enfoque}\n" if enfoque else "")
+        + (f"MATERIAL DISPONIBLE (usa solo esto y peso corporal): {material_de(atleta)}\n" if material_de(atleta) else "")
         + ("Escribe los textos en francés.\n" if lang() == "fr" else "")
         + "Cada día tiene partes: A) Fuerza o Halterofilia (con pesos tras @ en kg, p. ej. «5x5 @60»), B) WOD y, si encaja, "
           "C) Conditioning, Accessory o Movilidad.\n"
