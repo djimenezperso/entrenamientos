@@ -4,7 +4,7 @@ import streamlit as st
 FR = {
     # navegación
     "Personas": "Personnes", "Movilidad": "Mobilité", "Rutina": "Programme", "Registrar": "Enregistrer",
-    "Historial": "Historique", "Progreso": "Progrès", "Grupo": "Groupe", "Diario de Entrenos": "Journal d'entraînement",
+    "Historial": "Historique", "Progreso": "Progrès", "Grupo": "Groupe", "Djimenez Prog": "Djimenez Prog",
     "Idioma": "Langue",
     # rutina
     "Semana": "Semaine",
