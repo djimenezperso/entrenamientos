@@ -167,7 +167,8 @@ function pintarEntrar(paso = {}) {
       `}
       <p class="error" id="e-entrar" hidden></p>
       <button class="btn btn-fuego" type="submit">${inv && paso.nuevo ? t("Empezar") : t("Entrar")}</button>
-      ${inv ? "" : `<p class="ayuda">${t("¿Eres nuevo? Entra con el código que te ha dado Diego")}</p>`}
+      ${inv ? (paso.conPin ? `<button type="button" class="btn" id="b-volver-entrar" style="height:44px">← ${t("Volver")}</button>` : "") : `<p class="ayuda">${t("¿Eres nuevo? Entra con el código que te ha dado Diego")}</p>
+        <button type="button" class="btn" id="b-con-pin" style="height:44px">${t("¿Ya tienes perfil? Entra con tu nombre y PIN")}</button>`}
     </form>
     <div class="fila-chips" style="justify-content:center">
       <button class="chip ${E.lang === "es" ? "on" : ""}" data-lang="es">ES</button>
@@ -175,12 +176,17 @@ function pintarEntrar(paso = {}) {
     </div>
   </section>`;
   $app.querySelectorAll("[data-lang]").forEach((b) => b.onclick = () => { E.lang = b.dataset.lang; mem.set("lang", E.lang); pintarEntrar(paso); });
+  const bcp = document.getElementById("b-con-pin");
+  if (bcp) bcp.onclick = () => pintarEntrar({ invitado: true, conPin: true });
+  const bve = document.getElementById("b-volver-entrar");
+  if (bve) bve.onclick = () => pintarEntrar();
   const f = document.getElementById("f-entrar");
   f.onsubmit = async (ev) => {
     ev.preventDefault();
     const err = document.getElementById("e-entrar");
     const boton = f.querySelector("button[type=submit]");
-    const cuerpo = inv ? { password: paso.password, nombre: f.querySelector("#i-nombre").value, pin: f.querySelector("#i-pin").value,
+    const cuerpo = paso.conPin ? { perfil: true, nombre: f.querySelector("#i-nombre").value, pin: f.querySelector("#i-pin").value }
+      : inv ? { password: paso.password, nombre: f.querySelector("#i-nombre").value, pin: f.querySelector("#i-pin").value,
       plantilla: (f.querySelector("input[name=plantilla]:checked") || {}).value } : { password: f.querySelector("#i-pass").value };
     boton.disabled = true; err.hidden = true;
     try {
@@ -188,7 +194,6 @@ function pintarEntrar(paso = {}) {
       if (r.invitado) return pintarEntrar({ invitado: true, nuevo: r.nuevo, plantillas: r.plantillas, password: cuerpo.password,
         nombre: cuerpo.nombre, pin: cuerpo.pin });
       E.token = r.token; mem.set("token", r.token);
-      if (r.demo) setTimeout(() => aviso(t("Bienvenido a la demo 👀 Mira todo lo que quieras")), 600);
       if (r.solo) { E.atleta = r.solo; mem.set("atleta", r.solo); }
       E.lang = r.lang || E.lang; mem.set("lang", E.lang);
       await cargar();
@@ -215,6 +220,55 @@ function poner(v) {
   if (v.solo && v.lang && !mem.get("lang_elegido")) E.lang = v.lang;
   pintar();
   if (v.pr) { aviso("🎉 " + v.pr); confeti(); } else if (v.aviso) aviso(v.aviso);
+  if (v.demo && !E.bienvenidaDemo && E.pantalla !== "registrar") { E.bienvenidaDemo = true; setTimeout(hojaBienvenidaDemo, 450); }
+}
+
+// ---------- demo: crear tu perfil o seguir mirando ----------
+function hojaBienvenidaDemo() {
+  if (!$hoja.hidden) return;
+  abrirHoja(`<div class="demo-hola">${ic.llama("#FF6A00", 44)}
+      <h3>${t("Bienvenido a Djimenez Prog")}</h3>
+      <p>${t("Estás viendo una rutina de ejemplo. Puedes mirarlo todo: los entrenos, el cronómetro, el progreso…")}</p></div>
+    <button class="btn btn-fuego" id="d-crear" style="height:56px">✨ ${t("Crear mi perfil")}</button>
+    <button class="btn" id="d-seguir">👀 ${t("Seguir viendo gratis")}</button>
+    <p class="mini" style="text-align:center;margin:0">${t("Con tu perfil tienes tu propia rutina y guardas tus marcas.")}</p>`, (h) => {
+    h.querySelector("#d-crear").onclick = () => hojaCrearPerfil({});
+    h.querySelector("#d-seguir").onclick = cerrarHoja;
+  });
+}
+function hojaCrearPerfil(paso) {
+  abrirHoja(`${cabHoja("Djimenez Prog", t("Crear mi perfil"))}
+    <form id="f-perfil" style="display:flex;flex-direction:column;gap:10px">
+      <label class="paso-etq" for="cp-nombre" style="margin:0 4px">${t("Tu nombre")}</label>
+      <input class="campo" id="cp-nombre" autocomplete="given-name" style="background:#fff" value="${esc(paso.nombre || "")}" required>
+      <label class="paso-etq" for="cp-pin" style="margin:0 4px">${t("Elige un PIN (4 cifras o más)")}</label>
+      <input class="campo" id="cp-pin" type="password" inputmode="numeric" autocomplete="new-password" style="background:#fff" value="${esc(paso.pin || "")}" required>
+      <p class="mini" style="margin:0 4px">${t("Con tu nombre y este PIN entrarás la próxima vez.")}</p>
+      ${paso.plantillas ? `<span class="paso-etq" style="margin:4px 4px 0">${t("¿Con qué rutina empiezas?")}</span>
+        <div class="opciones-radio">${Object.entries(paso.plantillas).map(([k, v], i) =>
+          `<label class="interruptor"><span>${esc(v)}</span><input type="radio" name="cp-plantilla" value="${esc(k)}" ${i === 0 ? "checked" : ""}></label>`).join("")}</div>` : ""}
+      <p class="error" id="cp-error" hidden></p>
+      <button class="btn btn-fuego" type="submit" style="height:54px">${paso.plantillas ? t("Empezar") : t("Seguir")}</button>
+    </form>
+    <button class="btn" id="cp-volver">👀 ${t("Seguir viendo gratis")}</button>`, (h) => {
+    h.querySelector("#cp-volver").onclick = cerrarHoja;
+    const f = h.querySelector("#f-perfil");
+    f.onsubmit = async (ev) => {
+      ev.preventDefault();
+      const err = h.querySelector("#cp-error"); const boton = f.querySelector("button[type=submit]");
+      const cuerpo = { nombre: h.querySelector("#cp-nombre").value, pin: h.querySelector("#cp-pin").value,
+        plantilla: (h.querySelector("input[name=cp-plantilla]:checked") || {}).value };
+      boton.disabled = true; err.hidden = true;
+      try {
+        const r = await api("crear_perfil", { metodo: "POST", cuerpo });
+        if (!r.token) return hojaCrearPerfil({ ...cuerpo, plantillas: r.plantillas });
+        E.token = r.token; mem.set("token", r.token);
+        E.atleta = r.solo; mem.set("atleta", r.solo); E.semana = null; E.dia = null;
+        cerrarHoja(); aviso(t("¡Perfil creado! Bienvenido 🔥")); confeti(); cargar();
+      } catch (e) { err.textContent = e.message; err.hidden = false; boton.disabled = false; }
+    };
+    setTimeout(() => h.querySelector(paso.nombre ? "#cp-pin" : "#cp-nombre").focus(), 80);
+  });
 }
 
 function pintarError(msg) {
@@ -290,7 +344,7 @@ function cabecera(v) {
         <button class="redondo" id="b-ajustes" aria-label="${t("Ajustes")}">${ic.ajustes}</button>
       </div>
     </div>
-    ${v.demo ? `<div class="banda-demo">👀 ${t("Modo demo · solo para mirar")} <button id="b-compartir-demo">${ic.compartir} ${t("Compartir")}</button></div>` : ""}
+    ${v.demo ? `<div class="banda-demo">👀 ${t("Modo demo · solo para mirar")} <button id="b-crear-demo">✨ ${t("Crear mi perfil")}</button><button id="b-compartir-demo">${ic.compartir} ${t("Compartir")}</button></div>` : ""}
     ${v.semana ? `<div class="pildora-semana">
       <button id="b-sem-menos" aria-label="Semana anterior" ${v.semana <= 1 ? "disabled style='opacity:.3'" : ""}>${ic.izq}</button>
       <span>${t("Semana")} ${v.semana}${v.semana === v.actual ? ` · <em>${t("de fuego")}</em>` : ""}</span>
@@ -468,6 +522,8 @@ function enlazar() {
     const x = textoParte(parteDe(b.dataset.compartir));
     compartir("entreno", `${x.texto}\n\n${t("Entreno de hoy con Djimenez Prog 💪")}`, x.titulo);
   });
+  const bcp = document.getElementById("b-crear-demo");
+  if (bcp) bcp.onclick = () => hojaCrearPerfil({});
   const bcd = document.getElementById("b-compartir-demo");
   if (bcd) bcd.onclick = () => compartir("app", t("💪 Mira la app de entrenamiento de Diego (Djimenez Prog)"), "app");
   on("b-anadir-parte", () => hojaParte(null));
@@ -700,7 +756,6 @@ function enlazarPin(h, reabrir) {
     try {
       const r = await api("coach", { metodo: "POST", cuerpo: { pin: h.querySelector("#pin-in").value } });
       E.token = r.token; mem.set("token", r.token);
-      if (r.demo) setTimeout(() => aviso(t("Bienvenido a la demo 👀 Mira todo lo que quieras")), 600);
       cerrarHoja(); await cargar(); aviso(t("Modo coach activado")); reabrir();
     } catch (e) { aviso(e.message, true); b.disabled = false; }
   };
@@ -900,6 +955,8 @@ async function hojaActividad() {
     ${d.desde ? "" : `<br><b>${t("Se empieza a contar desde hoy.")}</b>`}</p>
     <div class="act-totales"><div><b>${d.total_compartidos || 0}</b><span>${t("veces compartido")}</span></div>
       <div><b>${d.total_llegadas || 0}</b><span>${t("han entrado por un enlace")}</span></div></div>
+    ${d.altas && d.altas.length ? `<div class="act-altas"><b>✨ ${d.altas.length} ${t(d.altas.length === 1 ? "perfil creado desde la demo" : "perfiles creados desde la demo")}</b>
+      <span>${d.altas.map((a) => `${esc(a.nombre)} <small>(${esc(a.hace)})</small>`).join(" · ")}</span></div>` : ""}
     <div class="act-lista">${filas}</div>`;
   $hoja.querySelectorAll("[data-cerrar]").forEach((b) => b.onclick = cerrarHoja);
 }
@@ -1671,7 +1728,6 @@ function hojaNuevoPr() {
       const r = await api("login", { metodo: "POST", cuerpo: { inv } });
       E.token = r.token; mem.set("token", r.token);
       if (r.solo) { E.atleta = r.solo; mem.set("atleta", r.solo); }
-      setTimeout(() => aviso(t("Bienvenido a la demo 👀 Mira todo lo que quieras")), 600);
     } catch (e) { pintarEntrar(); return aviso(e.message, true); }
   }
   if (E.token) cargar(); else pintarEntrar();

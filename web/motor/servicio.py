@@ -317,7 +317,7 @@ def _igual(a: str, b: str) -> bool:
     return bool(a) and bool(b) and hmac.compare_digest(a.encode(), b.encode())
 
 
-VERSION = "3.9"
+VERSION = "4.0"
 CLAVES_NECESARIAS = ["SUPABASE_URL", "SUPABASE_KEY", "APP_PASSWORD", "CONTRASENA_ARCHCHANA", "CONTRASENA_INVITADOS", "COACH_PIN",
                      "APP_ANTIGUA_URL", "CONTRASENA_DEMO"]
 
@@ -351,6 +351,8 @@ def _hash(nombre: str, pin: str) -> str:
 
 
 def login(cuerpo: dict) -> dict:
+    if cuerpo.get("perfil"):
+        return _login_perfil(cuerpo)
     if cuerpo.get("inv"):
         return _login_invitacion(str(cuerpo["inv"]))
     intento = str(cuerpo.get("password") or "").strip()
@@ -477,6 +479,42 @@ def compartir(sesion: dict, c: dict) -> dict:
     return {"inv": enlace}
 
 
+def _login_perfil(cuerpo: dict) -> dict:
+    """Entrar con nombre + PIN a un perfil que ya existe (los creados desde la demo no saben la contraseña de invitados)."""
+    nombre = " ".join(str(cuerpo.get("nombre") or "").split()).title()
+    pin = str(cuerpo.get("pin") or "").strip()
+    registro = invitados()
+    existente = next((n for n in registro if norm_busqueda(n) == norm_busqueda(nombre)), None)
+    if not nombre or not pin or not existente or not hmac.compare_digest(registro[existente].get("pin", ""), _hash(existente, pin)):
+        time.sleep(0.8)
+        raise Error("Nombre o PIN incorrectos", 401)
+    return _sesion_para(existente)
+
+
+PLANTILLAS_DEMO = {"Salatti": "Rutina 1 · fuerza + WOD", "Dario": "Rutina 2 · fuerza + WOD"}
+
+
+def crear_perfil(sesion: dict, c: dict) -> dict:
+    """Desde la demo: crear tu propio perfil (nombre + PIN + rutina de partida) sin la contraseña de invitados."""
+    if not es_demo(sesion):
+        raise Error("Esto solo se usa desde la demo", 403)
+    if not env("CONTRASENA_DEMO"):
+        raise Error("Ahora mismo no se pueden crear perfiles. Pídeselo a Diego.", 403)
+    r = _login_invitado(c)
+    if "plantillas" in r:
+        r["plantillas"] = {k: PLANTILLAS_DEMO.get(k, f"Rutina {i + 1}") for i, k in enumerate(r["plantillas"])}
+    if r.get("token"):
+        nombre = " ".join(str(c.get("nombre") or "").split()).title()
+
+        def cambio(act):
+            altas = act.setdefault("altas", [])
+            if not any(a.get("nombre") == nombre for a in altas):
+                altas.insert(0, {"nombre": nombre, "cuando": _ahora().isoformat(timespec="minutes")})
+                del altas[50:]
+        _apuntar_actividad(cambio)
+    return r
+
+
 # ===== actividad: quién entra y cuándo =====
 def _ahora() -> dt.datetime:
     try:
@@ -569,7 +607,8 @@ def actividad(sesion: dict) -> dict:
     filas.sort(key=lambda f: f["ultimo"] or "", reverse=True)
     return {"personas": filas, "desde": min((d for a in act.values() for d in a.get("dias", {})), default=None),
             "total_compartidos": sum(x.get("app", 0) + x.get("entreno", 0) for x in comp.values()),
-            "total_llegadas": sum(x.get("n", 0) for x in lleg.values())}
+            "total_llegadas": sum(x.get("n", 0) for x in lleg.values()),
+            "altas": [{"nombre": a["nombre"], "hace": _hace(a.get("cuando"), ahora)} for a in todo.get("altas", [])][:20]}
 
 
 # ===== vista de la rutina =====
