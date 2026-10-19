@@ -18,6 +18,7 @@ const E = { token: mem.get("token"), atleta: mem.get("atleta"), lang: mem.get("l
 
 // ---------- textos ----------
 const FR = {
+  "Conoce al creador": "Découvre le créateur",
   "Ver vídeo de técnica": "Voir la vidéo technique", "Añadir vídeo": "Ajouter une vidéo", "Técnica": "Technique",
   "Abrir el vídeo": "Ouvrir la vidéo", "Este ejercicio aún no tiene vídeo.": "Cet exercice n'a pas encore de vidéo.",
   "Vídeo para todos en este ejercicio": "Vidéo pour tous sur cet exercice", "Quitar": "Enlever",
@@ -402,6 +403,11 @@ function hojaPago(cs) {
   });
 }
 
+// página «Conoce al creador» (la de Diego), en el idioma de cada uno
+const urlCreador = () => E.lang === "fr" ? "https://conoce-al-creador.vercel.app/?lang=fr#profesor"
+  : "https://conoce-al-creador.vercel.app/?lang=es#traductor";
+const botonCreador = (extra = "") => `<a class="btn btn-creador" href="${urlCreador()}" target="_blank" rel="noopener" ${extra}>👤 ${t("Conoce al creador")}</a>`;
+
 function hojaBienvenidaDemo() {
   if (!$hoja.hidden) return;
   abrirHoja(`<div class="demo-hola">${ic.llama("#FF6A00", 44)}
@@ -410,7 +416,8 @@ function hojaBienvenidaDemo() {
     <button class="btn btn-fuego" id="d-crear" style="height:56px">✨ ${t("Crear mi perfil")}</button>
     ${botonAbono(E.vista, "d-abono")}
     <button class="btn" id="d-seguir">👀 ${t("Seguir viendo gratis")}</button>
-    <p class="mini" style="text-align:center;margin:0">${t("Con tu perfil tienes tu propia rutina y guardas tus marcas.")}</p>`, (h) => {
+    <p class="mini" style="text-align:center;margin:0">${t("Con tu perfil tienes tu propia rutina y guardas tus marcas.")}</p>
+    ${botonCreador()}`, (h) => {
     h.querySelector("#d-crear").onclick = () => hojaCrearPerfil({});
     h.querySelector("#d-seguir").onclick = cerrarHoja;
     const da = h.querySelector("#d-abono"); if (da) da.onclick = abonarse;
@@ -963,6 +970,7 @@ function hojaAjustes() {
     <div style="display:grid;grid-template-columns:1fr auto;gap:8px">
       <button class="btn btn-fuego" id="b-compartir-app">${ic.compartir} ${t("Compartir la app")}</button>
       <button class="btn btn-negro" id="b-qr" style="padding:0 18px">${ic.qr} QR</button></div>
+    ${botonCreador()}
     ${v.app_antigua ? `<a class="btn" href="${esc(v.app_antigua)}" target="_blank" rel="noopener">${t("Abrir la app de siempre")}</a>` : ""}
     <button class="btn btn-negro" id="b-salir">${t("Salir")}</button>`, (h) => {
     const bc = h.querySelector("#b-coach");
