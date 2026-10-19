@@ -241,6 +241,7 @@ function pintar() {
   const tip = document.getElementById("tip");
   if (tip) tip.hidden = true;
   $app.className = "";
+  desbloquearScroll();
   if (E.pantalla === "registrar") return pintarRegistrar();
   if (E.pantalla === "progreso" || E.pantalla === "prs") return pintarPantalla();
   if (v.sin_rutina) {
@@ -475,7 +476,14 @@ function abrirHoja(html, alAbrir) {
   $hoja.querySelectorAll("[data-cerrar]").forEach((b) => b.onclick = cerrarHoja);
   if (alAbrir) alAbrir($hoja.firstElementChild);
 }
-function cerrarHoja() { $hoja.hidden = true; $hoja.innerHTML = ""; document.body.style.overflow = ""; }
+function cerrarHoja() { $hoja.hidden = true; $hoja.innerHTML = ""; desbloquearScroll(); }
+// Si no hay ninguna ventana abierta, la página tiene que poder bajar siempre (algunos Android dejaban el bloqueo puesto).
+function desbloquearScroll() {
+  const crono = document.getElementById("crono");
+  if ($hoja.hidden && (!crono || crono.hidden)) { document.body.style.overflow = ""; document.documentElement.style.overflow = ""; }
+}
+window.addEventListener("pageshow", desbloquearScroll);
+document.addEventListener("visibilitychange", () => { if (!document.hidden) desbloquearScroll(); });
 document.addEventListener("keydown", (ev) => { if (ev.key === "Escape" && !$hoja.hidden) cerrarHoja(); });
 const cabHoja = (pre, titulo) => `<div class="hoja-cab"><div><small>${esc(pre)}</small><h3>${esc(titulo)}</h3></div>
   <button class="cerrar" data-cerrar aria-label="Cerrar">${ic.x}</button></div>`;
@@ -554,6 +562,7 @@ function hojaAjustes() {
     <div class="caja-coach"><div class="paso-etq" style="margin:0 0 8px">${ic.candado} ${t("Modo coach")}</div>
       ${v.coach ? `<div class="mini" style="margin-bottom:10px">${t("Activado: puedes cambiar los pesos de todos.")}</div>
         ${v.atleta !== "Yo" ? `<label class="interruptor"><span>${esc(v.nombre)} ${t("puede cambiar sus pesos sin preguntarte")}</span><input type="checkbox" id="c-permiso" ${v.permiso_pesos ? "checked" : ""}></label>` : ""}
+        <button class="btn btn-fuego" id="b-actividad" style="width:100%;margin-top:10px;height:50px">📊 ${t("Quién usa la app")}</button>
         <button class="btn" id="b-limpiar" style="width:100%;margin-top:10px">🧹 ${t("Limpiar la biblioteca")}</button>
         <div id="limpiar-res"></div>
         <button class="btn" id="b-coach-salir" style="width:100%;margin-top:10px">${t("Quitar el modo coach en este móvil")}</button>`
@@ -569,15 +578,17 @@ function hojaAjustes() {
       try {
         const r = await api("coach", { metodo: "POST", cuerpo: { pin: h.querySelector("#i-pin-coach").value } });
         E.token = r.token; mem.set("token", r.token);
-      if (r.demo) setTimeout(() => aviso(t("Bienvenido a la demo 👀 Mira todo lo que quieras")), 600); cerrarHoja(); aviso(t("Modo coach activado")); cargar();
+      cerrarHoja(); aviso(t("Modo coach activado")); cargar();
       } catch (e) { aviso(e.message, true); bc.disabled = false; }
     };
     const bs = h.querySelector("#b-coach-salir");
     if (bs) bs.onclick = async () => {
       const r = await api("coach", { metodo: "POST", cuerpo: { salir: true } });
       E.token = r.token; mem.set("token", r.token);
-      if (r.demo) setTimeout(() => aviso(t("Bienvenido a la demo 👀 Mira todo lo que quieras")), 600); cerrarHoja(); aviso(t("Modo coach quitado")); cargar();
+      cerrarHoja(); aviso(t("Modo coach quitado")); cargar();
     };
+    const ba = h.querySelector("#b-actividad");
+    if (ba) ba.onclick = () => hojaActividad();
     const bl = h.querySelector("#b-limpiar");
     if (bl) bl.onclick = async () => {
       bl.disabled = true;
@@ -794,6 +805,28 @@ async function hojaAzar(k) {
         solo_esta: est.solo, mensaje: (h.querySelector("#c-msg") || {}).value });
     };
   });
+}
+
+async function hojaActividad() {
+  abrirHoja(`${cabHoja(t("Solo para ti"), t("Quién usa la app"))}<div class="cargador" style="margin:30px auto"></div>`);
+  let d;
+  try { d = await api("actividad"); } catch (e) { cerrarHoja(); return aviso(e.message, true); }
+  if ($hoja.hidden) return;
+  const filas = d.personas.map((p) => {
+    const activo = p.dias7 > 0 ? "on" : p.dias30 > 0 ? "medio" : "";
+    const racha = `<div class="act-racha" aria-label="${t("Últimos 14 días")}">${p.racha.map((x) => `<i class="${x ? "si" : ""}"></i>`).join("")}</div>`;
+    const datos = p.demo
+      ? `${p.entradas} ${t(p.entradas === 1 ? "entrada en total" : "entradas en total")} · ${p.entradas7} ${t("esta semana")}`
+      : `${p.dias7} ${t(p.dias7 === 1 ? "día esta semana" : "días esta semana")} · ${p.dias30} ${t("en 30 días")}<br>${p.registros30 ? `🏋️ ${p.registros30} ${t("entrenos registrados (30 días)")}` : t("Sin entrenos registrados en 30 días")}${p.ultimo_registro ? ` · ${t("último")}: ${esc(p.ultimo_registro)}` : ""}`;
+    return `<div class="act-fila ${activo}"><div class="act-cab"><span class="avatar">${p.demo ? "👀" : esc(inicial(p.nombre))}</span>
+      <div><b>${esc(p.nombre)}</b><small>${esc(p.hace)}</small></div></div>
+      ${racha}<div class="mini">${datos}</div></div>`;
+  }).join("");
+  $hoja.firstElementChild.innerHTML = `<div class="asa"></div>${cabHoja(t("Solo para ti"), t("Quién usa la app"))}
+    <p class="mini" style="margin:0 4px">${t("Cada cuadrito es un día de las últimas 2 semanas (el último es hoy). Naranja = abrió la app ese día.")}
+    ${d.desde ? "" : `<br><b>${t("Se empieza a contar desde hoy.")}</b>`}</p>
+    <div class="act-lista">${filas}</div>`;
+  $hoja.querySelectorAll("[data-cerrar]").forEach((b) => b.onclick = cerrarHoja);
 }
 
 function hojaSolicitudes() {
@@ -1049,7 +1082,7 @@ function cerrarCrono() {
   pantallaEncendida(false);
   document.removeEventListener("visibilitychange", alVolver);
   if (C.el) { C.el.hidden = true; C.el.innerHTML = ""; }
-  document.body.style.overflow = "";
+  desbloquearScroll();
 }
 
 const transcurrido = () => C.s.acumulado + (C.s.estado === "corre" ? Date.now() - C.s.inicio : 0);

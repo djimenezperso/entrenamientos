@@ -70,6 +70,7 @@ VOLUMEN = [
 ]
 PROTEGIDOS = ["Yo", "Diego", "Manu Anel", "Salatti", "Mi esposa", "Dario", "Juan", "Archchana"]
 CLAVE_INVITADOS = "__invitados__"
+CLAVE_ACTIVIDAD = "__actividad__"  # quién abre la app y cuándo (solo lo ve el coach)
 PLANTILLAS = {"Salatti": "Rutina de Salatti", "Dario": "Rutina de Dario"}
 TIPOS_WOD = ("wod", "emom", "fortime", "amrap")
 
@@ -316,7 +317,7 @@ def _igual(a: str, b: str) -> bool:
     return bool(a) and bool(b) and hmac.compare_digest(a.encode(), b.encode())
 
 
-VERSION = "3.6"
+VERSION = "3.7"
 CLAVES_NECESARIAS = ["SUPABASE_URL", "SUPABASE_KEY", "APP_PASSWORD", "CONTRASENA_ARCHCHANA", "CONTRASENA_INVITADOS", "COACH_PIN",
                      "APP_ANTIGUA_URL", "CONTRASENA_DEMO"]
 
@@ -370,6 +371,7 @@ def login(cuerpo: dict) -> dict:
             return _sesion_para(nombre)
     if _igual(intento, env("CONTRASENA_DEMO")):
         quien = env("DEMO_ATLETA") or "Yo"
+        _apuntar(None, {"d": 1}, "Demo", entrada=True)
         return _sesion_para(quien if quien in ATLETAS else "Yo", demo=True)
     inv_clave = env("CONTRASENA_INVITADOS")
     if _igual(intento, inv_clave):
@@ -409,6 +411,94 @@ def _login_invitado(cuerpo: dict) -> dict:
 def puede_ver(sesion: dict, atleta: str) -> None:
     if sesion.get("u") and sesion["u"] != atleta:
         raise Error("No tienes acceso a esa persona", 403)
+
+
+# ===== actividad: quién entra y cuándo =====
+def _ahora() -> dt.datetime:
+    try:
+        from zoneinfo import ZoneInfo
+        return dt.datetime.now(ZoneInfo("Europe/Madrid"))
+    except Exception:  # noqa: BLE001  (sin datos de zonas horarias: hora de España en verano)
+        return dt.datetime.now(dt.timezone(dt.timedelta(hours=2)))
+
+
+def _apuntar(guardadas: dict | None, sesion: dict, atleta: str, entrada: bool = False) -> None:
+    """Apunta que alguien ha abierto la app. Como mucho una vez cada 10 minutos por persona, y nunca rompe nada."""
+    try:
+        if es_coach(sesion) and atleta != "Yo":
+            return  # Diego mirando la rutina de otro no cuenta como que esa persona entra
+        quien = "Demo" if es_demo(sesion) else atleta
+        act = (guardadas.get(CLAVE_ACTIVIDAD) if guardadas is not None
+               else datos().rutinas([CLAVE_ACTIVIDAD]).get(CLAVE_ACTIVIDAD)) or {}
+        act = copy.deepcopy(act)
+        p = act.setdefault("personas", {}).setdefault(quien, {})
+        ahora = _ahora()
+        if not entrada and p.get("ultimo"):
+            try:
+                if ahora - dt.datetime.fromisoformat(p["ultimo"]) < dt.timedelta(minutes=10):
+                    return
+            except ValueError:
+                pass
+        p["ultimo"] = ahora.isoformat(timespec="minutes")
+        dias = p.setdefault("dias", {})
+        hoy = ahora.date().isoformat()
+        dias[hoy] = dias.get(hoy, 0) + 1
+        corte = (ahora.date() - dt.timedelta(days=90)).isoformat()
+        p["dias"] = {d: n for d, n in dias.items() if d >= corte}
+        if entrada:
+            p["entradas"] = p.get("entradas", 0) + 1
+        datos().guardar(CLAVE_ACTIVIDAD, act)
+    except Exception:  # noqa: BLE001
+        pass
+
+
+def _hace(iso: str | None, ahora: dt.datetime) -> str:
+    if not iso:
+        return "Nunca"
+    try:
+        t = dt.datetime.fromisoformat(iso)
+    except ValueError:
+        return "—"
+    dias = (ahora.date() - t.date()).days
+    if dias <= 0:
+        return f"Hoy {t:%H:%M}"
+    if dias == 1:
+        return f"Ayer {t:%H:%M}"
+    return f"Hace {dias} días"
+
+
+def actividad(sesion: dict) -> dict:
+    """Para el coach: quién entra a la app, cuántos días y si registra entrenos."""
+    if not es_coach(sesion):
+        raise Error("Solo el coach puede ver esto", 403)
+    act = (datos().rutinas([CLAVE_ACTIVIDAD]).get(CLAVE_ACTIVIDAD) or {}).get("personas", {})
+    ahora = _ahora()
+    hoy = ahora.date()
+    ult14 = [(hoy - dt.timedelta(days=i)).isoformat() for i in range(13, -1, -1)]
+    def dias_en(dias: dict, n: int) -> int:
+        corte = (hoy - dt.timedelta(days=n - 1)).isoformat()
+        return sum(1 for d in dias if d >= corte)
+    filas = []
+    for p in todas_las_personas() + ["Demo"]:
+        a = act.get(p, {})
+        dias = a.get("dias", {})
+        fila = {"id": p, "nombre": nv(p) if p != "Demo" else "Demo (solo mirar)", "ultimo": a.get("ultimo"),
+                "hace": _hace(a.get("ultimo"), ahora), "dias7": dias_en(dias, 7), "dias30": dias_en(dias, 30),
+                "racha": [1 if d in dias else 0 for d in ult14], "demo": p == "Demo"}
+        if p == "Demo":
+            fila["entradas"] = a.get("entradas", 0)
+            fila["entradas7"] = sum(n for d, n in dias.items() if d >= ult14[7])
+        else:
+            try:
+                ws = datos().entrenos(p, 120)
+            except Exception:  # noqa: BLE001
+                ws = []
+            corte = (hoy - dt.timedelta(days=30)).isoformat()
+            fila["registros30"] = sum(1 for w in ws if str(w.get("date", ""))[:10] >= corte)
+            fila["ultimo_registro"] = _fecha_txt(ws[0]["date"]) if ws else None
+        filas.append(fila)
+    filas.sort(key=lambda f: f["ultimo"] or "", reverse=True)
+    return {"personas": filas, "desde": min((d for a in act.values() for d in a.get("dias", {})), default=None)}
 
 
 # ===== vista de la rutina =====
@@ -649,8 +739,9 @@ def vista(sesion: dict, atleta: str | None, semana: int | None, dia_id: str | No
     atleta = atleta if atleta in personas else personas[0]
     puede_ver(sesion, atleta)
     alumno = es_alumno(atleta, inv)
-    guardadas = datos().rutinas(list({atleta, "Yo", CLAVE_SOLICITUDES, CLAVE_NOVEDADES}))
+    guardadas = datos().rutinas(list({atleta, "Yo", CLAVE_SOLICITUDES, CLAVE_NOVEDADES, CLAVE_ACTIVIDAD}))
     rut = rutina(atleta, guardadas)
+    _apuntar(guardadas, sesion, atleta)
     coach = es_coach(sesion)
     todas_sol = (guardadas.get(CLAVE_SOLICITUDES) or {}).get("lista") or []
     base = {"atleta": atleta, "nombre": nv(atleta), "solo": sesion.get("u") or None,

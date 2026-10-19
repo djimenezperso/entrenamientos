@@ -59,6 +59,8 @@ class handler(BaseHTTPRequestHandler):
             if ruta == "ideas" and metodo == "GET":
                 self._sesion()
                 return self._responder(200, servicio.ideas())
+            if ruta == "actividad" and metodo == "GET":
+                return self._responder(200, servicio.actividad(self._sesion()))
             if ruta == "coach" and metodo == "POST":
                 return self._responder(200, servicio.modo_coach(self._sesion(), self._cuerpo()))
             if ruta == "resolver" and metodo == "POST":
