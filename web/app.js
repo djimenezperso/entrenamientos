@@ -16,6 +16,83 @@ const E = { token: mem.get("token"), atleta: mem.get("atleta"), lang: mem.get("l
 
 // ---------- textos ----------
 const FR = {
+  "Fuerza": "Force",
+  "Volver": "Retour",
+  "¿Ya tienes perfil? Entra con tu nombre y PIN": "Tu as déjà un profil ? Entre avec ton nom et ton code",
+  "Abonarse": "S'abonner",
+  "¡Gracias por abonarte!": "Merci pour ton abonnement !",
+  "Estamos comprobando el pago. Déjanos tu teléfono y tu email para darte de alta y escribirte.": "On vérifie le paiement. Laisse-nous ton téléphone et ton e-mail pour t'inscrire et te contacter.",
+  "Teléfono": "Téléphone",
+  "Enviar": "Envoyer",
+  "¡Recibido!": "Bien reçu !",
+  "En cuanto Diego compruebe el pago te escribirá para empezar. ¡Nos vemos entrenando! 🔥": "Dès que Diego aura vérifié le paiement, il t'écrira pour commencer. À bientôt à l'entraînement ! 🔥",
+  "Vale": "OK",
+  "Bienvenido a Djimenez Prog": "Bienvenue sur Djimenez Prog",
+  "Estás viendo una rutina de ejemplo. Puedes mirarlo todo: los entrenos, el cronómetro, el progreso…": "Tu regardes un programme d'exemple. Tu peux tout voir : les séances, le chrono, les progrès…",
+  "Crear mi perfil": "Créer mon profil",
+  "Seguir viendo gratis": "Continuer à regarder gratuitement",
+  "Con tu perfil tienes tu propia rutina y guardas tus marcas.": "Avec ton profil, tu as ton propre programme et tu gardes tes records.",
+  "Elige un PIN (4 cifras o más)": "Choisis un code (4 chiffres ou plus)",
+  "Con tu nombre y este PIN entrarás la próxima vez.": "Tu entreras la prochaine fois avec ton nom et ce code.",
+  "Seguir": "Continuer",
+  "¡Perfil creado! Bienvenido 🔥": "Profil créé ! Bienvenue 🔥",
+  "Modo demo · solo para mirar": "Mode démo · juste pour regarder",
+  "Compartir": "Partager",
+  "Compartir este entreno": "Partager cette séance",
+  "Entreno de hoy con Djimenez Prog 💪": "Séance du jour avec Djimenez Prog 💪",
+  "💪 Mira la app de entrenamiento de Diego (Djimenez Prog)": "💪 Regarde l'appli d'entraînement de Diego (Djimenez Prog)",
+  "Mírala aquí (entras directo, solo para ver):": "Regarde ici (tu entres directement, juste pour voir) :",
+  "La app:": "L'appli :",
+  "¡Compartido! 🔥": "Partagé ! 🔥",
+  "Código QR": "QR code",
+  "No se ha podido crear el QR": "Impossible de créer le QR code",
+  "Que lo escaneen con la cámara del móvil: entran directo a la demo, solo para mirar. Cuenta en «Quién usa la app».": "À scanner avec l'appareil photo : on entre directement dans la démo, juste pour regarder. C'est compté dans « Qui utilise l'appli ».",
+  "Escaneándolo se abre la app (para entrar hace falta contraseña).": "En le scannant, l'appli s'ouvre (il faut un mot de passe pour entrer).",
+  "Copiar el texto": "Copier le texte",
+  "Copiado. Pégalo donde quieras": "Copié. Colle-le où tu veux",
+  "No se ha podido copiar": "Impossible de copier",
+  "Activado: puedes cambiar los pesos de todos.": "Activé : tu peux changer les poids de tout le monde.",
+  "puede cambiar sus pesos sin preguntarte": "peut changer ses poids sans te demander",
+  "Quién usa la app": "Qui utilise l'appli",
+  "Quitar el modo coach en este móvil": "Quitter le mode coach sur ce téléphone",
+  "Solo para Diego: con el PIN del coach puedes cambiar los pesos y aprobar los cambios que te piden.": "Réservé à Diego : avec le code du coach, tu peux changer les poids et valider les demandes.",
+  "Compartir la app": "Partager l'appli",
+  "Modo coach activado": "Mode coach activé",
+  "Modo coach quitado": "Mode coach désactivé",
+  "💪 Mira la app con la que entreno con Diego (Djimenez Prog)": "💪 Regarde l'appli avec laquelle je m'entraîne avec Diego (Djimenez Prog)",
+  "Todo lo que hay en la biblioteca son entrenos. No hay nada que quitar.": "Tout dans la bibliothèque, ce sont des séances. Rien à enlever.",
+  "cosas que no son entrenos": "éléments qui ne sont pas des séances",
+  "quitadas de la biblioteca": "retirés de la bibliothèque",
+  "Solo para ti": "Rien que pour toi",
+  "Últimos 14 días": "14 derniers jours",
+  "esta semana": "cette semaine",
+  "en 30 días": "en 30 jours",
+  "entrenos registrados (30 días)": "séances enregistrées (30 jours)",
+  "Sin entrenos registrados en 30 días": "Aucune séance enregistrée en 30 jours",
+  "último": "dernière",
+  "con el QR": "avec le QR code",
+  "la app": "l'appli",
+  "Cada cuadrito es un día de las últimas 2 semanas (el último es hoy). Naranja = abrió la app ese día.": "Chaque case est un jour des 2 dernières semaines (la dernière, c'est aujourd'hui). Orange = appli ouverte ce jour-là.",
+  "Se empieza a contar desde hoy.": "Le comptage commence aujourd'hui.",
+  "veces compartido": "partages",
+  "han entrado por un enlace": "sont entrés par un lien",
+  "Pagos por comprobar": "Paiements à vérifier",
+  "perfil": "profil",
+  "Comprobado": "Vérifié",
+  "Marcar comprobado": "Marquer vérifié",
+  "veces han pulsado «Abonarse»": "clics sur « S'abonner »",
+  "Los pagos de verdad los ves en Stripe (cada pago lleva el nombre de quien pulsó).": "Les vrais paiements sont dans Stripe (chaque paiement porte le nom de la personne).",
+  "El botón aún no sale: falta poner ABONO_URL en Vercel.": "Le bouton n'apparaît pas encore : il manque ABONO_URL dans Vercel.",
+  "entrada en total": "entrée au total",
+  "entradas en total": "entrées au total",
+  "día esta semana": "jour cette semaine",
+  "días esta semana": "jours cette semaine",
+  "vez compartido": "partage",
+  "entreno": "séance",
+  "persona ha entrado con su enlace": "personne est entrée avec son lien",
+  "personas han entrado con su enlace": "personnes sont entrées avec son lien",
+  "perfil creado desde la demo": "profil créé depuis la démo",
+  "perfiles creados desde la demo": "profils créés depuis la démo",
   "Hola,": "Salut,", "Semana": "Semaine", "de fuego": "de feu", "Entrar": "Entrer", "Contraseña": "Mot de passe",
   "Tu entrenamiento, tu progresión": "Ton entraînement, ta progression",
   "¿Eres nuevo? Entra con el código que te ha dado Diego": "Nouveau ? Entre avec le code que Diego t'a donné",
@@ -80,6 +157,24 @@ const FR = {
   "Qué toca": "Au programme", "Ideas": "Idées", "Sin ideas guardadas para este tipo todavía.": "Pas encore d'idées pour ce type.", "Tiempo total": "Temps total",
 };
 const t = (s) => (E.lang === "fr" && FR[s]) || s;
+// datos que vienen escritos en español (nombres de día, fechas, tipos): en francés se traducen al enseñarlos
+const MESES_ES = ["ene", "feb", "mar", "abr", "may", "jun", "jul", "ago", "sep", "oct", "nov", "dic"];
+const MESES_FR = ["janv.", "févr.", "mars", "avr.", "mai", "juin", "juil.", "août", "sept.", "oct.", "nov.", "déc."];
+const DIAS_SEM = { lun: "lun.", mar: "mar.", "mié": "mer.", jue: "jeu.", vie: "ven.", "sáb": "sam.", dom: "dim." };
+const trDia = (x) => E.lang !== "fr" || !x ? x : String(x).replace(/\bD[ií]a\b/g, "Jour").replace(/\bSemana\b/g, "Semaine")
+  .replace(/\bDescanso\b/gi, "Repos");
+const trFecha = (x) => {
+  if (E.lang !== "fr" || !x) return x;
+  const mes = (m) => { const i = MESES_ES.indexOf(m); return i < 0 ? m : MESES_FR[i]; };
+  let m = String(x).match(/^(lun|mar|mié|jue|vie|sáb|dom) (\d+) (\S+) (\d{4})$/);
+  if (m) return `${DIAS_SEM[m[1]]} ${m[2]} ${mes(m[3])} ${m[4]}`;
+  m = String(x).match(/^(\d+) (\S+)( \d{4})?$/);
+  return m ? `${m[1]} ${mes(m[2])}${m[3] || ""}` : x;
+};
+const TIPO_FR = { fuerza: "Force", wod: "WOD", gym: "Gym", endurance: "Endurance", otro: "Autre" };
+const UNIDAD_FR = { tiempo: "temps", rondas: "tours" };
+const trTipo = (k, n) => E.lang === "fr" ? (TIPO_FR[k] || n) : n;
+const trUnidad = (u) => E.lang === "fr" ? (UNIDAD_FR[u] || u) : u;
 
 // ---------- utilidades ----------
 const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
@@ -162,7 +257,7 @@ function pintarEntrar(paso = {}) {
           <div class="opciones-radio">${Object.entries(paso.plantillas || {}).map(([k, v], i) =>
             `<label class="interruptor"><span>${esc(v)}</span><input type="radio" name="plantilla" value="${esc(k)}" ${i === 0 ? "checked" : ""}></label>`).join("")}</div>` : ""}
       ` : `
-        <label for="i-pass">${t("Contraseña")} · Mot de passe</label>
+        <label for="i-pass">${E.lang === "fr" ? "Mot de passe" : "Contraseña · Mot de passe"}</label>
         <input class="campo" id="i-pass" type="password" autocomplete="current-password" required>
       `}
       <p class="error" id="e-entrar" hidden></p>
@@ -355,7 +450,7 @@ function pintar() {
   const total = cuentan.length;
   $app.innerHTML = cabecera(v) + `
   <main>
-    <div class="titulo-dia"><h2>${esc(v.dia.nombre)}</h2><span>${total ? `${hechas} ${t("de")} ${total} ${t("partes hechas")}` : ""}</span></div>
+    <div class="titulo-dia"><h2>${esc(trDia(v.dia.nombre))}</h2><span>${total ? `${hechas} ${t("de")} ${total} ${t("partes hechas")}` : ""}</span></div>
     <div class="barra"><i style="width:${total ? Math.round(hechas / total * 100) : 0}%"></i></div>
     ${(v.novedades || []).map((n) => `<section class="novedad">
       <div class="nov-cab">${ic.llama("#FFB400", 22)}<div><small>${t("Novedad de Diego")} · ${esc(n.etiqueta)}</small><b>${esc(n.nombre)}</b></div></div>
@@ -397,7 +492,7 @@ function cabecera(v) {
     </div>` : ""}
     ${v.dias ? `<div class="dias" role="tablist">${v.dias.map((d) => {
       const n = (d.nombre.match(/\d+/) || [d.nombre.slice(0, 2)])[0];
-      return `<button class="dia ${d.id === v.dia.id ? "on" : ""}" role="tab" aria-selected="${d.id === v.dia.id}" data-dia="${esc(d.id)}" aria-label="${esc(d.nombre)}">
+      return `<button class="dia ${d.id === v.dia.id ? "on" : ""}" role="tab" aria-selected="${d.id === v.dia.id}" data-dia="${esc(d.id)}" aria-label="${esc(trDia(d.nombre))}">
         <small>D${esc(n)}</small><span class="punto ${d.estado}"></span>${d.pendientes ? '<span class="pend"></span>' : ""}</button>`;
     }).join("")}</div>` : ""}
   </header>`;
@@ -447,7 +542,7 @@ function corto(o) {
   return "→ " + (n ? "D" + n : dia.slice(0, 6)) + (sem ? " " + sem : "");
 }
 
-const ultimoHtml = (l) => l.ultimo ? `<div class="ultimo">${ic.reloj.replace('width="22" height="22"', 'width="14" height="14"')}<span>${t("Último")}: <b>${esc(l.ultimo.valor)}</b> · ${esc(l.ultimo.fecha)}</span></div>` : "";
+const ultimoHtml = (l) => l.ultimo ? `<div class="ultimo">${ic.reloj.replace('width="22" height="22"', 'width="14" height="14"')}<span>${t("Último")}: <b>${esc(l.ultimo.valor)}</b> · ${esc(trFecha(l.ultimo.fecha))}</span></div>` : "";
 
 function linea(l, p, k) {
   const extra = l.extra ? ` <span class="etq ${l.extra.tono}">${esc(l.extra.texto)}</span>` : "";
@@ -881,11 +976,11 @@ async function hojaParte(p) {
       h.querySelector("#p-texto").scrollIntoView({ block: "center", behavior: "smooth" });
     });
   };
-  abrirHoja(`${cabHoja(cambiar ? `${p.letra ? p.letra + " · " : ""}${etqParte(p.etiqueta)}` : esc(v.dia.nombre), cambiar ? t("Cambiar esta parte") : t("Añadir parte"))}
+  abrirHoja(`${cabHoja(cambiar ? `${p.letra ? p.letra + " · " : ""}${etqParte(p.etiqueta)}` : esc(trDia(v.dia.nombre)), cambiar ? t("Cambiar esta parte") : t("Añadir parte"))}
     ${avisoCoach(v)}
     ${cambiar && p.es_cambio ? `<button class="btn btn-negro" id="p-volver">↩ ${t("Volver a lo que había")}</button>` : ""}
     <div><div class="paso-etq" style="margin:0 4px 8px">${t("Tipo")}</div>
-      <div class="fila-chips">${tipos.map((x) => `<button type="button" class="chip ${x === est.tipo ? "on" : ""}" data-tp="${esc(x)}">${esc(x)}</button>`).join("")}</div></div>
+      <div class="fila-chips">${tipos.map((x) => `<button type="button" class="chip ${x === est.tipo ? "on" : ""}" data-tp="${esc(x)}">${esc(x === "Fuerza" ? t("Fuerza") : x)}</button>`).join("")}</div></div>
     <div><label class="paso-etq" for="p-nombre" style="display:block;margin:0 4px 6px">${t("Nombre")} (${t("opcional")})</label>
       <input class="campo" id="p-nombre" style="background:#fff" placeholder="5 x 400 m"></div>
     <div><label class="paso-etq" for="p-texto" style="display:block;margin:0 4px 6px">${t("Qué toca")}</label>
@@ -1103,12 +1198,12 @@ function pintarRegistrar() {
   <main>
   <form id="f-registro" class="registro" novalidate>
     <div><div class="lbl">${t("Tipo")}</div>
-      <div class="fila-chips">${Object.entries(tipos).map(([k, n]) => `<button type="button" class="chip ${b.tipo === k ? "on" : ""}" data-tipo="${k}">${esc(n)}</button>`).join("")}</div></div>
+      <div class="fila-chips">${Object.entries(tipos).map(([k, n]) => `<button type="button" class="chip ${b.tipo === k ? "on" : ""}" data-tipo="${k}">${esc(trTipo(k, n))}</button>`).join("")}</div></div>
     ${b.partes.length ? `<div><div class="lbl">${t("Partes que has hecho")}</div>
       <div class="fila-chips">${b.partes.map((p, i) => `<button type="button" class="chip ${p.on ? "on" : ""}" data-parte="${i}">${p.on ? ic.ok : ""}${esc(p.warmup ? "Warm up" : String(p.texto).split(" · ").map(etqParte).join(" · "))}</button>`).join("")}</div>
       <div class="mini" style="margin-top:6px">${t("Se marcan como hechas al guardar.")}</div></div>` : ""}
     <div><label class="lbl" for="r-titulo">${t("Título")}</label>
-      <input class="campo" id="r-titulo" value="${esc(b.titulo)}" placeholder="Fran, Pierna, 10K suave…"></div>
+      <input class="campo" id="r-titulo" value="${esc(trDia(b.titulo))}" placeholder="Fran, Pierna, 10K suave…"></div>
     <div class="dos">
       <div><label class="lbl" for="r-fecha">${t("Fecha")}</label><input class="campo" type="date" id="r-fecha" value="${esc(b.fecha)}" max="${hoyISO()}"></div>
       <div><label class="lbl" for="r-duracion">${t("Duración total")}</label><input class="campo" id="r-duracion" value="${esc(b.duracion)}" placeholder="mm:ss" inputmode="numeric"></div>
@@ -1119,7 +1214,7 @@ function pintarRegistrar() {
           <input class="campo campo-n" data-n value="${esc(f.name)}" placeholder="${t("Ejercicio")}" aria-label="${t("Ejercicio")}">
           <div class="fila-res-b">
             <input class="campo campo-v" data-v value="${esc(f.valor)}" placeholder="${f.unit === "tiempo" ? "4:35" : "0"}" inputmode="${f.unit === "tiempo" ? "numeric" : "decimal"}" aria-label="${t("Resultado")}">
-            <select class="campo campo-u" data-u aria-label="Unidad">${unidades.map((u) => `<option ${u === f.unit ? "selected" : ""}>${u}</option>`).join("")}</select>
+            <select class="campo campo-u" data-u aria-label="Unidad">${unidades.map((u) => `<option value="${u}" ${u === f.unit ? "selected" : ""}>${trUnidad(u)}</option>`).join("")}</select>
             <button type="button" class="quitar" data-quitar="${i}" aria-label="Quitar">${ic.x}</button>
           </div>
         </div>`).join("")}</div>
@@ -1649,7 +1744,7 @@ function pintarHistorial(d) {
   <div class="mini" style="padding:0 4px">${lista.length} ${t("de")} ${d.entrenos.length} ${t("entrenos")}</div>
   ${lista.map((w) => `<article class="card entreno">
     <div class="ent-cab"><span class="etq-tipo" style="--c:${d.colores[w.tipo] || "#999"}">${esc(w.tipo_txt)}</span>
-      <span class="mini">${esc(w.fecha_txt)}${w.duracion ? " · " + esc(w.duracion) : ""}</span></div>
+      <span class="mini">${esc(trFecha(w.fecha_txt))}${w.duracion ? " · " + esc(w.duracion) : ""}</span></div>
     <div class="ent-cuerpo">
       ${w.foto ? `<button class="ent-foto" data-foto="${esc(w.foto)}" style="background-image:url('${esc(w.foto)}')" aria-label="${t("Ver foto")}"></button>` : ""}
       <div style="flex:1;min-width:0">
@@ -1668,7 +1763,7 @@ function pintarPrs(d) {
   const cat = cats.find((c) => c.cat === E.catPr) || cats[0];
   return `
   ${d.ultimo ? `<section class="pr-hero"><span class="pr-ico">${ic.copa.replace("currentColor", "#1F1208")}</span>
-    <div><small>${t("Último PR")} · ${esc(d.ultimo.fecha)}</small><b>${esc(d.ultimo.mov)}${d.ultimo.reps && d.ultimo.reps > 1 ? ` · ${d.ultimo.reps}RM` : ""}</b><span>${esc(d.ultimo.valor)}</span></div></section>` : ""}
+    <div><small>${t("Último PR")} · ${esc(trFecha(d.ultimo.fecha))}</small><b>${esc(d.ultimo.mov)}${d.ultimo.reps && d.ultimo.reps > 1 ? ` · ${d.ultimo.reps}RM` : ""}</b><span>${esc(d.ultimo.valor)}</span></div></section>` : ""}
   <button class="btn btn-fuego" id="b-nuevo-pr">+ ${t("Apuntar un PR")}</button>
   ${cats.length ? `<div class="fila-chips">${cats.map((c) => `<button class="chip ${c === cat ? "on" : ""}" data-cat="${esc(c.cat)}">${esc(c.cat.replace(/^\S+\s/, ""))}</button>`).join("")}</div>
   <div class="prs">${cat.filas.map((f, i) => `<button class="pr-card" data-pr="${i}">
@@ -1717,7 +1812,7 @@ function mostrarTip(ev, txt) {
 
 function hojaPr(f) {
   abrirHoja(`${cabHoja(t("Récord"), f.mov + (f.reps && f.reps > 1 ? ` · ${f.reps}RM` : ""))}
-    <div class="pr-grande">${esc(f.valor)}<small>${esc(f.fecha)}${f.registro ? " · " + t("de un registro") : ""}</small></div>
+    <div class="pr-grande">${esc(f.valor)}<small>${esc(trFecha(f.fecha))}${f.registro ? " · " + t("de un registro") : ""}</small></div>
     ${f.nota ? `<div class="mini">${esc(f.nota)}</div>` : ""}
     ${f.evol.length > 1 ? `<div class="card" style="box-shadow:none">${graficaLinea(f.evol, f.unidad, f.evol.reduce((b, x) => (f.unidad === "tiempo" ? x.v < b.v : x.v > b.v) ? x : b, f.evol[0]).f)}</div>
       <div class="lista-evol">${[...f.evol].reverse().map((x) => `<div><span>${fechaCorta(x.f)}</span><b>${esc(x.txt)}</b></div>`).join("")}</div>`

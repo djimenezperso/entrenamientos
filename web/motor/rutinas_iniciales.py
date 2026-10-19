@@ -229,7 +229,7 @@ def _archchana():
             ]},
             {"id": "d4", "nombre": "Jour 4", "lineas": [
                 _metcon("a41", "Conditioning", "30' elliptique zone 2", parte="A) Conditioning"),
-                m("a42", "Flow mobilité", "Flujo de 15' : world's greatest stretch, deep squat hold, pigeon, "
+                m("a42", "Flow mobilité", "Flow de 15' : world's greatest stretch, deep squat hold, pigeon, "
                   "pancake", "B) Movilidad"),
             ]},
         ],

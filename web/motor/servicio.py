@@ -9,7 +9,7 @@ Variables de entorno (en Vercel → Settings → Environment Variables):
   CONTRASENA_ARCHCHANA            contraseña solo de Archchana
   CONTRASENA_INVITADOS            contraseña para invitados (nombre + PIN)
   CONTRASENA_DEMO                 opcional: contraseña de "solo mirar" para enseñar la app (no puede cambiar nada)
-  DEMO_ATLETA                     opcional: qué rutina ve la demo (por defecto la de Diego, "Yo")
+  DEMO_ATLETAS                    opcional: qué rutinas se ven en la demo, separadas por comas (por defecto "Yo,Archchana,Manu Anel")
   ABONO_URL                       opcional: enlace de pago de Stripe (Payment Link) para el botón «Abonarse»
   ABONO_TEXTO                     opcional: precio que se enseña en el botón, p. ej. "30 €/mes"
   ACCESOS_PERSONALES              opcional, JSON {"Salatti": "su-clave", …}
@@ -320,7 +320,7 @@ def _igual(a: str, b: str) -> bool:
     return bool(a) and bool(b) and hmac.compare_digest(a.encode(), b.encode())
 
 
-VERSION = "4.2"
+VERSION = "4.3"
 CLAVES_NECESARIAS = ["SUPABASE_URL", "SUPABASE_KEY", "APP_PASSWORD", "CONTRASENA_ARCHCHANA", "CONTRASENA_INVITADOS", "COACH_PIN",
                      "APP_ANTIGUA_URL", "CONTRASENA_DEMO"]
 
@@ -377,9 +377,8 @@ def login(cuerpo: dict) -> dict:
         if _igual(intento, clave):
             return _sesion_para(nombre)
     if _igual(intento, env("CONTRASENA_DEMO")):
-        quien = env("DEMO_ATLETA") or "Yo"
         _apuntar(None, {"d": 1}, "Demo", entrada=True)
-        return _sesion_para(quien if quien in ATLETAS else "Yo", demo=True)
+        return _sesion_para(demo_personas()[0], demo=True)
     inv_clave = env("CONTRASENA_INVITADOS")
     if _igual(intento, inv_clave):
         return _login_invitado(cuerpo)
@@ -415,7 +414,17 @@ def _login_invitado(cuerpo: dict) -> dict:
     return _sesion_para(nombre)
 
 
+def demo_personas() -> list[str]:
+    lista = [x.strip() for x in (env("DEMO_ATLETAS") or env("DEMO_ATLETA") or "Yo,Archchana,Manu Anel").split(",")]
+    lista = [x for x in lista if x in ATLETAS]
+    return lista or ["Yo"]
+
+
 def puede_ver(sesion: dict, atleta: str) -> None:
+    if es_demo(sesion):
+        if atleta not in demo_personas():
+            raise Error("No tienes acceso a esa persona", 403)
+        return
     if sesion.get("u") and sesion["u"] != atleta:
         raise Error("No tienes acceso a esa persona", 403)
 
@@ -438,9 +447,8 @@ def _login_invitacion(token: str) -> dict:
         if d.get("v") == "qr":
             x["qr"] = x.get("qr", 0) + 1
     _apuntar_actividad(cambio)
-    quien = env("DEMO_ATLETA") or "Yo"
     _apuntar(None, {"d": 1}, "Demo", entrada=True)
-    return _sesion_para(quien if quien in ATLETAS else "Yo", demo=True)
+    return _sesion_para(demo_personas()[0], demo=True)
 
 
 def _sumar(donde: dict, quien: str, campo: str = "n") -> dict:
@@ -914,7 +922,7 @@ def _parte(rut, dia, parte, lineas, semana, partes_semana, nivel, alumno, sugs, 
 
 def vista(sesion: dict, atleta: str | None, semana: int | None, dia_id: str | None) -> dict:
     inv = invitados()
-    personas = [sesion["u"]] if sesion.get("u") else todas_las_personas(inv)
+    personas = demo_personas() if es_demo(sesion) else [sesion["u"]] if sesion.get("u") else todas_las_personas(inv)
     atleta = atleta if atleta in personas else personas[0]
     puede_ver(sesion, atleta)
     alumno = es_alumno(atleta, inv)
@@ -923,7 +931,7 @@ def vista(sesion: dict, atleta: str | None, semana: int | None, dia_id: str | No
     _apuntar(guardadas, sesion, atleta)
     coach = es_coach(sesion)
     todas_sol = (guardadas.get(CLAVE_SOLICITUDES) or {}).get("lista") or []
-    base = {"atleta": atleta, "nombre": nv(atleta), "solo": sesion.get("u") or None,
+    base = {"atleta": atleta, "nombre": nv(atleta), "solo": None if es_demo(sesion) else sesion.get("u") or None,
             "personas": [{"id": p, "nombre": nv(p)} for p in personas], "lang": IDIOMA_DEFECTO.get(atleta, "es"),
             "app_antigua": env("APP_ANTIGUA_URL"), "tipos": {k: v[0] for k, v in TIPOS.items()},
             "unidades": UNIDADES, "con_prs": atleta not in SIN_PRS, "coach": coach, "demo": es_demo(sesion),
