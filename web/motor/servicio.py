@@ -74,7 +74,9 @@ VOLUMEN = [
 ]
 PROTEGIDOS = ["Yo", "Diego", "Manu Anel", "Salatti", "Mi esposa", "Dario", "Juan", "Archchana"]
 CLAVE_INVITADOS = "__invitados__"
-CLAVE_ACTIVIDAD = "__actividad__"  # quién abre la app y cuándo (solo lo ve el coach)
+CLAVE_ACTIVIDAD = "__actividad__"
+CLAVE_VIDEOS = "__videos__"  # {ejercicio normalizado: {"url", "titulo"}} que pone el coach
+VIDEOS_BASE = {"snatch": {"url": "videos/snatch-diego.mp4", "poster": "videos/snatch-diego.jpg", "titulo": "Snatch · Diego"}}  # quién abre la app y cuándo (solo lo ve el coach)
 PLANTILLAS = {"Salatti": "Rutina de Salatti", "Dario": "Rutina de Dario"}
 TIPOS_WOD = ("wod", "emom", "fortime", "amrap")
 
@@ -321,7 +323,7 @@ def _igual(a: str, b: str) -> bool:
     return bool(a) and bool(b) and hmac.compare_digest(a.encode(), b.encode())
 
 
-VERSION = "5.1"
+VERSION = "5.2"
 CLAVES_NECESARIAS = ["SUPABASE_URL", "SUPABASE_KEY", "APP_PASSWORD", "CONTRASENA_ARCHCHANA", "CONTRASENA_INVITADOS", "COACH_PIN",
                      "APP_ANTIGUA_URL", "CONTRASENA_DEMO"]
 
@@ -1011,7 +1013,7 @@ def vista(sesion: dict, atleta: str | None, semana: int | None, dia_id: str | No
     atleta = atleta if atleta in personas else personas[0]
     puede_ver(sesion, atleta)
     alumno = es_alumno(atleta, inv)
-    guardadas = datos().rutinas(list({atleta, "Yo", CLAVE_SOLICITUDES, CLAVE_NOVEDADES, CLAVE_ACTIVIDAD}))
+    guardadas = datos().rutinas(list({atleta, "Yo", CLAVE_SOLICITUDES, CLAVE_NOVEDADES, CLAVE_ACTIVIDAD, CLAVE_VIDEOS}))
     rut = rutina(atleta, guardadas)
     _apuntar(guardadas, sesion, atleta)
     coach = es_coach(sesion)
@@ -1084,11 +1086,15 @@ def vista(sesion: dict, atleta: str | None, semana: int | None, dia_id: str | No
                          "partes": [{"parte": parte, "texto": p["etiqueta"], "semana": so, "dia": did}]}
         pendientes.append(p)
     ultimos = ultimos_resultados(atleta)
+    videos = {**VIDEOS_BASE, **(guardadas.get(CLAVE_VIDEOS) or {})}
     for p_ in partes + pendientes:
         for l in p_["lineas"]:
             u = ultimos.get(norm(l["ejercicio"]))
             if u:
                 l["ultimo"] = u
+            vid = videos.get(norm(l["ejercicio"]))
+            if vid and vid.get("url"):
+                l["video"] = vid
     if aviso_semana:
         base["aviso"] = aviso_semana
     return {**base, "semana": semana, "actual": actual, "nivel": nivel, "niveles": NIVELES, "alumno": alumno,
@@ -1544,6 +1550,22 @@ def accion(sesion: dict, c: dict) -> dict:
             raise Error("Solo el coach puede dar permiso", 403)
         rut = dict(rut, permiso_pesos=bool(c.get("valor")))
         aviso = f"{nv(atleta)} {'ya puede' if c.get('valor') else 'ya no puede'} cambiar sus pesos"
+    elif tipo == "video":  # el coach pone (o quita) un vídeo de técnica a un ejercicio, para todos
+        if not es_coach(sesion):
+            raise Error("Solo el coach puede poner vídeos", 403)
+        ej = norm(str(c.get("ejercicio") or ""))
+        url = str(c.get("url") or "").strip()[:500]
+        if not ej:
+            raise Error("Falta el ejercicio")
+        if url and not re.match(r"^https?://", url):
+            raise Error("El enlace tiene que empezar por https://")
+        reg = dict(datos().rutinas([CLAVE_VIDEOS]).get(CLAVE_VIDEOS) or {})
+        if url:
+            reg[ej] = {"url": url, "titulo": str(c.get("titulo") or c.get("ejercicio"))[:80]}
+        else:
+            reg[ej] = {"url": ""}  # quitado (también tapa el vídeo de serie)
+        datos().guardar(CLAVE_VIDEOS, reg)
+        aviso = "Vídeo guardado: lo verán todos en ese ejercicio" if url else "Vídeo quitado"
     elif tipo == "linea_hoy":  # el ejercicio que se quedó sin hacer, a hoy (solo esta semana)
         l = next((x for d in rut["dias"] for x in d["lineas"] if x["id"] == c.get("linea")), None)
         if not l:

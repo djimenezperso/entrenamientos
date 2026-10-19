@@ -18,6 +18,10 @@ const E = { token: mem.get("token"), atleta: mem.get("atleta"), lang: mem.get("l
 
 // ---------- textos ----------
 const FR = {
+  "Ver vídeo de técnica": "Voir la vidéo technique", "Añadir vídeo": "Ajouter une vidéo", "Técnica": "Technique",
+  "Abrir el vídeo": "Ouvrir la vidéo", "Este ejercicio aún no tiene vídeo.": "Cet exercice n'a pas encore de vidéo.",
+  "Vídeo para todos en este ejercicio": "Vidéo pour tous sur cet exercice", "Quitar": "Enlever",
+  "Sube el vídeo a YouTube (oculto) o Instagram y pega aquí el enlace.": "Mets la vidéo sur YouTube (non répertoriée) ou Instagram et colle le lien ici.",
   "de muestra": "d'exemple", "🔒 Este día se desbloquea con tu perfil": "🔒 Ce jour se débloque avec ton profil",
   "Se te quedó pendiente esta semana": "Il te reste à faire cette semaine", "Ya la hice": "Déjà fait", "Hacerla hoy": "La faire aujourd'hui",
   "Diego ya lo ha hecho. ¿Te lo pones hoy?": "Diego l'a déjà fait. Tu le fais aujourd'hui ?",
@@ -592,6 +596,28 @@ function corto(o) {
   return "→ " + (n ? "D" + n : dia.slice(0, 6)) + (sem ? " " + sem : "");
 }
 
+const videoHtml = (l, k) => l.video ? `<button class="mini-btn video-btn" data-video="${k}">▶️ ${t("Ver vídeo de técnica")}</button>`
+  : E.vista && E.vista.coach ? `<button class="mini-btn" data-video="${k}" style="opacity:.7">🎥 ${t("Añadir vídeo")}</button>` : "";
+function hojaVideo(k) {
+  const { l } = lineaDe(k);
+  const v = l.video || {};
+  const directo = v.url && (/\.(mp4|mov|webm|m4v)(\?|$)/i.test(v.url) || !/^https?:/i.test(v.url));
+  const yt = v.url && (v.url.match(/(?:youtube\.com\/(?:watch\?v=|shorts\/)|youtu\.be\/)([\w-]{6,})/) || [])[1];
+  abrirHoja(`${cabHoja(t("Técnica"), l.ejercicio)}
+    ${directo ? `<video class="video-tec" src="${esc(v.url)}" ${v.poster ? `poster="${esc(v.poster)}"` : ""} controls playsinline preload="metadata"></video>`
+      : yt ? `<div class="video-tec yt"><iframe src="https://www.youtube-nocookie.com/embed/${esc(yt)}" title="${esc(l.ejercicio)}" allow="accelerometer; encrypted-media; picture-in-picture" allowfullscreen></iframe></div>`
+      : v.url ? `<a class="btn btn-fuego" href="${esc(v.url)}" target="_blank" rel="noopener">▶️ ${t("Abrir el vídeo")}</a>` : `<p class="mini">${t("Este ejercicio aún no tiene vídeo.")}</p>`}
+    ${E.vista.coach ? `<div class="caja-coach"><div class="paso-etq" style="margin:0 0 8px">🎥 ${t("Vídeo para todos en este ejercicio")}</div>
+      <input class="campo" id="v-url" placeholder="https://youtube.com/… · instagram.com/…" value="${esc(v.url && /^https?:/i.test(v.url) ? v.url : "")}" style="background:#fff">
+      <p class="mini" style="margin:6px 2px">${t("Sube el vídeo a YouTube (oculto) o Instagram y pega aquí el enlace.")}</p>
+      <div style="display:grid;grid-template-columns:1fr auto;gap:8px"><button class="btn btn-negro" id="v-guardar">${t("Guardar")}</button>
+      ${v.url ? `<button class="btn" id="v-quitar">${t("Quitar")}</button>` : ""}</div></div>` : ""}`, (h) => {
+    const g = h.querySelector("#v-guardar");
+    if (g) g.onclick = () => { const url = h.querySelector("#v-url").value.trim(); cerrarHoja(); hacer({ tipo: "video", ejercicio: l.ejercicio, url, titulo: l.ejercicio }); };
+    const q = h.querySelector("#v-quitar");
+    if (q) q.onclick = () => { cerrarHoja(); hacer({ tipo: "video", ejercicio: l.ejercicio, url: "" }); };
+  });
+}
 const ultimoHtml = (l) => l.ultimo ? `<div class="ultimo">${ic.reloj.replace('width="22" height="22"', 'width="14" height="14"')}<span>${t("Último")}: <b>${esc(l.ultimo.valor)}</b> · ${esc(trFecha(l.ultimo.fecha))}</span></div>` : "";
 
 function linea(l, p, k) {
@@ -606,7 +632,7 @@ function linea(l, p, k) {
     return `<div class="linea" data-l="${k}">
       ${p.lineas.length > 1 || extra ? `<div class="linea-cab"><b>${p.lineas.length > 1 ? esc(l.ejercicio) : ""}${extra}</b></div>` : ""}
       ${l.esquema ? `<div class="esquema">${esc(l.esquema)}</div>` : ""}
-      <div class="pesos">${pesos}</div>${nota}${ultimoHtml(l)}
+      <div class="pesos">${pesos}</div>${nota}${ultimoHtml(l)}${videoHtml(l, k)}
       ${p.origen ? "" : `<div class="acciones-linea"><button class="mini-btn" data-editar="${k}">${ic.lapiz} ${t(l.kind === "peso" ? "Cambiar movimiento / reps" : "Ajustar reps")}</button>${l.texto_sig && l.texto_sig !== l.texto ? `<span class="mini">${t("Semana que viene")}: ${esc(l.texto_sig.slice(0, 60))}</span>` : ""}</div>`}
       ${l.no_hecha !== undefined ? `<label class="check"><input type="checkbox" data-nh="${k}" ${l.no_hecha ? "checked" : ""}> ${t("No lo hice · te lo recuerdo esta semana")}</label>` : ""}
     </div>`;
@@ -615,7 +641,7 @@ function linea(l, p, k) {
   const nombre = l.solo_bloque || (p.lineas.length === 1) ? "" : `<b>${esc(l.ejercicio)}</b>`;
   let html = `<div class="linea" data-l="${k}">
     ${nombre || extra || (l.nivel && l.nivel !== "RX") ? `<div class="linea-cab">${nombre}<span>${extra}${l.nivel && l.nivel !== "RX" && visto ? ` <span class="etq nivel">${esc(l.nivel)}</span>` : ""}</span></div>` : ""}
-    <div class="texto-wod">${visto ? esc(visto) : `<span class="mini">${t("por definir")}</span>`}</div>${nota}${ultimoHtml(l)}`;
+    <div class="texto-wod">${visto ? esc(visto) : `<span class="mini">${t("por definir")}</span>`}</div>${nota}${ultimoHtml(l)}${videoHtml(l, k)}`;
   if (l.sugerencia) html += `<div class="sug">${ic.llama("#8A5E00", 20)}<span>${t("WOD de Diego · semana")} ${l.sugerencia.semana}, ${esc(l.sugerencia.dia)}</span>
     <button data-fijar="${k}">${t("Fijar")}</button></div>`;
   if (l.tabla) html += `<details class="desplegable"><summary>${t("RX · Inter · Scaled por movimiento")} ${ic.abajo}</summary>
@@ -722,6 +748,7 @@ function enlazar() {
   const bcd = document.getElementById("b-compartir-demo");
   if (bcd) bcd.onclick = () => compartir("app", t("💪 Mira la app de entrenamiento de Diego (Djimenez Prog)"), "app");
   on("b-anadir-parte", () => hojaParte(null));
+  $app.querySelectorAll("[data-video]").forEach((b) => b.onclick = () => hojaVideo(b.dataset.video));
   $app.querySelectorAll("[data-tick]").forEach((b) => b.onclick = () => {
     const p = parteDe(b.dataset.tick); const on = p.estado !== "hecho";
     b.classList.toggle("on", on);
