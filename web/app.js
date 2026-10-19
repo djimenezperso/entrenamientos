@@ -18,6 +18,8 @@ const E = { token: mem.get("token"), atleta: mem.get("atleta"), lang: mem.get("l
 
 // ---------- textos ----------
 const FR = {
+  "Movimiento": "Mouvement", "Cambiar movimiento / reps": "Changer mouvement / reps",
+  "Aquí puedes cambiar el movimiento (por ejemplo «Power clean + push jerk»). Los kilos van en el texto de abajo con @.": "Ici tu peux changer le mouvement (par exemple « Power clean + push jerk »). Les kilos vont dans le texte en dessous avec @.",
   "¡Hola Diego! He visto la app Djimenez Prog y me interesa entrenar contigo 💪": "Salut Diego ! J'ai vu l'appli Djimenez Prog et je voudrais m'entraîner avec toi 💪",
   "Entrena con Diego": "Entraîne-toi avec Diego",
   "Escríbele y te cuenta cómo funciona, precios y cómo empezar.": "Écris-lui : il t'explique comment ça marche, les prix et comment commencer.",
@@ -581,7 +583,7 @@ function linea(l, p, k) {
       ${p.lineas.length > 1 || extra ? `<div class="linea-cab"><b>${p.lineas.length > 1 ? esc(l.ejercicio) : ""}${extra}</b></div>` : ""}
       ${l.esquema ? `<div class="esquema">${esc(l.esquema)}</div>` : ""}
       <div class="pesos">${pesos}</div>${nota}${ultimoHtml(l)}
-      ${p.origen ? "" : `<div class="acciones-linea"><button class="mini-btn" data-editar="${k}">${ic.lapiz} ${t("Ajustar reps")}</button>${l.texto_sig && l.texto_sig !== l.texto ? `<span class="mini">${t("Semana que viene")}: ${esc(l.texto_sig.slice(0, 60))}</span>` : ""}</div>`}
+      ${p.origen ? "" : `<div class="acciones-linea"><button class="mini-btn" data-editar="${k}">${ic.lapiz} ${t(l.kind === "peso" ? "Cambiar movimiento / reps" : "Ajustar reps")}</button>${l.texto_sig && l.texto_sig !== l.texto ? `<span class="mini">${t("Semana que viene")}: ${esc(l.texto_sig.slice(0, 60))}</span>` : ""}</div>`}
       ${l.no_hecha !== undefined ? `<label class="check"><input type="checkbox" data-nh="${k}" ${l.no_hecha ? "checked" : ""}> ${t("No lo hice (repite peso la semana que viene)")}</label>` : ""}
     </div>`;
   }
@@ -953,8 +955,9 @@ function hojaTexto(k) {
   abrirHoja(`${cabHoja(`${p.letra ? p.letra + " · " : ""}${etqParte(p.etiqueta)}`, t("Ajustar"))}
     ${avisoCoach(v)}
     ${l.extra && l.extra.texto === "solo esta semana" ? `<button class="btn btn-negro" id="t-quitar">↩ ${t("Quitar el cambio de esta semana")}</button>` : ""}
-    <div><label class="paso-etq" for="t-nombre" style="display:block;margin:0 4px 6px">${t("Nombre")}</label>
-      <input class="campo" id="t-nombre" value="${esc(l.ejercicio)}" style="background:#fff"></div>
+    <div><label class="paso-etq" for="t-nombre" style="display:block;margin:0 4px 6px">${l.kind === "peso" ? t("Movimiento") : t("Nombre")}</label>
+      <input class="campo" id="t-nombre" value="${esc(l.ejercicio)}" style="background:#fff">
+      ${l.kind === "peso" ? `<p class="mini" style="margin:6px 4px 0">${t("Aquí puedes cambiar el movimiento (por ejemplo «Power clean + push jerk»). Los kilos van en el texto de abajo con @.")}</p>` : ""}</div>
     <div><label class="paso-etq" for="t-texto" style="display:block;margin:0 4px 6px">${t("Esta semana")} (S${p.semana})</label>
       <textarea class="campo area grande" id="t-texto">${esc(l.texto || "")}</textarea></div>
     ${alcanceHtml(est.solo)}
