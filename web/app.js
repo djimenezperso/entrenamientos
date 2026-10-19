@@ -18,6 +18,10 @@ const E = { token: mem.get("token"), atleta: mem.get("atleta"), lang: mem.get("l
 
 // ---------- textos ----------
 const FR = {
+  "¡Hola Diego! He visto la app Djimenez Prog y me interesa entrenar contigo 💪": "Salut Diego ! J'ai vu l'appli Djimenez Prog et je voudrais m'entraîner avec toi 💪",
+  "Entrena con Diego": "Entraîne-toi avec Diego",
+  "Escríbele y te cuenta cómo funciona, precios y cómo empezar.": "Écris-lui : il t'explique comment ça marche, les prix et comment commencer.",
+  "Contactar con Diego": "Contacter Diego", "Contacto": "Contact", "veces han pulsado «Contactar»": "clics sur « Contacter »",
   "Fuerza": "Force",
   "Volver": "Retour",
   "¿Ya tienes perfil? Entra con tu nombre y PIN": "Tu as déjà un profil ? Entre avec ton nom et ton code",
@@ -323,13 +327,31 @@ function poner(v) {
 
 // ---------- demo: crear tu perfil o seguir mirando ----------
 async function abonarse() {
+  if (E.vista && !E.vista.abono && E.vista.contacto) return hojaContacto();
   const w = window.open("", "_blank");  // se abre ya (si no, el móvil lo bloquea) y luego se le pone el enlace
   try {
     const r = await api("abonarse", { metodo: "POST", cuerpo: { atleta: E.atleta } });
     if (w) w.location = r.url; else location.href = r.url;
   } catch (e) { if (w) w.close(); aviso(e.message, true); }
 }
-const botonAbono = (v, id, extra = "") => v.abono ? `<button class="btn btn-abono" id="${id}" ${extra}>💳 ${t("Abonarse")}${v.abono.texto ? ` <small>${esc(v.abono.texto)}</small>` : ""}</button>` : "";
+function hojaContacto() {
+  const c = (E.vista || {}).contacto || {};
+  const msg = encodeURIComponent(t("¡Hola Diego! He visto la app Djimenez Prog y me interesa entrenar contigo 💪"));
+  const ops = [
+    c.whatsapp && `<a class="btn btn-wa" data-via="whatsapp" href="https://wa.me/${esc(c.whatsapp)}?text=${msg}" target="_blank" rel="noopener">💬 WhatsApp</a>`,
+    c.email && `<a class="btn btn-negro" data-via="email" href="mailto:${esc(c.email)}?subject=${encodeURIComponent("Djimenez Prog")}&body=${msg}">✉️ ${esc(c.email)}</a>`,
+    c.instagram && `<a class="btn" data-via="instagram" href="https://instagram.com/${esc(c.instagram)}" target="_blank" rel="noopener">📸 @${esc(c.instagram)}</a>`,
+  ].filter(Boolean).join("");
+  abrirHoja(`<div class="demo-hola">${ic.llama("#FF6A00", 40)}<h3>${t("Entrena con Diego")}</h3>
+      <p>${t("Escríbele y te cuenta cómo funciona, precios y cómo empezar.")}</p></div>${ops}
+    <button class="btn" data-cerrar>👀 ${t("Seguir viendo gratis")}</button>`, (h) => {
+    h.querySelectorAll("[data-via]").forEach((a) => a.addEventListener("click", () => {
+      api("contactar", { metodo: "POST", cuerpo: { via: a.dataset.via, atleta: E.atleta } }).catch(() => { });
+    }));
+  });
+}
+const botonContacto = (v, id) => !v.abono && v.contacto ? `<button class="btn btn-abono" id="${id}">💬 ${t("Contactar con Diego")}</button>` : "";
+const botonAbono = (v, id, extra = "") => !v.abono ? botonContacto(v, id) : v.abono ? `<button class="btn btn-abono" id="${id}" ${extra}>💳 ${t("Abonarse")}${v.abono.texto ? ` <small>${esc(v.abono.texto)}</small>` : ""}</button>` : "";
 
 function hojaPago(cs) {
   const v = E.vista || {};
@@ -486,7 +508,7 @@ function cabecera(v) {
         <button class="redondo" id="b-ajustes" aria-label="${t("Ajustes")}">${ic.ajustes}</button>
       </div>
     </div>
-    ${v.demo ? `<div class="banda-demo">👀 ${t("Modo demo · solo para mirar")} <button id="b-crear-demo">✨ ${t("Crear mi perfil")}</button>${v.abono ? `<button id="b-abono-demo">💳 ${t("Abonarse")}</button>` : ""}<button id="b-compartir-demo">${ic.compartir} ${t("Compartir")}</button></div>` : ""}
+    ${v.demo ? `<div class="banda-demo">👀 ${t("Modo demo · solo para mirar")} <button id="b-crear-demo">✨ ${t("Crear mi perfil")}</button>${v.abono ? `<button id="b-abono-demo">💳 ${t("Abonarse")}</button>` : v.contacto ? `<button id="b-abono-demo">💬 ${t("Contacto")}</button>` : ""}<button id="b-compartir-demo">${ic.compartir} ${t("Compartir")}</button></div>` : ""}
     ${v.semana ? `<div class="pildora-semana">
       <button id="b-sem-menos" aria-label="Semana anterior" ${v.semana <= 1 ? "disabled style='opacity:.3'" : ""}>${ic.izq}</button>
       <span>${t("Semana")} ${v.semana}${v.semana === v.actual ? ` · <em>${t("de fuego")}</em>` : ""}</span>
@@ -1106,6 +1128,8 @@ async function hojaActividad() {
         <a href="tel:${esc(x.telefono)}">📞 ${esc(x.telefono)}</a> · <a href="mailto:${esc(x.email)}">${esc(x.email)}</a>
         ${x.cs ? `<br><small>Stripe: ${esc(x.cs.slice(0, 24))}…</small>` : ""}</div>
         <button class="chip ${x.visto ? "on" : ""}" data-pago="${esc(x.id)}" data-visto="${x.visto ? 1 : 0}">${x.visto ? "✓ " + t("Comprobado") : t("Marcar comprobado")}</button></div>`).join("")}</div>` : ""}
+    ${d.contactos && d.contactos.length ? `<div class="act-altas" style="border-left-color:#25D366"><b>💬 ${d.contactos.reduce((a, x) => a + x.n, 0)} ${t("veces han pulsado «Contactar»")}</b>
+      <span>${d.contactos.map((x) => `${esc(x.nombre)} <small>(${x.n > 1 ? x.n + "× · " : ""}${esc(x.hace)})</small>`).join(" · ")}</span></div>` : ""}
     <div class="act-altas" style="border-left-color:#1baf7a"><b>💳 ${d.abonos.reduce((a, x) => a + x.n, 0)} ${t("veces han pulsado «Abonarse»")}</b>
       ${d.abonos.length ? `<span>${d.abonos.map((x) => `${esc(x.nombre)} <small>(${x.n > 1 ? x.n + "× · " : ""}${esc(x.hace)})</small>`).join(" · ")}</span>` : ""}
       <small>${d.abono_activo ? t("Los pagos de verdad los ves en Stripe (cada pago lleva el nombre de quien pulsó).") : t("El botón aún no sale: falta poner ABONO_URL en Vercel.")}</small></div>

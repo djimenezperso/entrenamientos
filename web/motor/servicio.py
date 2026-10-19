@@ -12,6 +12,7 @@ Variables de entorno (en Vercel → Settings → Environment Variables):
   DEMO_ATLETAS                    opcional: qué rutinas se ven en la demo, separadas por comas (por defecto "Yo,Archchana,Manu Anel,Salatti")
   ABONO_URL                       opcional: enlace de pago de Stripe (Payment Link) para el botón «Abonarse»
   ABONO_TEXTO                     opcional: precio que se enseña en el botón, p. ej. "30 €/mes"
+  CONTACTO_WHATSAPP / CONTACTO_EMAIL / CONTACTO_INSTAGRAM   opcional: tu contacto (sale mientras no haya pago)
   ACCESOS_PERSONALES              opcional, JSON {"Salatti": "su-clave", …}
   SESION_SECRETO                  opcional; si falta se deriva de las otras claves
   APP_ANTIGUA_URL                 opcional: enlace a la app de Streamlit (para lo que aún no está aquí)
@@ -320,7 +321,7 @@ def _igual(a: str, b: str) -> bool:
     return bool(a) and bool(b) and hmac.compare_digest(a.encode(), b.encode())
 
 
-VERSION = "4.5"
+VERSION = "4.6"
 CLAVES_NECESARIAS = ["SUPABASE_URL", "SUPABASE_KEY", "APP_PASSWORD", "CONTRASENA_ARCHCHANA", "CONTRASENA_INVITADOS", "COACH_PIN",
                      "APP_ANTIGUA_URL", "CONTRASENA_DEMO"]
 
@@ -526,6 +527,28 @@ def crear_perfil(sesion: dict, c: dict) -> dict:
     return r
 
 
+def _contacto() -> dict | None:
+    tel = "".join(ch for ch in env("CONTACTO_WHATSAPP") if ch.isdigit())
+    if tel and len(tel) == 9:
+        tel = "34" + tel  # número español sin prefijo
+    out = {k: v for k, v in {"whatsapp": tel, "email": env("CONTACTO_EMAIL"),
+                             "instagram": env("CONTACTO_INSTAGRAM").lstrip("@")}.items() if v}
+    return out or None
+
+
+def contactar(sesion: dict, c: dict) -> dict:
+    """Apunta que alguien quiere contactar (mientras no hay pago) para verlo en «Quién usa la app»."""
+    quien = "Demo" if es_demo(sesion) else (sesion.get("u") or (c.get("atleta") if c.get("atleta") in todas_las_personas() else "Yo"))
+    via = c.get("via") if c.get("via") in ("whatsapp", "email", "instagram") else "whatsapp"
+
+    def cambio(act):
+        x = _sumar(act.setdefault("contactos", {}), quien)
+        x[via] = x.get(via, 0) + 1
+        x.setdefault("nombre", nv(quien) if quien != "Demo" else "Demo (solo mirar)")
+    _apuntar_actividad(cambio)
+    return {"ok": True}
+
+
 def abonarse(sesion: dict, c: dict) -> dict:
     """Apunta que alguien pulsa «Abonarse» y devuelve el enlace de pago (Stripe), con su nombre para reconocerle."""
     url = env("ABONO_URL")
@@ -684,6 +707,8 @@ def actividad(sesion: dict) -> dict:
             "abonos": [{"nombre": x.get("nombre", k), "n": x.get("n", 0), "hace": _hace(x.get("ultimo"), ahora)}
                        for k, x in sorted(todo.get("abonos", {}).items(), key=lambda kv: kv[1].get("ultimo", ""), reverse=True)],
             "abono_activo": bool(env("ABONO_URL")),
+            "contactos": [{"nombre": x.get("nombre", k), "n": x.get("n", 0), "hace": _hace(x.get("ultimo"), ahora)}
+                          for k, x in sorted(todo.get("contactos", {}).items(), key=lambda kv: kv[1].get("ultimo", ""), reverse=True)],
             "pagos": [dict(x, hace=_hace(x.get("cuando"), ahora)) for x in todo.get("pagos", [])][:50],
             "altas": [{"nombre": a["nombre"], "hace": _hace(a.get("cuando"), ahora)} for a in todo.get("altas", [])][:20]}
 
@@ -936,6 +961,7 @@ def vista(sesion: dict, atleta: str | None, semana: int | None, dia_id: str | No
             "app_antigua": env("APP_ANTIGUA_URL"), "tipos": {k: v[0] for k, v in TIPOS.items()},
             "unidades": UNIDADES, "con_prs": atleta not in SIN_PRS, "coach": coach, "demo": es_demo(sesion),
             "abono": {"texto": env("ABONO_TEXTO")} if env("ABONO_URL") else None,
+            "contacto": _contacto() if not env("ABONO_URL") else None,
             "puede_pesos": coach or bool((rut or {}).get("permiso_pesos")),
             "permiso_pesos": bool((rut or {}).get("permiso_pesos")),
             "solicitudes": [x for x in todas_sol if coach and (not sesion.get("u") or x["atleta"] == sesion["u"])],
