@@ -321,7 +321,7 @@ def _igual(a: str, b: str) -> bool:
     return bool(a) and bool(b) and hmac.compare_digest(a.encode(), b.encode())
 
 
-VERSION = "4.6"
+VERSION = "4.7"
 CLAVES_NECESARIAS = ["SUPABASE_URL", "SUPABASE_KEY", "APP_PASSWORD", "CONTRASENA_ARCHCHANA", "CONTRASENA_INVITADOS", "COACH_PIN",
                      "APP_ANTIGUA_URL", "CONTRASENA_DEMO"]
 
@@ -527,11 +527,14 @@ def crear_perfil(sesion: dict, c: dict) -> dict:
     return r
 
 
+CONTACTO_DEFECTO = {"whatsapp": "+33675987599", "email": "djimenezpenapro@gmail.com"}  # se cambia con las variables CONTACTO_*
+
+
 def _contacto() -> dict | None:
-    tel = "".join(ch for ch in env("CONTACTO_WHATSAPP") if ch.isdigit())
+    tel = "".join(ch for ch in (env("CONTACTO_WHATSAPP") or CONTACTO_DEFECTO["whatsapp"]) if ch.isdigit())
     if tel and len(tel) == 9:
         tel = "34" + tel  # número español sin prefijo
-    out = {k: v for k, v in {"whatsapp": tel, "email": env("CONTACTO_EMAIL"),
+    out = {k: v for k, v in {"whatsapp": tel, "email": env("CONTACTO_EMAIL") or CONTACTO_DEFECTO["email"],
                              "instagram": env("CONTACTO_INSTAGRAM").lstrip("@")}.items() if v}
     return out or None
 
