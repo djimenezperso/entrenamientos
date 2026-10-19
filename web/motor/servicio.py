@@ -9,7 +9,7 @@ Variables de entorno (en Vercel → Settings → Environment Variables):
   CONTRASENA_ARCHCHANA            contraseña solo de Archchana
   CONTRASENA_INVITADOS            contraseña para invitados (nombre + PIN)
   CONTRASENA_DEMO                 opcional: contraseña de "solo mirar" para enseñar la app (no puede cambiar nada)
-  DEMO_ATLETAS                    opcional: qué rutinas se ven en la demo, separadas por comas (por defecto "Yo,Archchana,Manu Anel")
+  DEMO_ATLETAS                    opcional: qué rutinas se ven en la demo, separadas por comas (por defecto "Yo,Archchana,Manu Anel,Salatti")
   ABONO_URL                       opcional: enlace de pago de Stripe (Payment Link) para el botón «Abonarse»
   ABONO_TEXTO                     opcional: precio que se enseña en el botón, p. ej. "30 €/mes"
   ACCESOS_PERSONALES              opcional, JSON {"Salatti": "su-clave", …}
@@ -320,7 +320,7 @@ def _igual(a: str, b: str) -> bool:
     return bool(a) and bool(b) and hmac.compare_digest(a.encode(), b.encode())
 
 
-VERSION = "4.3"
+VERSION = "4.4"
 CLAVES_NECESARIAS = ["SUPABASE_URL", "SUPABASE_KEY", "APP_PASSWORD", "CONTRASENA_ARCHCHANA", "CONTRASENA_INVITADOS", "COACH_PIN",
                      "APP_ANTIGUA_URL", "CONTRASENA_DEMO"]
 
@@ -415,7 +415,7 @@ def _login_invitado(cuerpo: dict) -> dict:
 
 
 def demo_personas() -> list[str]:
-    lista = [x.strip() for x in (env("DEMO_ATLETAS") or env("DEMO_ATLETA") or "Yo,Archchana,Manu Anel").split(",")]
+    lista = [x.strip() for x in (env("DEMO_ATLETAS") or env("DEMO_ATLETA") or "Yo,Archchana,Manu Anel,Salatti").split(",")]
     lista = [x for x in lista if x in ATLETAS]
     return lista or ["Yo"]
 
