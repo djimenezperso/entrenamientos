@@ -11,7 +11,9 @@ const mem = {
   set(k, v) { try { v == null ? localStorage.removeItem("dj_" + k) : localStorage.setItem("dj_" + k, v); } catch { } },
 };
 
-const E = { token: mem.get("token"), atleta: mem.get("atleta"), lang: mem.get("lang") || "es", vista: null,
+// idioma del móvil: francés si el teléfono está en francés, si no español
+const IDIOMA_MOVIL = (() => { try { const l = (navigator.languages || [navigator.language]).find((x) => /^(fr|es)/i.test(x || "")); return l && /^fr/i.test(l) ? "fr" : "es"; } catch { return "es"; } })();
+const E = { token: mem.get("token"), atleta: mem.get("atleta"), lang: mem.get("lang") || IDIOMA_MOVIL, vista: null,
   semana: null, dia: null, ocupado: false };
 
 // ---------- textos ----------
@@ -270,7 +272,7 @@ function pintarEntrar(paso = {}) {
       <button class="chip ${E.lang === "fr" ? "on" : ""}" data-lang="fr">FR</button>
     </div>
   </section>`;
-  $app.querySelectorAll("[data-lang]").forEach((b) => b.onclick = () => { E.lang = b.dataset.lang; mem.set("lang", E.lang); pintarEntrar(paso); });
+  $app.querySelectorAll("[data-lang]").forEach((b) => b.onclick = () => { E.lang = b.dataset.lang; mem.set("lang", E.lang); mem.set("lang_elegido", "1"); pintarEntrar(paso); });
   const bcp = document.getElementById("b-con-pin");
   if (bcp) bcp.onclick = () => pintarEntrar({ invitado: true, conPin: true });
   const bve = document.getElementById("b-volver-entrar");
@@ -290,7 +292,7 @@ function pintarEntrar(paso = {}) {
         nombre: cuerpo.nombre, pin: cuerpo.pin });
       E.token = r.token; mem.set("token", r.token);
       if (r.solo) { E.atleta = r.solo; mem.set("atleta", r.solo); }
-      E.lang = r.lang || E.lang; mem.set("lang", E.lang);
+      if (!r.demo && !mem.get("lang_elegido")) { E.lang = r.lang || E.lang; mem.set("lang", E.lang); }
       await cargar();
     } catch (e) {
       err.textContent = e.message; err.hidden = false; boton.disabled = false;
