@@ -109,6 +109,7 @@ const ic = {
   reinicio: `<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 12a8 8 0 1 0 3-6.2M4 4v5h5"/></svg>`,
   ciclo: `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="M4 12a8 8 0 0 1 14-5.3M20 12a8 8 0 0 1-14 5.3M18 3v4h-4M6 21v-4h4"/></svg>`,
 };
+ic.compartir = `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><path d="M8.6 13.5l6.8 4M15.4 6.5l-6.8 4"/></svg>`;
 const inicial = (n) => (n || "?").split(/\s+/).map((p) => p[0]).join("").slice(0, 2).toUpperCase();
 
 function aviso(msg, mal = false) {
@@ -288,7 +289,7 @@ function cabecera(v) {
         <button class="redondo" id="b-ajustes" aria-label="${t("Ajustes")}">${ic.ajustes}</button>
       </div>
     </div>
-    ${v.demo ? `<div class="banda-demo">👀 ${t("Modo demo · solo para mirar")}</div>` : ""}
+    ${v.demo ? `<div class="banda-demo">👀 ${t("Modo demo · solo para mirar")} <button id="b-compartir-demo">${ic.compartir} ${t("Compartir")}</button></div>` : ""}
     ${v.semana ? `<div class="pildora-semana">
       <button id="b-sem-menos" aria-label="Semana anterior" ${v.semana <= 1 ? "disabled style='opacity:.3'" : ""}>${ic.izq}</button>
       <span>${t("Semana")} ${v.semana}${v.semana === v.actual ? ` · <em>${t("de fuego")}</em>` : ""}</span>
@@ -326,6 +327,7 @@ function tarjeta(p, k) {
         <div class="nombre">${esc(nombreTit)}</div>
       </div>
       ${p.historial.length ? `<div class="hist" title="Semanas anteriores">${p.historial.map(([s, e]) => `<i class="${e}" title="S${s}"></i>`).join("")}</div>` : ""}
+      <button class="mas-op compartir-op" data-compartir="${k}" aria-label="${t("Compartir este entreno")}">${ic.compartir}</button>
       ${p.origen ? "" : `<button class="mas-op" data-menu="${k}" aria-label="${t("Cambiar esta parte")}">${ic.puntos}</button>`}
     </div>
     ${p.ciclo ? `<div class="mini" style="padding-left:48px">${ic.ciclo.replace("<svg", '<svg style="display:inline;vertical-align:-2px"')} ${t("Ciclo · semana")} ${p.ciclo.semana}/${p.ciclo.total}</div>` : ""}
@@ -461,10 +463,51 @@ function enlazar() {
   $app.querySelectorAll("[data-editar]").forEach((b) => b.onclick = () => hojaTexto(b.dataset.editar));
   $app.querySelectorAll("[data-azar]").forEach((b) => b.onclick = () => hojaAzar(b.dataset.azar));
   $app.querySelectorAll("[data-menu]").forEach((b) => b.onclick = () => hojaParte(parteDe(b.dataset.menu)));
+  $app.querySelectorAll("[data-compartir]").forEach((b) => b.onclick = () => {
+    const x = textoParte(parteDe(b.dataset.compartir));
+    compartir("entreno", `${x.texto}\n\n${t("Entreno de hoy con Djimenez Prog 💪")}`, x.titulo);
+  });
+  const bcd = document.getElementById("b-compartir-demo");
+  if (bcd) bcd.onclick = () => compartir("app", t("💪 Mira la app de entrenamiento de Diego (Djimenez Prog)"), "app");
   on("b-anadir-parte", () => hojaParte(null));
   $app.querySelectorAll("[data-nov-si]").forEach((b) => b.onclick = () => hacer({ tipo: "ponerme_novedad", id: b.dataset.novSi, dia: E.dia, semana: E.semana }, b));
   $app.querySelectorAll("[data-nov-no]").forEach((b) => b.onclick = () => hacer({ tipo: "descartar_novedad", id: b.dataset.novNo }, b));
   $app.querySelectorAll("[data-crono]").forEach((b) => b.onclick = () => { const { p, l } = lineaDe(b.dataset.crono); abrirCrono(p, l); });
+}
+
+// ---------- compartir ----------
+async function compartir(tipo, texto, que) {
+  let inv = null;
+  try { inv = (await api("compartir", { metodo: "POST", cuerpo: { tipo, que, atleta: E.atleta, contar: false } })).inv; } catch { }
+  const url = location.origin + "/" + (inv ? "?inv=" + encodeURIComponent(inv) : "");
+  const msg = `${texto}\n\n${inv ? t("Mírala aquí (entras directo, solo para ver):") : t("La app:")} ${url}`;
+  const contar = () => api("compartir", { metodo: "POST", cuerpo: { tipo, que, atleta: E.atleta } }).catch(() => { });
+  if (navigator.share) {
+    try { await navigator.share({ title: "Djimenez Prog", text: msg }); contar(); aviso(t("¡Compartido! 🔥")); }
+    catch (e) { if (e && e.name !== "AbortError") hojaCompartir(msg, contar); }
+    return;
+  }
+  hojaCompartir(msg, contar);
+}
+function hojaCompartir(msg, contar) {
+  abrirHoja(`${cabHoja("Djimenez Prog", t("Compartir"))}
+    <div class="texto-wod" style="background:#fff;border-radius:14px;padding:12px;white-space:pre-wrap;overflow-wrap:anywhere;font-size:14px">${esc(msg)}</div>
+    <a class="btn btn-fuego" id="c-wa" href="https://wa.me/?text=${encodeURIComponent(msg)}" target="_blank" rel="noopener">WhatsApp</a>
+    <button class="btn btn-negro" id="c-copiar">${t("Copiar el texto")}</button>`, (h) => {
+    h.querySelector("#c-wa").onclick = () => { contar(); setTimeout(cerrarHoja, 300); };
+    h.querySelector("#c-copiar").onclick = async () => {
+      try { await navigator.clipboard.writeText(msg); contar(); aviso(t("Copiado. Pégalo donde quieras")); cerrarHoja(); }
+      catch { aviso(t("No se ha podido copiar"), true); }
+    };
+  });
+}
+function textoParte(p) {
+  const nombreTit = p.lineas.length === 1 && !p.lineas[0].solo_bloque ? p.lineas[0].ejercicio : etqParte(p.etiqueta);
+  const lineas = p.lineas.map((l) => {
+    const txt = (l.visto || l.texto || "").trim();
+    return l.solo_bloque || p.lineas.length === 1 ? txt : `• ${l.ejercicio}${txt ? ": " + txt : ""}`;
+  }).filter(Boolean).join("\n");
+  return { titulo: nombreTit, texto: `🔥 ${nombreTit}\n${lineas}` };
 }
 
 // ---------- hojas ----------
@@ -570,6 +613,7 @@ function hojaAjustes() {
         <div style="display:flex;gap:8px"><input class="campo" id="i-pin-coach" type="password" autocapitalize="off" autocomplete="off" placeholder="PIN o clave" style="height:48px;background:#fff">
         <button class="btn btn-negro" id="b-coach">${t("Activar")}</button></div>`}
     </div>
+    <button class="btn btn-fuego" id="b-compartir-app">${ic.compartir} ${t("Compartir la app")}</button>
     ${v.app_antigua ? `<a class="btn" href="${esc(v.app_antigua)}" target="_blank" rel="noopener">${t("Abrir la app de siempre")}</a>` : ""}
     <button class="btn btn-negro" id="b-salir">${t("Salir")}</button>`, (h) => {
     const bc = h.querySelector("#b-coach");
@@ -587,6 +631,7 @@ function hojaAjustes() {
       E.token = r.token; mem.set("token", r.token);
       cerrarHoja(); aviso(t("Modo coach quitado")); cargar();
     };
+    h.querySelector("#b-compartir-app").onclick = () => { cerrarHoja(); compartir("app", t("💪 Mira la app con la que entreno con Diego (Djimenez Prog)"), "app"); };
     const ba = h.querySelector("#b-actividad");
     if (ba) ba.onclick = () => hojaActividad();
     const bl = h.querySelector("#b-limpiar");
@@ -818,13 +863,19 @@ async function hojaActividad() {
     const datos = p.demo
       ? `${p.entradas} ${t(p.entradas === 1 ? "entrada en total" : "entradas en total")} · ${p.entradas7} ${t("esta semana")}`
       : `${p.dias7} ${t(p.dias7 === 1 ? "día esta semana" : "días esta semana")} · ${p.dias30} ${t("en 30 días")}<br>${p.registros30 ? `🏋️ ${p.registros30} ${t("entrenos registrados (30 días)")}` : t("Sin entrenos registrados en 30 días")}${p.ultimo_registro ? ` · ${t("último")}: ${esc(p.ultimo_registro)}` : ""}`;
+    const nComp = (p.comp_app || 0) + (p.comp_entreno || 0);
+    const comp = nComp || p.llegadas ? `<div class="act-comp">📤 ${nComp} ${t(nComp === 1 ? "vez compartido" : "veces compartido")}${nComp ? ` (${p.comp_app} app · ${p.comp_entreno} ${t(p.comp_entreno === 1 ? "entreno" : "entrenos")})` : ""}
+      ${p.llegadas ? `<br>👋 ${p.llegadas} ${t(p.llegadas === 1 ? "persona ha entrado con su enlace" : "personas han entrado con su enlace")}` : ""}
+      ${p.comp_lista && p.comp_lista.length ? `<small>${p.comp_lista.map((x) => esc(x.tipo === "app" ? t("la app") : x.que)).join(" · ")}</small>` : ""}</div>` : "";
     return `<div class="act-fila ${activo}"><div class="act-cab"><span class="avatar">${p.demo ? "👀" : esc(inicial(p.nombre))}</span>
       <div><b>${esc(p.nombre)}</b><small>${esc(p.hace)}</small></div></div>
-      ${racha}<div class="mini">${datos}</div></div>`;
+      ${racha}<div class="mini">${datos}</div>${comp}</div>`;
   }).join("");
   $hoja.firstElementChild.innerHTML = `<div class="asa"></div>${cabHoja(t("Solo para ti"), t("Quién usa la app"))}
     <p class="mini" style="margin:0 4px">${t("Cada cuadrito es un día de las últimas 2 semanas (el último es hoy). Naranja = abrió la app ese día.")}
     ${d.desde ? "" : `<br><b>${t("Se empieza a contar desde hoy.")}</b>`}</p>
+    <div class="act-totales"><div><b>${d.total_compartidos || 0}</b><span>${t("veces compartido")}</span></div>
+      <div><b>${d.total_llegadas || 0}</b><span>${t("han entrado por un enlace")}</span></div></div>
     <div class="act-lista">${filas}</div>`;
   $hoja.querySelectorAll("[data-cerrar]").forEach((b) => b.onclick = cerrarHoja);
 }
@@ -1588,4 +1639,16 @@ function hojaNuevoPr() {
 }
 
 // ---------- arranque ----------
-if (E.token) cargar(); else pintarEntrar();
+(async () => {
+  const inv = new URLSearchParams(location.search).get("inv");
+  if (inv) history.replaceState(null, "", location.pathname);
+  if (inv && !E.token) {
+    try {
+      const r = await api("login", { metodo: "POST", cuerpo: { inv } });
+      E.token = r.token; mem.set("token", r.token);
+      if (r.solo) { E.atleta = r.solo; mem.set("atleta", r.solo); }
+      setTimeout(() => aviso(t("Bienvenido a la demo 👀 Mira todo lo que quieras")), 600);
+    } catch (e) { pintarEntrar(); return aviso(e.message, true); }
+  }
+  if (E.token) cargar(); else pintarEntrar();
+})();

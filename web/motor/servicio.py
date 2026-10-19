@@ -317,7 +317,7 @@ def _igual(a: str, b: str) -> bool:
     return bool(a) and bool(b) and hmac.compare_digest(a.encode(), b.encode())
 
 
-VERSION = "3.7"
+VERSION = "3.8"
 CLAVES_NECESARIAS = ["SUPABASE_URL", "SUPABASE_KEY", "APP_PASSWORD", "CONTRASENA_ARCHCHANA", "CONTRASENA_INVITADOS", "COACH_PIN",
                      "APP_ANTIGUA_URL", "CONTRASENA_DEMO"]
 
@@ -351,6 +351,8 @@ def _hash(nombre: str, pin: str) -> str:
 
 
 def login(cuerpo: dict) -> dict:
+    if cuerpo.get("inv"):
+        return _login_invitacion(str(cuerpo["inv"]))
     intento = str(cuerpo.get("password") or "").strip()
     if not intento:
         raise Error("Escribe la contraseña")
@@ -413,6 +415,64 @@ def puede_ver(sesion: dict, atleta: str) -> None:
         raise Error("No tienes acceso a esa persona", 403)
 
 
+# ===== compartir: enlaces que entran directos a la demo =====
+def _login_invitacion(token: str) -> dict:
+    """Un enlace compartido entra directo a la demo (solo mirar). Se apaga quitando CONTRASENA_DEMO."""
+    if not env("CONTRASENA_DEMO"):
+        raise Error("Este enlace ya no funciona. Pídele a Diego uno nuevo.", 401)
+    try:
+        cuerpo, firma = token.split(".", 1)
+        ok = hmac.compare_digest(firma, hmac.new(_secreto(), cuerpo.encode(), hashlib.sha256).hexdigest()[:32])
+        d = json.loads(base64.urlsafe_b64decode(cuerpo + "=" * (-len(cuerpo) % 4)))
+    except Exception:
+        raise Error("Enlace no válido", 401)
+    if not ok or "i" not in d or d.get("exp", 0) < time.time():
+        raise Error("Este enlace ha caducado. Pídele a Diego uno nuevo.", 401)
+    _apuntar_actividad(lambda act: _sumar(act.setdefault("llegadas", {}), str(d["i"])))
+    quien = env("DEMO_ATLETA") or "Yo"
+    _apuntar(None, {"d": 1}, "Demo", entrada=True)
+    return _sesion_para(quien if quien in ATLETAS else "Yo", demo=True)
+
+
+def _sumar(donde: dict, quien: str, campo: str = "n") -> dict:
+    x = donde.setdefault(quien, {})
+    x[campo] = x.get(campo, 0) + 1
+    x["ultimo"] = _ahora().isoformat(timespec="minutes")
+    return x
+
+
+def _apuntar_actividad(cambio) -> None:
+    try:
+        act = copy.deepcopy(datos().rutinas([CLAVE_ACTIVIDAD]).get(CLAVE_ACTIVIDAD) or {})
+        cambio(act)
+        datos().guardar(CLAVE_ACTIVIDAD, act)
+    except Exception:  # noqa: BLE001
+        pass
+
+
+def compartir(sesion: dict, c: dict) -> dict:
+    """Apunta que alguien comparte la app o un entreno y devuelve el enlace (entra directo a la demo)."""
+    if es_demo(sesion):
+        quien = "Demo"
+    else:
+        quien = sesion.get("u") or (c.get("atleta") if c.get("atleta") in todas_las_personas() else "Yo")
+    tipo = "entreno" if c.get("tipo") == "entreno" else "app"
+    que = " ".join(str(c.get("que") or "").split())[:80]
+
+    def cambio(act):
+        x = _sumar(act.setdefault("compartidos", {}), quien, tipo)
+        lista = x.setdefault("lista", [])
+        lista.insert(0, {"cuando": x["ultimo"], "tipo": tipo, "que": que})
+        del lista[20:]
+    if c.get("contar", True):
+        _apuntar_actividad(cambio)
+    enlace = None
+    if env("CONTRASENA_DEMO"):
+        cuerpo = base64.urlsafe_b64encode(json.dumps({"i": quien, "exp": int(time.time()) + 60 * 86400}).encode()).decode().rstrip("=")
+        enlace = f"{cuerpo}.{hmac.new(_secreto(), cuerpo.encode(), hashlib.sha256).hexdigest()[:32]}"
+    return {"inv": enlace}
+
+
 # ===== actividad: quién entra y cuándo =====
 def _ahora() -> dt.datetime:
     try:
@@ -471,7 +531,9 @@ def actividad(sesion: dict) -> dict:
     """Para el coach: quién entra a la app, cuántos días y si registra entrenos."""
     if not es_coach(sesion):
         raise Error("Solo el coach puede ver esto", 403)
-    act = (datos().rutinas([CLAVE_ACTIVIDAD]).get(CLAVE_ACTIVIDAD) or {}).get("personas", {})
+    todo = datos().rutinas([CLAVE_ACTIVIDAD]).get(CLAVE_ACTIVIDAD) or {}
+    act = todo.get("personas", {})
+    comp, lleg = todo.get("compartidos", {}), todo.get("llegadas", {})
     ahora = _ahora()
     hoy = ahora.date()
     ult14 = [(hoy - dt.timedelta(days=i)).isoformat() for i in range(13, -1, -1)]
@@ -484,7 +546,9 @@ def actividad(sesion: dict) -> dict:
         dias = a.get("dias", {})
         fila = {"id": p, "nombre": nv(p) if p != "Demo" else "Demo (solo mirar)", "ultimo": a.get("ultimo"),
                 "hace": _hace(a.get("ultimo"), ahora), "dias7": dias_en(dias, 7), "dias30": dias_en(dias, 30),
-                "racha": [1 if d in dias else 0 for d in ult14], "demo": p == "Demo"}
+                "racha": [1 if d in dias else 0 for d in ult14], "demo": p == "Demo",
+                "comp_app": comp.get(p, {}).get("app", 0), "comp_entreno": comp.get(p, {}).get("entreno", 0),
+                "comp_lista": comp.get(p, {}).get("lista", [])[:5], "llegadas": lleg.get(p, {}).get("n", 0)}
         if p == "Demo":
             fila["entradas"] = a.get("entradas", 0)
             fila["entradas7"] = sum(n for d, n in dias.items() if d >= ult14[7])
@@ -498,7 +562,9 @@ def actividad(sesion: dict) -> dict:
             fila["ultimo_registro"] = _fecha_txt(ws[0]["date"]) if ws else None
         filas.append(fila)
     filas.sort(key=lambda f: f["ultimo"] or "", reverse=True)
-    return {"personas": filas, "desde": min((d for a in act.values() for d in a.get("dias", {})), default=None)}
+    return {"personas": filas, "desde": min((d for a in act.values() for d in a.get("dias", {})), default=None),
+            "total_compartidos": sum(x.get("app", 0) + x.get("entreno", 0) for x in comp.values()),
+            "total_llegadas": sum(x.get("n", 0) for x in lleg.values())}
 
 
 # ===== vista de la rutina =====
