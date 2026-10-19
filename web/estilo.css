@@ -527,3 +527,18 @@ main { padding: 4px 16px 0; display: flex; flex-direction: column; gap: 12px; }
 @keyframes late { 0% { transform: scale(1); } 40% { transform: scale(1.35); } 100% { transform: scale(1); } }
 .novedad.retest { background: linear-gradient(150deg, #0d3b2e, #136b4f 70%, #1baf7a); }
 .etq.ok { background: #E3F6EE; color: #127a55; }
+
+/* tick de parte hecha + recordatorio de partes olvidadas */
+.tick { width: 38px; height: 38px; flex: none; border-radius: 50%; border: 2px solid var(--borde); background: #fff; color: var(--borde);
+  font-size: 19px; font-weight: 800; display: flex; align-items: center; justify-content: center; }
+.tick.on { background: #1baf7a; border-color: #1baf7a; color: #fff; }
+.olvidadas { background: #FFF6DA; border: 2px solid #FFD46B; border-radius: 20px; padding: 12px 14px; display: flex; flex-direction: column; gap: 8px; }
+.olvidadas .olv { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; border-top: 1px solid #FBE3A0; padding-top: 8px; }
+.olvidadas .olv span { flex: 1 1 140px; font-weight: 600; font-size: 14px; }
+.olvidadas .olv small { display: block; color: var(--suave); font-size: 11.5px; font-weight: 700; }
+
+.card-cab { gap: 8px; }
+.card-cab .mas-op { width: 32px; height: 32px; margin-left: 0; }
+.card-cab .tick { width: 34px; height: 34px; font-size: 17px; }
+.card-cab .hist { display: none; }
+@media (min-width: 400px) { .card-cab .hist { display: flex; } }

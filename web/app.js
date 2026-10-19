@@ -18,6 +18,7 @@ const E = { token: mem.get("token"), atleta: mem.get("atleta"), lang: mem.get("l
 
 // ---------- textos ----------
 const FR = {
+  "Se te quedó pendiente esta semana": "Il te reste à faire cette semaine", "Ya la hice": "Déjà fait", "Hacerla hoy": "La faire aujourd'hui",
   "Diego ya lo ha hecho. ¿Te lo pones hoy?": "Diego l'a déjà fait. Tu le fais aujourd'hui ?",
   "Toca repetir para comparar": "C'est le moment de refaire pour comparer", "La otra vez": "La dernière fois", "Lo hiciste el": "Tu l'as fait le",
   "En una semana": "Dans une semaine", "Quitar este retest": "Enlever ce retest", "Retest el": "Retest le",
@@ -120,6 +121,7 @@ const FR = {
   "Personas": "Personnes", "por definir": "à définir", "falta el peso": "poids manquant",
   "RX · Inter · Scaled por movimiento": "RX · Inter · Scaled par mouvement", "Versiones": "Versions",
   "No lo hice (repite peso la semana que viene)": "Pas fait (même poids la semaine prochaine)",
+  "No lo hice · te lo recuerdo esta semana": "Pas fait · je te le rappelle cette semaine",
   "Terminé la semana": "J'ai fini la semaine", "pasar a la": "passer à la", "Marcar esta semana como la actual": "Marquer cette semaine comme actuelle",
   "Pronto": "Bientôt", "Esto llega en la siguiente fase.": "Ça arrive dans la prochaine étape.",
   "Mientras, está en la app de siempre:": "En attendant, c'est dans l'appli habituelle :", "Abrir la app de siempre": "Ouvrir l'appli habituelle",
@@ -500,6 +502,10 @@ function pintar() {
         <button class="btn btn-fuego" data-rt-si="${esc(x.id)}" style="height:50px">${t("Ponérmelo hoy")}</button></div>
       <button class="mini-btn" data-rt-no="${esc(x.id)}" style="align-self:center;color:#FFD9BD;border-color:transparent;background:transparent;text-decoration:underline">${t("Quitar este retest")}</button>
     </section>`).join("")}
+    ${(v.olvidadas || []).length ? `<section class="olvidadas"><b>⏰ ${t("Se te quedó pendiente esta semana")}</b>
+      ${v.olvidadas.map((o, i) => `<div class="olv"><span><small>${esc(o.dia_txt)}${o.letra ? " · " + esc(o.letra) : ""}</small>${o.tipo === "linea" ? `${esc(o.nombre)} <small style="display:inline;font-weight:600">${esc((o.texto || "").split("\n")[0].slice(0, 40))}</small>` : `${esc(etqParte(o.etiqueta))}${o.nombre && o.nombre !== o.etiqueta ? ` · ${esc(o.nombre)}` : ""}`}</span>
+        <button class="chip" data-olv-hecha="${i}">✓ ${t("Ya la hice")}</button><button class="chip on" data-olv-hoy="${i}">${t("Hacerla hoy")}</button></div>`).join("")}
+    </section>` : ""}
     ${v.faltan.length && v.semana < v.actual ? `<div class="alerta"><b>${t("Sin validar")} · S${v.semana}:</b> ${esc(v.faltan.join("; "))}. ${t("Marca cada parte como hecha o pásala a otro día.")}</div>` : ""}
     ${v.partes.length ? v.partes.map((p, i) => tarjeta(p, "p" + i)).join("") : `<div class="vacio">${t("Sin ejercicios este día.")}</div>`}
     ${v.pendientes.length ? `<div class="seccion">${ic.ciclo} ${t("Pendiente de")}…</div>` + v.pendientes.map((p, i) => tarjeta(p, "q" + i)).join("") : ""}
@@ -563,6 +569,7 @@ function tarjeta(p, k) {
         <div class="nombre">${esc(nombreTit)}</div>
       </div>
       ${p.historial.length ? `<div class="hist" title="Semanas anteriores">${p.historial.map(([s, e]) => `<i class="${e}" title="S${s}"></i>`).join("")}</div>` : ""}
+      <button class="tick ${p.estado === "hecho" ? "on" : ""}" data-tick="${k}" aria-label="${t("Hecho")}" aria-pressed="${p.estado === "hecho"}">✓</button>
       ${p.calentamiento ? "" : `<button class="mas-op gusta-op ${gusta(p) ? "on" : ""}" data-gusta="${k}" aria-label="${t("Me gusta")}" aria-pressed="${gusta(p)}">${gusta(p) ? "❤️" : "🤍"}</button>`}
       <button class="mas-op compartir-op" data-compartir="${k}" aria-label="${t("Compartir este entreno")}">${ic.compartir}</button>
       ${p.origen ? "" : `<button class="mas-op" data-menu="${k}" aria-label="${t("Cambiar esta parte")}">${ic.puntos}</button>`}
@@ -600,7 +607,7 @@ function linea(l, p, k) {
       ${l.esquema ? `<div class="esquema">${esc(l.esquema)}</div>` : ""}
       <div class="pesos">${pesos}</div>${nota}${ultimoHtml(l)}
       ${p.origen ? "" : `<div class="acciones-linea"><button class="mini-btn" data-editar="${k}">${ic.lapiz} ${t(l.kind === "peso" ? "Cambiar movimiento / reps" : "Ajustar reps")}</button>${l.texto_sig && l.texto_sig !== l.texto ? `<span class="mini">${t("Semana que viene")}: ${esc(l.texto_sig.slice(0, 60))}</span>` : ""}</div>`}
-      ${l.no_hecha !== undefined ? `<label class="check"><input type="checkbox" data-nh="${k}" ${l.no_hecha ? "checked" : ""}> ${t("No lo hice (repite peso la semana que viene)")}</label>` : ""}
+      ${l.no_hecha !== undefined ? `<label class="check"><input type="checkbox" data-nh="${k}" ${l.no_hecha ? "checked" : ""}> ${t("No lo hice · te lo recuerdo esta semana")}</label>` : ""}
     </div>`;
   }
   const visto = l.visto || "";
@@ -713,6 +720,21 @@ function enlazar() {
   const bcd = document.getElementById("b-compartir-demo");
   if (bcd) bcd.onclick = () => compartir("app", t("💪 Mira la app de entrenamiento de Diego (Djimenez Prog)"), "app");
   on("b-anadir-parte", () => hojaParte(null));
+  $app.querySelectorAll("[data-tick]").forEach((b) => b.onclick = () => {
+    const p = parteDe(b.dataset.tick); const on = p.estado !== "hecho";
+    b.classList.toggle("on", on);
+    hacer({ tipo: "marcar", semana: p.semana, dia: p.dia_id, parte: p.parte, estado: on ? "hecho" : null }, b);
+  });
+  $app.querySelectorAll("[data-olv-hecha]").forEach((b) => b.onclick = () => {
+    const o = E.vista.olvidadas[+b.dataset.olvHecha];
+    if (o.tipo === "linea") return hacer({ tipo: "linea_no_hecha", linea: o.linea, semana: E.semana, valor: false }, b);
+    hacer({ tipo: "marcar", semana: E.semana, dia: o.dia, parte: o.parte, estado: "hecho" }, b);
+  });
+  $app.querySelectorAll("[data-olv-hoy]").forEach((b) => b.onclick = () => {
+    const o = E.vista.olvidadas[+b.dataset.olvHoy];
+    if (o.tipo === "linea") return hacer({ tipo: "linea_hoy", linea: o.linea, dia: E.dia, semana: E.semana }, b);
+    hacer({ tipo: "marcar", semana: E.semana, dia: o.dia, parte: o.parte, estado: "pospuesto", destino: [E.semana, E.dia] }, b);
+  });
   $app.querySelectorAll("[data-rt-si]").forEach((b) => b.onclick = () => hacer({ tipo: "retest_poner", id: b.dataset.rtSi, dia: E.dia, semana: E.semana }, b));
   $app.querySelectorAll("[data-rt-semana]").forEach((b) => b.onclick = () => hacer({ tipo: "retest_semana", id: b.dataset.rtSemana }, b));
   $app.querySelectorAll("[data-rt-no]").forEach((b) => b.onclick = () => hacer({ tipo: "retest_quitar", id: b.dataset.rtNo }, b));

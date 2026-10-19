@@ -321,7 +321,7 @@ def _igual(a: str, b: str) -> bool:
     return bool(a) and bool(b) and hmac.compare_digest(a.encode(), b.encode())
 
 
-VERSION = "4.8"
+VERSION = "5.0"
 CLAVES_NECESARIAS = ["SUPABASE_URL", "SUPABASE_KEY", "APP_PASSWORD", "CONTRASENA_ARCHCHANA", "CONTRASENA_INVITADOS", "COACH_PIN",
                      "APP_ANTIGUA_URL", "CONTRASENA_DEMO"]
 
@@ -756,6 +756,32 @@ def _tipo_ui(parte: str, ejercicio: str = "") -> str:
     return tipo_de_linea(parte, ejercicio) or "fuerza"
 
 
+def olvidadas(rut: dict, semana: int, dia_id: str, atleta: str) -> list[dict]:
+    """Partes de días anteriores de esta semana que siguen sin marcar: para recordarlas y encajarlas."""
+    ids = [d["id"] for d in rut["dias"]]
+    if dia_id not in ids:
+        return []
+    out = []
+    for d in rut["dias"][:ids.index(dia_id)]:
+        for p, ls in agrupar_por_parte(d, semana):
+            if atleta not in MOVILIDAD_ES_PARTE and es_movilidad(p, ls):
+                continue  # el warm up no se recuerda
+            m = re.search(r"\d+", d["nombre"])
+            n = m.group(0) if m else d["nombre"][:2]
+            letra = p.split(")")[0].strip() if ")" in p else ""
+            est = estado_parte(rut, semana, d["id"], p)["estado"]
+            if est == "pendiente":
+                out.append({"tipo": "parte", "dia": d["id"], "dia_txt": f"D{n}", "parte": p, "letra": letra,
+                            "etiqueta": _etiqueta_parte(p), "nombre": ls[0]["ejercicio"] if len(ls) == 1 else _etiqueta_parte(p)})
+            elif est == "hecho":  # parte hecha pero con algún ejercicio sin hacer (p. ej. se olvidó el snatch pull)
+                for l in ls:
+                    if linea_no_hecha(l, semana):
+                        out.append({"tipo": "linea", "dia": d["id"], "dia_txt": f"D{n}", "parte": p, "letra": letra,
+                                    "etiqueta": _etiqueta_parte(p), "nombre": l["ejercicio"], "linea": l["id"],
+                                    "texto": prescripcion_semana(l, semana, rut.get("ajustes"))[0] or l.get("prescripcion", "")})
+    return out[:6]
+
+
 def es_movilidad(parte: str, lineas: list[dict]) -> bool:
     return tipo_de_linea(parte, "") == "mobility" or any(tipo_de_linea(parte, l["ejercicio"]) == "mobility" for l in lineas)
 
@@ -902,8 +928,7 @@ def _linea(rut: dict, l: dict, semana: int, parte: str, nivel: str, alumno: bool
     if tipo_de_linea(parte, l["ejercicio"]) is None and l.get("plan") is None:  # fuerza: pesos que se tocan
         pesos = [float(x.replace(",", ".")) for x in NUM_PESO.findall(txt)]
         out.update(kind="peso", pesos=pesos, esquema=NUM_PESO.sub("", txt).replace("  ", " ").strip(" -"))
-        if por_ejercicio:
-            out["no_hecha"] = linea_no_hecha(l, semana)
+        out["no_hecha"] = linea_no_hecha(l, semana)  # cada ejercicio de fuerza se puede marcar como no hecho
         return out
     out["kind"] = "texto"
     if not txt and sug:
@@ -1060,7 +1085,8 @@ def vista(sesion: dict, atleta: str | None, semana: int | None, dia_id: str | No
                          "partes": [{"parte": p["parte"], "texto": f"{p['letra']} · {p['etiqueta']}".strip(" ·"),
                                      "warmup": bool(p.get("calentamiento")), "semana": semana, "dia": dia["id"]}
                                     for p in partes]},
-            "faltan": sin_validar(rut, semana) if semana <= actual else []}
+            "faltan": sin_validar(rut, semana) if semana <= actual else [],
+            "olvidadas": olvidadas(rut, semana, dia["id"], atleta) if semana == actual else []}
 
 
 # ===== biblioteca y novedades =====
@@ -1498,6 +1524,14 @@ def accion(sesion: dict, c: dict) -> dict:
             raise Error("Solo el coach puede dar permiso", 403)
         rut = dict(rut, permiso_pesos=bool(c.get("valor")))
         aviso = f"{nv(atleta)} {'ya puede' if c.get('valor') else 'ya no puede'} cambiar sus pesos"
+    elif tipo == "linea_hoy":  # el ejercicio que se quedó sin hacer, a hoy (solo esta semana)
+        l = next((x for d in rut["dias"] for x in d["lineas"] if x["id"] == c.get("linea")), None)
+        if not l:
+            raise Error("No se encontró ese ejercicio")
+        txt = prescripcion_semana(l, semana, rut.get("ajustes"))[0] or l.get("prescripcion", "")
+        rut = anadir_parte(rut, c["dia"], _etiqueta_parte(l.get("parte", "")) or "Fuerza", l["ejercicio"], txt, semana, True)
+        rut = marcar_linea(rut, l["id"], semana, False)
+        aviso = f"{l['ejercicio']} añadido a hoy"
     elif tipo == "linea_no_hecha":
         rut = marcar_linea(rut, c["linea"], semana, bool(c.get("valor")))
     elif tipo == "semana":
