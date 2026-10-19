@@ -597,7 +597,7 @@ function corto(o) {
 }
 
 const videoHtml = (l, k) => l.video ? `<button class="mini-btn video-btn" data-video="${k}">▶️ ${t("Ver vídeo de técnica")}</button>`
-  : E.vista && E.vista.coach ? `<button class="mini-btn" data-video="${k}" style="opacity:.7">🎥 ${t("Añadir vídeo")}</button>` : "";
+  : "";
 function hojaVideo(k) {
   const { l } = lineaDe(k);
   const v = l.video || {};

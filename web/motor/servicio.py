@@ -76,7 +76,7 @@ PROTEGIDOS = ["Yo", "Diego", "Manu Anel", "Salatti", "Mi esposa", "Dario", "Juan
 CLAVE_INVITADOS = "__invitados__"
 CLAVE_ACTIVIDAD = "__actividad__"
 CLAVE_VIDEOS = "__videos__"  # {ejercicio normalizado: {"url", "titulo"}} que pone el coach
-VIDEOS_BASE = {"snatch": {"url": "videos/snatch-diego.mp4", "poster": "videos/snatch-diego.jpg", "titulo": "Snatch · Diego"}}  # quién abre la app y cuándo (solo lo ve el coach)
+VIDEOS_BASE: dict = {}  # quién abre la app y cuándo (solo lo ve el coach)
 PLANTILLAS = {"Salatti": "Rutina de Salatti", "Dario": "Rutina de Dario"}
 TIPOS_WOD = ("wod", "emom", "fortime", "amrap")
 
@@ -323,7 +323,7 @@ def _igual(a: str, b: str) -> bool:
     return bool(a) and bool(b) and hmac.compare_digest(a.encode(), b.encode())
 
 
-VERSION = "5.2"
+VERSION = "5.3"
 CLAVES_NECESARIAS = ["SUPABASE_URL", "SUPABASE_KEY", "APP_PASSWORD", "CONTRASENA_ARCHCHANA", "CONTRASENA_INVITADOS", "COACH_PIN",
                      "APP_ANTIGUA_URL", "CONTRASENA_DEMO"]
 
