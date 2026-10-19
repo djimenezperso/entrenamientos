@@ -36,7 +36,7 @@ class handler(BaseHTTPRequestHandler):
         q = {k: v[0] for k, v in parse_qs(url.query).items()}
         ruta = q.get("r") or url.path.rstrip("/").split("/")[-1]
         try:
-            if metodo == "POST" and ruta not in ("login", "compartir", "crear_perfil"):
+            if metodo == "POST" and ruta not in ("login", "compartir", "crear_perfil", "abonarse"):
                 servicio.solo_lectura(self._sesion())  # la demo no puede guardar nada
             if ruta == "estado" and metodo == "GET":
                 return self._responder(200, servicio.estado())
@@ -61,6 +61,8 @@ class handler(BaseHTTPRequestHandler):
                 return self._responder(200, servicio.ideas())
             if ruta == "crear_perfil" and metodo == "POST":
                 return self._responder(200, servicio.crear_perfil(self._sesion(), self._cuerpo()))
+            if ruta == "abonarse" and metodo == "POST":
+                return self._responder(200, servicio.abonarse(self._sesion(), self._cuerpo()))
             if ruta == "compartir" and metodo == "POST":
                 return self._responder(200, servicio.compartir(self._sesion(), self._cuerpo()))
             if ruta == "actividad" and metodo == "GET":

@@ -224,16 +224,27 @@ function poner(v) {
 }
 
 // ---------- demo: crear tu perfil o seguir mirando ----------
+async function abonarse() {
+  const w = window.open("", "_blank");  // se abre ya (si no, el móvil lo bloquea) y luego se le pone el enlace
+  try {
+    const r = await api("abonarse", { metodo: "POST", cuerpo: { atleta: E.atleta } });
+    if (w) w.location = r.url; else location.href = r.url;
+  } catch (e) { if (w) w.close(); aviso(e.message, true); }
+}
+const botonAbono = (v, id, extra = "") => v.abono ? `<button class="btn btn-abono" id="${id}" ${extra}>💳 ${t("Abonarse")}${v.abono.texto ? ` <small>${esc(v.abono.texto)}</small>` : ""}</button>` : "";
+
 function hojaBienvenidaDemo() {
   if (!$hoja.hidden) return;
   abrirHoja(`<div class="demo-hola">${ic.llama("#FF6A00", 44)}
       <h3>${t("Bienvenido a Djimenez Prog")}</h3>
       <p>${t("Estás viendo una rutina de ejemplo. Puedes mirarlo todo: los entrenos, el cronómetro, el progreso…")}</p></div>
     <button class="btn btn-fuego" id="d-crear" style="height:56px">✨ ${t("Crear mi perfil")}</button>
+    ${botonAbono(E.vista, "d-abono")}
     <button class="btn" id="d-seguir">👀 ${t("Seguir viendo gratis")}</button>
     <p class="mini" style="text-align:center;margin:0">${t("Con tu perfil tienes tu propia rutina y guardas tus marcas.")}</p>`, (h) => {
     h.querySelector("#d-crear").onclick = () => hojaCrearPerfil({});
     h.querySelector("#d-seguir").onclick = cerrarHoja;
+    const da = h.querySelector("#d-abono"); if (da) da.onclick = abonarse;
   });
 }
 function hojaCrearPerfil(paso) {
@@ -344,7 +355,7 @@ function cabecera(v) {
         <button class="redondo" id="b-ajustes" aria-label="${t("Ajustes")}">${ic.ajustes}</button>
       </div>
     </div>
-    ${v.demo ? `<div class="banda-demo">👀 ${t("Modo demo · solo para mirar")} <button id="b-crear-demo">✨ ${t("Crear mi perfil")}</button><button id="b-compartir-demo">${ic.compartir} ${t("Compartir")}</button></div>` : ""}
+    ${v.demo ? `<div class="banda-demo">👀 ${t("Modo demo · solo para mirar")} <button id="b-crear-demo">✨ ${t("Crear mi perfil")}</button>${v.abono ? `<button id="b-abono-demo">💳 ${t("Abonarse")}</button>` : ""}<button id="b-compartir-demo">${ic.compartir} ${t("Compartir")}</button></div>` : ""}
     ${v.semana ? `<div class="pildora-semana">
       <button id="b-sem-menos" aria-label="Semana anterior" ${v.semana <= 1 ? "disabled style='opacity:.3'" : ""}>${ic.izq}</button>
       <span>${t("Semana")} ${v.semana}${v.semana === v.actual ? ` · <em>${t("de fuego")}</em>` : ""}</span>
@@ -522,6 +533,8 @@ function enlazar() {
     const x = textoParte(parteDe(b.dataset.compartir));
     compartir("entreno", `${x.texto}\n\n${t("Entreno de hoy con Djimenez Prog 💪")}`, x.titulo);
   });
+  const bad = document.getElementById("b-abono-demo");
+  if (bad) bad.onclick = abonarse;
   const bcp = document.getElementById("b-crear-demo");
   if (bcp) bcp.onclick = () => hojaCrearPerfil({});
   const bcd = document.getElementById("b-compartir-demo");
@@ -690,6 +703,7 @@ function hojaAjustes() {
         <div style="display:flex;gap:8px"><input class="campo" id="i-pin-coach" type="password" autocapitalize="off" autocomplete="off" placeholder="PIN o clave" style="height:48px;background:#fff">
         <button class="btn btn-negro" id="b-coach">${t("Activar")}</button></div>`}
     </div>
+    ${v.coach ? "" : botonAbono(v, "b-abono")}
     <div style="display:grid;grid-template-columns:1fr auto;gap:8px">
       <button class="btn btn-fuego" id="b-compartir-app">${ic.compartir} ${t("Compartir la app")}</button>
       <button class="btn btn-negro" id="b-qr" style="padding:0 18px">${ic.qr} QR</button></div>
@@ -712,6 +726,7 @@ function hojaAjustes() {
     };
     h.querySelector("#b-compartir-app").onclick = () => { cerrarHoja(); compartir("app", t("💪 Mira la app con la que entreno con Diego (Djimenez Prog)"), "app"); };
     h.querySelector("#b-qr").onclick = () => hojaQR();
+    const bab = h.querySelector("#b-abono"); if (bab) bab.onclick = abonarse;
     const ba = h.querySelector("#b-actividad");
     if (ba) ba.onclick = () => hojaActividad();
     const bl = h.querySelector("#b-limpiar");
@@ -955,6 +970,9 @@ async function hojaActividad() {
     ${d.desde ? "" : `<br><b>${t("Se empieza a contar desde hoy.")}</b>`}</p>
     <div class="act-totales"><div><b>${d.total_compartidos || 0}</b><span>${t("veces compartido")}</span></div>
       <div><b>${d.total_llegadas || 0}</b><span>${t("han entrado por un enlace")}</span></div></div>
+    <div class="act-altas" style="border-left-color:#1baf7a"><b>💳 ${d.abonos.reduce((a, x) => a + x.n, 0)} ${t("veces han pulsado «Abonarse»")}</b>
+      ${d.abonos.length ? `<span>${d.abonos.map((x) => `${esc(x.nombre)} <small>(${x.n > 1 ? x.n + "× · " : ""}${esc(x.hace)})</small>`).join(" · ")}</span>` : ""}
+      <small>${d.abono_activo ? t("Los pagos de verdad los ves en Stripe (cada pago lleva el nombre de quien pulsó).") : t("El botón aún no sale: falta poner ABONO_URL en Vercel.")}</small></div>
     ${d.altas && d.altas.length ? `<div class="act-altas"><b>✨ ${d.altas.length} ${t(d.altas.length === 1 ? "perfil creado desde la demo" : "perfiles creados desde la demo")}</b>
       <span>${d.altas.map((a) => `${esc(a.nombre)} <small>(${esc(a.hace)})</small>`).join(" · ")}</span></div>` : ""}
     <div class="act-lista">${filas}</div>`;

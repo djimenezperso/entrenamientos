@@ -10,6 +10,8 @@ Variables de entorno (en Vercel → Settings → Environment Variables):
   CONTRASENA_INVITADOS            contraseña para invitados (nombre + PIN)
   CONTRASENA_DEMO                 opcional: contraseña de "solo mirar" para enseñar la app (no puede cambiar nada)
   DEMO_ATLETA                     opcional: qué rutina ve la demo (por defecto la de Diego, "Yo")
+  ABONO_URL                       opcional: enlace de pago de Stripe (Payment Link) para el botón «Abonarse»
+  ABONO_TEXTO                     opcional: precio que se enseña en el botón, p. ej. "30 €/mes"
   ACCESOS_PERSONALES              opcional, JSON {"Salatti": "su-clave", …}
   SESION_SECRETO                  opcional; si falta se deriva de las otras claves
   APP_ANTIGUA_URL                 opcional: enlace a la app de Streamlit (para lo que aún no está aquí)
@@ -22,6 +24,7 @@ import datetime as dt
 import hashlib
 import hmac
 import json
+import re
 import os
 import time
 import urllib.error
@@ -317,7 +320,7 @@ def _igual(a: str, b: str) -> bool:
     return bool(a) and bool(b) and hmac.compare_digest(a.encode(), b.encode())
 
 
-VERSION = "4.0"
+VERSION = "4.1"
 CLAVES_NECESARIAS = ["SUPABASE_URL", "SUPABASE_KEY", "APP_PASSWORD", "CONTRASENA_ARCHCHANA", "CONTRASENA_INVITADOS", "COACH_PIN",
                      "APP_ANTIGUA_URL", "CONTRASENA_DEMO"]
 
@@ -515,6 +518,22 @@ def crear_perfil(sesion: dict, c: dict) -> dict:
     return r
 
 
+def abonarse(sesion: dict, c: dict) -> dict:
+    """Apunta que alguien pulsa «Abonarse» y devuelve el enlace de pago (Stripe), con su nombre para reconocerle."""
+    url = env("ABONO_URL")
+    if not url:
+        raise Error("El pago todavía no está activado. Escríbele a Diego.", 404)
+    quien = "Demo" if es_demo(sesion) else (sesion.get("u") or (c.get("atleta") if c.get("atleta") in todas_las_personas() else "Yo"))
+
+    def cambio(act):
+        x = _sumar(act.setdefault("abonos", {}), quien)
+        x.setdefault("nombre", nv(quien) if quien != "Demo" else "Demo (solo mirar)")
+    _apuntar_actividad(cambio)
+    ref = re.sub(r"[^A-Za-z0-9_-]", "_", quien)[:60]
+    sep = "&" if "?" in url else "?"
+    return {"url": f"{url}{sep}client_reference_id={ref}" if "stripe.com" in url else url}
+
+
 # ===== actividad: quién entra y cuándo =====
 def _ahora() -> dt.datetime:
     try:
@@ -608,6 +627,9 @@ def actividad(sesion: dict) -> dict:
     return {"personas": filas, "desde": min((d for a in act.values() for d in a.get("dias", {})), default=None),
             "total_compartidos": sum(x.get("app", 0) + x.get("entreno", 0) for x in comp.values()),
             "total_llegadas": sum(x.get("n", 0) for x in lleg.values()),
+            "abonos": [{"nombre": x.get("nombre", k), "n": x.get("n", 0), "hace": _hace(x.get("ultimo"), ahora)}
+                       for k, x in sorted(todo.get("abonos", {}).items(), key=lambda kv: kv[1].get("ultimo", ""), reverse=True)],
+            "abono_activo": bool(env("ABONO_URL")),
             "altas": [{"nombre": a["nombre"], "hace": _hace(a.get("cuando"), ahora)} for a in todo.get("altas", [])][:20]}
 
 
@@ -858,6 +880,7 @@ def vista(sesion: dict, atleta: str | None, semana: int | None, dia_id: str | No
             "personas": [{"id": p, "nombre": nv(p)} for p in personas], "lang": IDIOMA_DEFECTO.get(atleta, "es"),
             "app_antigua": env("APP_ANTIGUA_URL"), "tipos": {k: v[0] for k, v in TIPOS.items()},
             "unidades": UNIDADES, "con_prs": atleta not in SIN_PRS, "coach": coach, "demo": es_demo(sesion),
+            "abono": {"texto": env("ABONO_TEXTO")} if env("ABONO_URL") else None,
             "puede_pesos": coach or bool((rut or {}).get("permiso_pesos")),
             "permiso_pesos": bool((rut or {}).get("permiso_pesos")),
             "solicitudes": [x for x in todas_sol if coach and (not sesion.get("u") or x["atleta"] == sesion["u"])],
