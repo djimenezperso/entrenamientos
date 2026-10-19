@@ -567,7 +567,7 @@ function hojaAjustes() {
         <div id="limpiar-res"></div>
         <button class="btn" id="b-coach-salir" style="width:100%;margin-top:10px">${t("Quitar el modo coach en este móvil")}</button>`
       : `<div class="mini" style="margin-bottom:10px">${t("Solo para Diego: con el PIN del coach puedes cambiar los pesos y aprobar los cambios que te piden.")}</div>
-        <div style="display:flex;gap:8px"><input class="campo" id="i-pin-coach" type="password" inputmode="numeric" placeholder="PIN" style="height:48px;background:#fff">
+        <div style="display:flex;gap:8px"><input class="campo" id="i-pin-coach" type="password" autocapitalize="off" autocomplete="off" placeholder="PIN o clave" style="height:48px;background:#fff">
         <button class="btn btn-negro" id="b-coach">${t("Activar")}</button></div>`}
     </div>
     ${v.app_antigua ? `<a class="btn" href="${esc(v.app_antigua)}" target="_blank" rel="noopener">${t("Abrir la app de siempre")}</a>` : ""}
@@ -620,7 +620,7 @@ function pinInline(v) {
   // Diego sin el modo coach activado: lo activa aquí mismo y sigue cambiando
   if (v.coach || v.solo) return "";
   return `<div class="pin-inline"><span>${t("¿Eres Diego? Mete tu PIN de coach y lo cambias directamente")}</span>
-    <div style="display:flex;gap:8px"><input class="campo" id="pin-in" type="password" inputmode="numeric" placeholder="PIN" style="height:46px;background:#fff">
+    <div style="display:flex;gap:8px"><input class="campo" id="pin-in" type="password" autocapitalize="off" autocomplete="off" placeholder="PIN o clave" style="height:46px;background:#fff">
     <button type="button" class="btn btn-negro" id="pin-ok">${t("Activar")}</button></div></div>`;
 }
 function enlazarPin(h, reabrir) {
