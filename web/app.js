@@ -18,6 +18,13 @@ const E = { token: mem.get("token"), atleta: mem.get("atleta"), lang: mem.get("l
 
 // ---------- textos ----------
 const FR = {
+  "Diego ya lo ha hecho. ¿Te lo pones hoy?": "Diego l'a déjà fait. Tu le fais aujourd'hui ?",
+  "Toca repetir para comparar": "C'est le moment de refaire pour comparer", "La otra vez": "La dernière fois", "Lo hiciste el": "Tu l'as fait le",
+  "En una semana": "Dans une semaine", "Quitar este retest": "Enlever ce retest", "Retest el": "Retest le",
+  "Repetir para comparar": "Refaire pour comparer", "Me gusta": "J'aime", "Tu marca ahora": "Ton résultat actuel",
+  "Registra hoy tu resultado para poder comparar.": "Enregistre ton résultat aujourd'hui pour pouvoir comparer.",
+  "Te lo volvemos a poner en tu día y verás la otra marca al lado.": "On te le remet dans ta journée avec l'ancien résultat à côté.",
+  "En 1 mes": "Dans 1 mois", "En 2 meses": "Dans 2 mois", "WODs que más gustan": "Les WOD les plus aimés",
   "Movimiento": "Mouvement", "Cambiar movimiento / reps": "Changer mouvement / reps",
   "Aquí puedes cambiar el movimiento (por ejemplo «Power clean + push jerk»). Los kilos van en el texto de abajo con @.": "Ici tu peux changer le mouvement (par exemple « Power clean + push jerk »). Les kilos vont dans le texte en dessous avec @.",
   "¡Hola Diego! He visto la app Djimenez Prog y me interesa entrenar contigo 💪": "Salut Diego ! J'ai vu l'appli Djimenez Prog et je voudrais m'entraîner avec toi 💪",
@@ -481,9 +488,17 @@ function pintar() {
     ${(v.novedades || []).map((n) => `<section class="novedad">
       <div class="nov-cab">${ic.llama("#FFB400", 22)}<div><small>${t("Novedad de Diego")} · ${esc(n.etiqueta)}</small><b>${esc(n.nombre)}</b></div></div>
       <div class="texto-wod">${esc(n.texto)}</div>
-      <div class="mini" style="color:#FFD9BD">${t("Diego se lo ha puesto. ¿Te viene bien hoy?")}</div>
+      <div class="mini" style="color:#FFD9BD">${t("Diego ya lo ha hecho. ¿Te lo pones hoy?")}</div>
       <div class="nov-botones"><button class="btn" data-nov-no="${esc(n.id)}">${t("Hoy no")}</button>
         <button class="btn btn-fuego" data-nov-si="${esc(n.id)}" style="height:50px">${t("Ponérmelo hoy")}</button></div>
+    </section>`).join("")}
+    ${(v.retests || []).map((x) => `<section class="novedad retest">
+      <div class="nov-cab"><span style="font-size:22px">🔁</span><div><small>${t("Toca repetir para comparar")} · ${esc(x.etiqueta)}</small><b>${esc(x.nombre)}</b></div></div>
+      <div class="texto-wod">${esc(x.texto)}</div>
+      <div class="mini" style="color:#FFD9BD">${x.antes ? `${t("La otra vez")} (${esc(trFecha(x.creado))}): <b style="color:#fff">${esc(x.antes.valor)}</b>` : `${t("Lo hiciste el")} ${esc(trFecha(x.creado))}`}</div>
+      <div class="nov-botones"><button class="btn" data-rt-semana="${esc(x.id)}">${t("En una semana")}</button>
+        <button class="btn btn-fuego" data-rt-si="${esc(x.id)}" style="height:50px">${t("Ponérmelo hoy")}</button></div>
+      <button class="mini-btn" data-rt-no="${esc(x.id)}" style="align-self:center;color:#FFD9BD;border-color:transparent;background:transparent;text-decoration:underline">${t("Quitar este retest")}</button>
     </section>`).join("")}
     ${v.faltan.length && v.semana < v.actual ? `<div class="alerta"><b>${t("Sin validar")} · S${v.semana}:</b> ${esc(v.faltan.join("; "))}. ${t("Marca cada parte como hecha o pásala a otro día.")}</div>` : ""}
     ${v.partes.length ? v.partes.map((p, i) => tarjeta(p, "p" + i)).join("") : `<div class="vacio">${t("Sin ejercicios este día.")}</div>`}
@@ -548,6 +563,7 @@ function tarjeta(p, k) {
         <div class="nombre">${esc(nombreTit)}</div>
       </div>
       ${p.historial.length ? `<div class="hist" title="Semanas anteriores">${p.historial.map(([s, e]) => `<i class="${e}" title="S${s}"></i>`).join("")}</div>` : ""}
+      ${p.calentamiento ? "" : `<button class="mas-op gusta-op ${gusta(p) ? "on" : ""}" data-gusta="${k}" aria-label="${t("Me gusta")}" aria-pressed="${gusta(p)}">${gusta(p) ? "❤️" : "🤍"}</button>`}
       <button class="mas-op compartir-op" data-compartir="${k}" aria-label="${t("Compartir este entreno")}">${ic.compartir}</button>
       ${p.origen ? "" : `<button class="mas-op" data-menu="${k}" aria-label="${t("Cambiar esta parte")}">${ic.puntos}</button>`}
     </div>
@@ -600,7 +616,9 @@ function linea(l, p, k) {
         : `<tr><td>${esc(f.RX)}</td><td>${esc(f.Inter)}</td><td>${esc(f.Scaled)}</td></tr>`).join("")}</tbody></table></details>`;
   else if (l.versiones_nivel) html += `<details class="desplegable"><summary>${t("Versiones")} RX · Inter · Scaled · Elite ${ic.abajo}</summary>
     <div class="versiones">${Object.entries(l.versiones_nivel).map(([n, txt]) => `<div><b>${esc(n)}</b><span class="texto-wod">${esc(txt)}</span></div>`).join("")}</div></details>`;
-  if (!p.origen) html += `<div class="acciones-linea"><button class="mini-btn" data-editar="${k}">${ic.lapiz} ${t("Ajustar")}</button>${l.tipo !== "fuerza" ? `<button class="mini-btn azar" data-azar="${k}">🎲 ${t("Al azar")}</button>` : ""}${l.texto_sig && l.texto_sig !== l.texto ? `<span class="mini">${t("Semana que viene")}: ${esc(l.texto_sig.split("\n")[0].slice(0, 60))}</span>` : ""}</div>`;
+  if (!p.origen) html += `<div class="acciones-linea"><button class="mini-btn" data-editar="${k}">${ic.lapiz} ${t("Ajustar")}</button>${l.tipo !== "fuerza" ? `<button class="mini-btn azar" data-azar="${k}">🎲 ${t("Al azar")}</button>` : ""}${["wod", "emom", "fortime", "amrap", "conditioning"].includes(l.tipo) ? ((E.vista.retest_lineas || {})[l.id]
+      ? `<span class="etq ok">🔁 ${t("Retest el")} ${esc(trFecha(E.vista.retest_lineas[l.id]))}</span>`
+      : `<button class="mini-btn" data-retest="${k}">🔁 ${t("Repetir para comparar")}</button>`) : ""}${l.texto_sig && l.texto_sig !== l.texto ? `<span class="mini">${t("Semana que viene")}: ${esc(l.texto_sig.split("\n")[0].slice(0, 60))}</span>` : ""}</div>`;
   if (l.crono && visto) html += `<button class="btn-crono" data-crono="${k}">${ic.reloj}<span>${t("Cronómetro")}<small>${esc(etiquetaCrono(l.crono))}</small></span>${ic.der.replace(/#FFB400/g, "currentColor")}</button>`;
   if (l.elite) html += `<div class="elite"><span class="ico">${ic.estrella}</span><span><b>${esc(l.elite.quien)}: ${esc(l.elite.marca)}</b> · ${esc(l.elite.detalle)}</span></div>`;
   return html + "</div>";
@@ -695,9 +713,41 @@ function enlazar() {
   const bcd = document.getElementById("b-compartir-demo");
   if (bcd) bcd.onclick = () => compartir("app", t("💪 Mira la app de entrenamiento de Diego (Djimenez Prog)"), "app");
   on("b-anadir-parte", () => hojaParte(null));
+  $app.querySelectorAll("[data-rt-si]").forEach((b) => b.onclick = () => hacer({ tipo: "retest_poner", id: b.dataset.rtSi, dia: E.dia, semana: E.semana }, b));
+  $app.querySelectorAll("[data-rt-semana]").forEach((b) => b.onclick = () => hacer({ tipo: "retest_semana", id: b.dataset.rtSemana }, b));
+  $app.querySelectorAll("[data-rt-no]").forEach((b) => b.onclick = () => hacer({ tipo: "retest_quitar", id: b.dataset.rtNo }, b));
+  $app.querySelectorAll("[data-retest]").forEach((b) => b.onclick = () => hojaRetest(b.dataset.retest));
+  $app.querySelectorAll("[data-gusta]").forEach((b) => b.onclick = () => alternarGusta(parteDe(b.dataset.gusta), b));
   $app.querySelectorAll("[data-nov-si]").forEach((b) => b.onclick = () => hacer({ tipo: "ponerme_novedad", id: b.dataset.novSi, dia: E.dia, semana: E.semana }, b));
   $app.querySelectorAll("[data-nov-no]").forEach((b) => b.onclick = () => hacer({ tipo: "descartar_novedad", id: b.dataset.novNo }, b));
   $app.querySelectorAll("[data-crono]").forEach((b) => b.onclick = () => { const { p, l } = lineaDe(b.dataset.crono); abrirCrono(p, l); });
+}
+
+// ---------- me gusta ----------
+const claveParte = (p) => { const x = textoParte(p); return (x.titulo + " " + x.texto).toLowerCase().replace(/\s+/g, " ").slice(0, 120); };
+function gustos() { try { return JSON.parse(mem.get("gustos_" + E.atleta) || "[]"); } catch { return []; } }
+const gusta = (p) => gustos().includes(claveParte(p));
+function idDisp() { let d = mem.get("disp"); if (!d) { d = Math.random().toString(36).slice(2, 12); mem.set("disp", d); } return d; }
+async function alternarGusta(p, b) {
+  const k = claveParte(p), lista = gustos(), on = !lista.includes(k);
+  mem.set("gustos_" + E.atleta, JSON.stringify(on ? [...lista, k].slice(-200) : lista.filter((x) => x !== k)));
+  b.classList.toggle("on", on); b.textContent = on ? "❤️" : "🤍"; b.setAttribute("aria-pressed", on);
+  if (on) { b.classList.remove("late"); void b.offsetWidth; b.classList.add("late"); }
+  const x = textoParte(p);
+  api("me_gusta", { metodo: "POST", cuerpo: { clave: k, on, nombre: x.titulo, texto: x.texto.slice(0, 200), atleta: E.atleta, disp: idDisp() } }).catch(() => { });
+}
+
+// ---------- repetir un WOD más adelante ----------
+function hojaRetest(k) {
+  const { p, l } = lineaDe(k);
+  abrirHoja(`${cabHoja(`${p.letra ? p.letra + " · " : ""}${etqParte(p.etiqueta)}`, t("Repetir para comparar"))}
+    <div class="texto-wod" style="background:#fff;border-radius:14px;padding:12px">${esc(l.visto || l.texto || "")}</div>
+    <p class="mini" style="margin:0 4px">${l.ultimo ? `${t("Tu marca ahora")}: <b>${esc(l.ultimo.valor)}</b> (${esc(trFecha(l.ultimo.fecha))}). ` : `${t("Registra hoy tu resultado para poder comparar.")} `}${t("Te lo volvemos a poner en tu día y verás la otra marca al lado.")}</p>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+      <button class="btn btn-fuego" data-meses="1">${t("En 1 mes")}</button>
+      <button class="btn btn-negro" data-meses="2">${t("En 2 meses")}</button></div>`, (h) => {
+    h.querySelectorAll("[data-meses]").forEach((b) => b.onclick = () => { cerrarHoja(); hacer({ tipo: "retest", linea: l.id, meses: b.dataset.meses, semana: p.semana }); });
+  });
 }
 
 // ---------- compartir ----------
@@ -1131,6 +1181,8 @@ async function hojaActividad() {
         <a href="tel:${esc(x.telefono)}">📞 ${esc(x.telefono)}</a> · <a href="mailto:${esc(x.email)}">${esc(x.email)}</a>
         ${x.cs ? `<br><small>Stripe: ${esc(x.cs.slice(0, 24))}…</small>` : ""}</div>
         <button class="chip ${x.visto ? "on" : ""}" data-pago="${esc(x.id)}" data-visto="${x.visto ? 1 : 0}">${x.visto ? "✓ " + t("Comprobado") : t("Marcar comprobado")}</button></div>`).join("")}</div>` : ""}
+    ${d.likes && d.likes.length ? `<div class="act-altas" style="border-left-color:#e0245e"><b>❤️ ${t("WODs que más gustan")}</b>
+      ${d.likes.map((x) => `<span><b>${x.n}</b> · ${esc(x.nombre)} <small>(${esc(x.quien.join(", "))})</small></span>`).join("")}</div>` : ""}
     ${d.contactos && d.contactos.length ? `<div class="act-altas" style="border-left-color:#25D366"><b>💬 ${d.contactos.reduce((a, x) => a + x.n, 0)} ${t("veces han pulsado «Contactar»")}</b>
       <span>${d.contactos.map((x) => `${esc(x.nombre)} <small>(${x.n > 1 ? x.n + "× · " : ""}${esc(x.hace)})</small>`).join(" · ")}</span></div>` : ""}
     <div class="act-altas" style="border-left-color:#1baf7a"><b>💳 ${d.abonos.reduce((a, x) => a + x.n, 0)} ${t("veces han pulsado «Abonarse»")}</b>

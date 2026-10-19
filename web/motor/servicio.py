@@ -321,7 +321,7 @@ def _igual(a: str, b: str) -> bool:
     return bool(a) and bool(b) and hmac.compare_digest(a.encode(), b.encode())
 
 
-VERSION = "4.7"
+VERSION = "4.8"
 CLAVES_NECESARIAS = ["SUPABASE_URL", "SUPABASE_KEY", "APP_PASSWORD", "CONTRASENA_ARCHCHANA", "CONTRASENA_INVITADOS", "COACH_PIN",
                      "APP_ANTIGUA_URL", "CONTRASENA_DEMO"]
 
@@ -601,6 +601,27 @@ def datos_pago(sesion: dict | None, c: dict) -> dict:
     return {"ok": True}
 
 
+def me_gusta(sesion: dict, c: dict) -> dict:
+    """❤️ a un WOD. Se cuenta quién (o «Demo») para que Diego vea qué entrenos gustan más."""
+    clave = re.sub(r"[^a-z0-9]+", " ", norm(str(c.get("clave") or ""))).strip()[:80]
+    if not clave:
+        raise Error("Falta el entreno")
+    quien = "Demo:" + re.sub(r"[^A-Za-z0-9]", "", str(c.get("disp") or ""))[:12] if es_demo(sesion) else \
+        (sesion.get("u") or (c.get("atleta") if c.get("atleta") in todas_las_personas() else "Yo"))
+    on = bool(c.get("on"))
+
+    def cambio(act):
+        x = act.setdefault("likes", {}).setdefault(clave, {"nombre": str(c.get("nombre") or "")[:80],
+                                                         "texto": str(c.get("texto") or "")[:200], "por": []})
+        por = [q for q in x["por"] if q != quien]
+        if on:
+            por.append(quien)
+        x["por"] = por[-200:]
+        x["ultimo"] = _ahora().isoformat(timespec="minutes")
+    _apuntar_actividad(cambio)
+    return {"ok": True}
+
+
 def pago_visto(sesion: dict, c: dict) -> dict:
     if not es_coach(sesion):
         raise Error("Solo el coach", 403)
@@ -710,6 +731,9 @@ def actividad(sesion: dict) -> dict:
             "abonos": [{"nombre": x.get("nombre", k), "n": x.get("n", 0), "hace": _hace(x.get("ultimo"), ahora)}
                        for k, x in sorted(todo.get("abonos", {}).items(), key=lambda kv: kv[1].get("ultimo", ""), reverse=True)],
             "abono_activo": bool(env("ABONO_URL")),
+            "likes": sorted([{"nombre": x.get("nombre") or k, "texto": x.get("texto", ""), "n": len(x.get("por", [])),
+                              "quien": [nv(q) if not q.startswith("Demo") else "Demo" for q in x.get("por", [])][-8:]}
+                             for k, x in todo.get("likes", {}).items() if x.get("por")], key=lambda y: -y["n"])[:15],
             "contactos": [{"nombre": x.get("nombre", k), "n": x.get("n", 0), "hace": _hace(x.get("ultimo"), ahora)}
                           for k, x in sorted(todo.get("contactos", {}).items(), key=lambda kv: kv[1].get("ultimo", ""), reverse=True)],
             "pagos": [dict(x, hace=_hace(x.get("cuando"), ahora)) for x in todo.get("pagos", [])][:50],
@@ -1026,7 +1050,12 @@ def vista(sesion: dict, atleta: str | None, semana: int | None, dia_id: str | No
             "dias": dias, "dia": {"id": dia["id"], "nombre": dia["nombre"], "estado": resumen_dia(rut, semana, dia),
                                   "por_ejercicio": bool(dia.get("por_ejercicio"))},
             "partes": partes, "pendientes": pendientes,
-            "novedades": novedades_para(rut, (guardadas.get(CLAVE_NOVEDADES) or {}).get("lista") or []) if alumno else [],
+            "novedades": novedades_para(rut, (guardadas.get(CLAVE_NOVEDADES) or {}).get("lista") or [],
+                                        rutina("Yo", guardadas)) if alumno else [],
+            "retests": [_retest_ui(x) for x in rut.get("retests") or []
+                        if x.get("estado") == "pendiente" and x.get("fecha", "9") <= dt.date.today().isoformat()],
+            "retest_lineas": {x["linea"]: _fecha_corta(x["fecha"]) for x in rut.get("retests") or []
+                              if x.get("estado") == "pendiente" and x.get("linea")},
             "registro": {**registro_inicial(rut, dia, semana),
                          "partes": [{"parte": p["parte"], "texto": f"{p['letra']} · {p['etiqueta']}".strip(" ·"),
                                      "warmup": bool(p.get("calentamiento")), "semana": semana, "dia": dia["id"]}
@@ -1236,7 +1265,7 @@ def _tipo_de_etiqueta(etiqueta: str) -> str:
     return "wod"
 
 
-def _novedad(rut_yo: dict, etiqueta: str, nombre: str, texto: str, semana: int):
+def _novedad(rut_yo: dict, etiqueta: str, nombre: str, texto: str, semana: int, dia: str | None = None):
     """Lo que Diego se pone a sí mismo, para ofrecérselo a sus alumnos."""
     import uuid
     if not (texto or "").strip():
@@ -1244,14 +1273,46 @@ def _novedad(rut_yo: dict, etiqueta: str, nombre: str, texto: str, semana: int):
     reg = datos().rutinas([CLAVE_NOVEDADES]).get(CLAVE_NOVEDADES) or {}
     lista = [x for x in reg.get("lista") or [] if norm_busqueda(x.get("texto", "")) != norm_busqueda(texto)]
     lista.append({"id": uuid.uuid4().hex[:10], "etiqueta": etiqueta, "nombre": nombre or etiqueta, "texto": texto.strip(),
-                  "semana": semana, "fecha": dt.date.today().isoformat()})
+                  "semana": semana, "dia": dia, "fecha": dt.date.today().isoformat()})
     datos().guardar(CLAVE_NOVEDADES, {"lista": lista[-30:]})
 
 
-def novedades_para(rut: dict, novedades: list[dict]) -> list[dict]:
+def _fecha_corta(iso: str) -> str:
+    try:
+        d = dt.date.fromisoformat(iso[:10])
+    except ValueError:
+        return iso
+    return f"{d.day} {MESES_ES[d.month - 1]}"
+
+
+def _retest_ui(x: dict) -> dict:
+    return {"id": x["id"], "nombre": x["nombre"], "etiqueta": x.get("etiqueta", "WOD"), "texto": x["texto"],
+            "antes": x.get("antes"), "creado": _fecha_corta(x.get("creado", ""))}
+
+
+def _novedad_hecha(rut_yo: dict | None, nov: dict) -> bool:
+    """Lo que Diego se pone solo se ofrece a los alumnos cuando él lo ha marcado como hecho."""
+    if not nov.get("dia"):
+        return True  # novedades antiguas (antes de este cambio)
+    if not rut_yo:
+        return False
+    sem = int(nov.get("semana") or 1)
+    dia = next((d for d in rut_yo.get("dias") or [] if d["id"] == nov["dia"]), None)
+    if not dia:
+        return False
+    objetivo = norm_busqueda(nov.get("texto", ""))
+    for l in dia["lineas"]:
+        txt = prescripcion_semana(l, sem, rut_yo.get("ajustes"))[0] or l.get("prescripcion", "")
+        if norm_busqueda(txt) == objetivo and l.get("parte"):
+            return estado_parte(rut_yo, sem, dia["id"], l["parte"])["estado"] == "hecho"
+    return False
+
+
+def novedades_para(rut: dict, novedades: list[dict], rut_yo: dict | None = None) -> list[dict]:
     vistas = set(rut.get("novedades_vistas") or [])
     hace = (dt.date.today() - dt.timedelta(days=21)).isoformat()
-    return [x for x in reversed(novedades) if x["id"] not in vistas and x.get("fecha", "") >= hace][:3]
+    return [x for x in reversed(novedades) if x["id"] not in vistas and x.get("fecha", "") >= hace
+            and _novedad_hecha(rut_yo, x)][:3]
 
 
 def puede_programar(sesion: dict, rut: dict) -> bool:
@@ -1309,7 +1370,7 @@ def aplicar_programa(rut: dict, tipo: str, c: dict, semana: int, atleta: str) ->
         return rut, "Vuelve lo que había"
     guardar_en_biblioteca(_tipo_de_etiqueta(etiqueta), nombre, texto, atleta)
     if atleta == "Yo":
-        _novedad(rut, etiqueta, nombre, texto, semana)
+        _novedad(rut, etiqueta, nombre, texto, semana, c.get("dia"))
     return rut, aviso
 
 
@@ -1396,6 +1457,39 @@ def accion(sesion: dict, c: dict) -> dict:
         rut = anadir_parte(rut, c["dia"], nov["etiqueta"], nov["nombre"], nov["texto"], semana, not c.get("adelante"))
         rut = dict(rut, novedades_vistas=(rut.get("novedades_vistas") or [])[-60:] + [nov["id"]])
         aviso = f"{nov['etiqueta']} añadido a tu día"
+    elif tipo == "retest":
+        import uuid
+        l = next((x for d in rut["dias"] for x in d["lineas"] if x["id"] == c.get("linea")), None)
+        if not l:
+            raise Error("No se encontró ese entreno")
+        meses = 2 if str(c.get("meses")) == "2" else 1
+        fecha = dt.date.today() + dt.timedelta(days=28 * meses)
+        texto = prescripcion_semana(l, semana, rut.get("ajustes"))[0] or l.get("prescripcion", "")
+        antes = ultimos_resultados(atleta).get(norm(l["ejercicio"]))
+        lista = [x for x in rut.get("retests") or [] if not (x.get("linea") == l["id"] and x.get("estado") == "pendiente")]
+        lista.append({"id": uuid.uuid4().hex[:8], "linea": l["id"], "nombre": l["ejercicio"],
+                      "etiqueta": _etiqueta_parte(l.get("parte", "")) or "WOD", "texto": texto, "antes": antes,
+                      "creado": dt.date.today().isoformat(), "fecha": fecha.isoformat(), "estado": "pendiente"})
+        rut = dict(rut, retests=lista[-40:])
+        aviso = f"🔁 Te lo vuelvo a poner el {_fecha_corta(fecha.isoformat())} para comparar"
+    elif tipo in ("retest_poner", "retest_quitar", "retest_semana"):
+        lista = [dict(x) for x in rut.get("retests") or []]
+        x = next((y for y in lista if y["id"] == c.get("id")), None)
+        if not x:
+            raise Error("Ese retest ya no está")
+        if tipo == "retest_poner":
+            nota = f"\n🔁 Retest · la otra vez ({_fecha_corta(x.get('creado', ''))}): {x['antes']['valor']}" if x.get("antes") else \
+                f"\n🔁 Retest de {_fecha_corta(x.get('creado', ''))}"
+            rut = anadir_parte(rut, c["dia"], x.get("etiqueta") or "WOD", f"🔁 {x['nombre']}", x["texto"] + nota, semana, True)
+            x["estado"] = "puesto"
+            aviso = "🔁 Retest añadido a tu día. ¡A batir la marca!"
+        elif tipo == "retest_semana":
+            x["fecha"] = (dt.date.today() + dt.timedelta(days=7)).isoformat()
+            aviso = "Vale, te lo recuerdo en una semana"
+        else:
+            x["estado"] = "quitado"
+            aviso = "Retest quitado"
+        rut = dict(rut, retests=lista)
     elif tipo == "descartar_novedad":
         rut = dict(rut, novedades_vistas=(rut.get("novedades_vistas") or [])[-60:] + [str(c.get("id"))])
         aviso = "Vale, no te la pongo"

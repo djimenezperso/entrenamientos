@@ -520,3 +520,10 @@ main { padding: 4px 16px 0; display: flex; flex-direction: column; gap: 12px; }
 .act-pagos .chip { flex: none; }
 
 .btn-wa { background: #25D366; color: #fff; border-color: #25D366; display: flex; align-items: center; justify-content: center; }
+
+/* me gusta + retest */
+.gusta-op { font-size: 17px; line-height: 1; }
+.gusta-op.late { animation: late .35s ease; }
+@keyframes late { 0% { transform: scale(1); } 40% { transform: scale(1.35); } 100% { transform: scale(1); } }
+.novedad.retest { background: linear-gradient(150deg, #0d3b2e, #136b4f 70%, #1baf7a); }
+.etq.ok { background: #E3F6EE; color: #127a55; }
