@@ -109,6 +109,7 @@ const ic = {
   reinicio: `<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 12a8 8 0 1 0 3-6.2M4 4v5h5"/></svg>`,
   ciclo: `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="M4 12a8 8 0 0 1 14-5.3M20 12a8 8 0 0 1-14 5.3M18 3v4h-4M6 21v-4h4"/></svg>`,
 };
+ic.qr = `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><path d="M14 14h3v3M21 14v7h-7M17 21v-1"/></svg>`;
 ic.compartir = `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><path d="M8.6 13.5l6.8 4M15.4 6.5l-6.8 4"/></svg>`;
 const inicial = (n) => (n || "?").split(/\s+/).map((p) => p[0]).join("").slice(0, 2).toUpperCase();
 
@@ -489,6 +490,26 @@ async function compartir(tipo, texto, que) {
   }
   hojaCompartir(msg, contar);
 }
+function cargarQR() {
+  if (window.qrcode) return Promise.resolve();
+  return new Promise((ok, mal) => { const sc = document.createElement("script"); sc.src = "qrcode.js?v=1"; sc.onload = ok; sc.onerror = mal; document.head.appendChild(sc); });
+}
+async function hojaQR() {
+  abrirHoja(`${cabHoja("Djimenez Prog", t("Código QR"))}<div class="cargador" style="margin:40px auto"></div>`);
+  let inv = null;
+  try {
+    [inv] = await Promise.all([api("compartir", { metodo: "POST", cuerpo: { tipo: "app", via: "qr", atleta: E.atleta, contar: false } }).then((r) => r.inv), cargarQR()]);
+  } catch (e) { cerrarHoja(); return aviso(t("No se ha podido crear el QR"), true); }
+  if ($hoja.hidden) return;
+  const url = location.origin + "/" + (inv ? "?inv=" + encodeURIComponent(inv) : "");
+  const qr = qrcode(0, "M"); qr.addData(url); qr.make();
+  $hoja.firstElementChild.innerHTML = `<div class="asa"></div>${cabHoja("Djimenez Prog", t("Código QR"))}
+    <div class="qr-caja">${qr.createSvgTag({ cellSize: 8, margin: 2, scalable: true, alt: "QR Djimenez Prog" })}
+      <div class="qr-pie">${ic.llama("#FF6A00", 22)}<b>Djimenez Prog</b></div></div>
+    <p class="mini" style="text-align:center;margin:0 8px">${inv ? t("Que lo escaneen con la cámara del móvil: entran directo a la demo, solo para mirar. Cuenta en «Quién usa la app».")
+      : t("Escaneándolo se abre la app (para entrar hace falta contraseña).")}</p>`;
+  $hoja.querySelectorAll("[data-cerrar]").forEach((b) => b.onclick = cerrarHoja);
+}
 function hojaCompartir(msg, contar) {
   abrirHoja(`${cabHoja("Djimenez Prog", t("Compartir"))}
     <div class="texto-wod" style="background:#fff;border-radius:14px;padding:12px;white-space:pre-wrap;overflow-wrap:anywhere;font-size:14px">${esc(msg)}</div>
@@ -613,7 +634,9 @@ function hojaAjustes() {
         <div style="display:flex;gap:8px"><input class="campo" id="i-pin-coach" type="password" autocapitalize="off" autocomplete="off" placeholder="PIN o clave" style="height:48px;background:#fff">
         <button class="btn btn-negro" id="b-coach">${t("Activar")}</button></div>`}
     </div>
-    <button class="btn btn-fuego" id="b-compartir-app">${ic.compartir} ${t("Compartir la app")}</button>
+    <div style="display:grid;grid-template-columns:1fr auto;gap:8px">
+      <button class="btn btn-fuego" id="b-compartir-app">${ic.compartir} ${t("Compartir la app")}</button>
+      <button class="btn btn-negro" id="b-qr" style="padding:0 18px">${ic.qr} QR</button></div>
     ${v.app_antigua ? `<a class="btn" href="${esc(v.app_antigua)}" target="_blank" rel="noopener">${t("Abrir la app de siempre")}</a>` : ""}
     <button class="btn btn-negro" id="b-salir">${t("Salir")}</button>`, (h) => {
     const bc = h.querySelector("#b-coach");
@@ -632,6 +655,7 @@ function hojaAjustes() {
       cerrarHoja(); aviso(t("Modo coach quitado")); cargar();
     };
     h.querySelector("#b-compartir-app").onclick = () => { cerrarHoja(); compartir("app", t("💪 Mira la app con la que entreno con Diego (Djimenez Prog)"), "app"); };
+    h.querySelector("#b-qr").onclick = () => hojaQR();
     const ba = h.querySelector("#b-actividad");
     if (ba) ba.onclick = () => hojaActividad();
     const bl = h.querySelector("#b-limpiar");
@@ -865,7 +889,7 @@ async function hojaActividad() {
       : `${p.dias7} ${t(p.dias7 === 1 ? "día esta semana" : "días esta semana")} · ${p.dias30} ${t("en 30 días")}<br>${p.registros30 ? `🏋️ ${p.registros30} ${t("entrenos registrados (30 días)")}` : t("Sin entrenos registrados en 30 días")}${p.ultimo_registro ? ` · ${t("último")}: ${esc(p.ultimo_registro)}` : ""}`;
     const nComp = (p.comp_app || 0) + (p.comp_entreno || 0);
     const comp = nComp || p.llegadas ? `<div class="act-comp">📤 ${nComp} ${t(nComp === 1 ? "vez compartido" : "veces compartido")}${nComp ? ` (${p.comp_app} app · ${p.comp_entreno} ${t(p.comp_entreno === 1 ? "entreno" : "entrenos")})` : ""}
-      ${p.llegadas ? `<br>👋 ${p.llegadas} ${t(p.llegadas === 1 ? "persona ha entrado con su enlace" : "personas han entrado con su enlace")}` : ""}
+      ${p.llegadas ? `<br>👋 ${p.llegadas} ${t(p.llegadas === 1 ? "persona ha entrado con su enlace" : "personas han entrado con su enlace")}${p.llegadas_qr ? ` (${p.llegadas_qr} ${t("con el QR")})` : ""}` : ""}
       ${p.comp_lista && p.comp_lista.length ? `<small>${p.comp_lista.map((x) => esc(x.tipo === "app" ? t("la app") : x.que)).join(" · ")}</small>` : ""}</div>` : "";
     return `<div class="act-fila ${activo}"><div class="act-cab"><span class="avatar">${p.demo ? "👀" : esc(inicial(p.nombre))}</span>
       <div><b>${esc(p.nombre)}</b><small>${esc(p.hace)}</small></div></div>

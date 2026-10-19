@@ -317,7 +317,7 @@ def _igual(a: str, b: str) -> bool:
     return bool(a) and bool(b) and hmac.compare_digest(a.encode(), b.encode())
 
 
-VERSION = "3.8"
+VERSION = "3.9"
 CLAVES_NECESARIAS = ["SUPABASE_URL", "SUPABASE_KEY", "APP_PASSWORD", "CONTRASENA_ARCHCHANA", "CONTRASENA_INVITADOS", "COACH_PIN",
                      "APP_ANTIGUA_URL", "CONTRASENA_DEMO"]
 
@@ -428,7 +428,11 @@ def _login_invitacion(token: str) -> dict:
         raise Error("Enlace no válido", 401)
     if not ok or "i" not in d or d.get("exp", 0) < time.time():
         raise Error("Este enlace ha caducado. Pídele a Diego uno nuevo.", 401)
-    _apuntar_actividad(lambda act: _sumar(act.setdefault("llegadas", {}), str(d["i"])))
+    def cambio(act):
+        x = _sumar(act.setdefault("llegadas", {}), str(d["i"]))
+        if d.get("v") == "qr":
+            x["qr"] = x.get("qr", 0) + 1
+    _apuntar_actividad(cambio)
     quien = env("DEMO_ATLETA") or "Yo"
     _apuntar(None, {"d": 1}, "Demo", entrada=True)
     return _sesion_para(quien if quien in ATLETAS else "Yo", demo=True)
@@ -468,7 +472,7 @@ def compartir(sesion: dict, c: dict) -> dict:
         _apuntar_actividad(cambio)
     enlace = None
     if env("CONTRASENA_DEMO"):
-        cuerpo = base64.urlsafe_b64encode(json.dumps({"i": quien, "exp": int(time.time()) + 60 * 86400}).encode()).decode().rstrip("=")
+        cuerpo = base64.urlsafe_b64encode(json.dumps({"i": quien, "exp": int(time.time()) + 60 * 86400, **({"v": "qr"} if c.get("via") == "qr" else {})}).encode()).decode().rstrip("=")
         enlace = f"{cuerpo}.{hmac.new(_secreto(), cuerpo.encode(), hashlib.sha256).hexdigest()[:32]}"
     return {"inv": enlace}
 
@@ -548,7 +552,8 @@ def actividad(sesion: dict) -> dict:
                 "hace": _hace(a.get("ultimo"), ahora), "dias7": dias_en(dias, 7), "dias30": dias_en(dias, 30),
                 "racha": [1 if d in dias else 0 for d in ult14], "demo": p == "Demo",
                 "comp_app": comp.get(p, {}).get("app", 0), "comp_entreno": comp.get(p, {}).get("entreno", 0),
-                "comp_lista": comp.get(p, {}).get("lista", [])[:5], "llegadas": lleg.get(p, {}).get("n", 0)}
+                "comp_lista": comp.get(p, {}).get("lista", [])[:5], "llegadas": lleg.get(p, {}).get("n", 0),
+                "llegadas_qr": lleg.get(p, {}).get("qr", 0)}
         if p == "Demo":
             fila["entradas"] = a.get("entradas", 0)
             fila["entradas7"] = sum(n for d, n in dias.items() if d >= ult14[7])
