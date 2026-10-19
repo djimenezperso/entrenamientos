@@ -321,7 +321,7 @@ def _igual(a: str, b: str) -> bool:
     return bool(a) and bool(b) and hmac.compare_digest(a.encode(), b.encode())
 
 
-VERSION = "5.0"
+VERSION = "5.1"
 CLAVES_NECESARIAS = ["SUPABASE_URL", "SUPABASE_KEY", "APP_PASSWORD", "CONTRASENA_ARCHCHANA", "CONTRASENA_INVITADOS", "COACH_PIN",
                      "APP_ANTIGUA_URL", "CONTRASENA_DEMO"]
 
@@ -419,6 +419,14 @@ def demo_personas() -> list[str]:
     lista = [x.strip() for x in (env("DEMO_ATLETAS") or env("DEMO_ATLETA") or "Yo,Archchana,Manu Anel,Salatti").split(",")]
     lista = [x for x in lista if x in ATLETAS]
     return lista or ["Yo"]
+
+
+def nombre_demo(p: str) -> str:
+    """En la demo solo se ve el nombre de Diego; el resto, anónimo."""
+    if p == "Yo":
+        return nv(p)
+    otros = [x for x in demo_personas() if x != "Yo"]
+    return f"Cliente {otros.index(p) + 1}" if p in otros else "Cliente"
 
 
 def puede_ver(sesion: dict, atleta: str) -> None:
@@ -1008,8 +1016,9 @@ def vista(sesion: dict, atleta: str | None, semana: int | None, dia_id: str | No
     _apuntar(guardadas, sesion, atleta)
     coach = es_coach(sesion)
     todas_sol = (guardadas.get(CLAVE_SOLICITUDES) or {}).get("lista") or []
-    base = {"atleta": atleta, "nombre": nv(atleta), "solo": None if es_demo(sesion) else sesion.get("u") or None,
-            "personas": [{"id": p, "nombre": nv(p)} for p in personas], "lang": IDIOMA_DEFECTO.get(atleta, "es"),
+    nombre_de = nombre_demo if es_demo(sesion) else nv  # en la demo, los alumnos salen como «Cliente 1, 2…»
+    base = {"atleta": atleta, "nombre": nombre_de(atleta), "solo": None if es_demo(sesion) else sesion.get("u") or None,
+            "personas": [{"id": p, "nombre": nombre_de(p)} for p in personas], "lang": IDIOMA_DEFECTO.get(atleta, "es"),
             "app_antigua": env("APP_ANTIGUA_URL"), "tipos": {k: v[0] for k, v in TIPOS.items()},
             "unidades": UNIDADES, "con_prs": atleta not in SIN_PRS, "coach": coach, "demo": es_demo(sesion),
             "abono": {"texto": env("ABONO_TEXTO")} if env("ABONO_URL") else None,
@@ -1029,6 +1038,12 @@ def vista(sesion: dict, atleta: str | None, semana: int | None, dia_id: str | No
         aviso_semana = f"¡Semana {actual} completada! Empiezas la {actual + 1} 🔥"
         actual += 1
     semana = int(semana or actual)
+    demo = es_demo(sesion)
+    if demo:  # la demo solo enseña una semana: la actual, o la anterior si en la actual aún no hay ningún día completo
+        def _completos(sem):
+            return [d["id"] for d in rut["dias"] if resumen_dia(rut, sem, d) == "hecho"]
+        semana = actual if (_completos(actual) or actual == 1) else actual - 1
+        abiertos = _completos(semana) or [rut["dias"][0]["id"]]
     nivel = rut.get("nivel") or NIVEL_DEFECTO.get(atleta, "Inter")
     sugs = sugerencias(rut, semana, wods_de_diego(rutina("Yo", guardadas))) if alumno else {}
 
@@ -1041,6 +1056,11 @@ def vista(sesion: dict, atleta: str | None, semana: int | None, dia_id: str | No
     if atleta in ABRE_DIA_PENDIENTE:
         por_hacer = next((d["id"] for d in dias if d["estado"] != "hecho" or d["pendientes"]), ids[0])
     dia_id = dia_id if dia_id in ids else por_hacer
+    if demo:  # en la demo solo se abren los días completos; el resto lleva candado
+        for d in dias:
+            d["bloqueado"] = d["id"] not in abiertos
+        dia_id = dia_id if dia_id in abiertos else abiertos[0]
+        base["demo_semana"] = semana
     dia = next(d for d in rut["dias"] if d["id"] == dia_id)
     grupos = movilidad_primero(agrupar_por_parte(dia, semana))
     calentar = atleta not in MOVILIDAD_ES_PARTE
@@ -1706,7 +1726,7 @@ def historial(sesion: dict, atleta: str) -> dict:
                     "resultados": [{"nombre": e.get("name", ""), "valor": fmt_valor(e.get("value"), e.get("unit", "")),
                                     "pr": (w["id"], norm(e.get("name", "")) + "|" + e.get("unit", "")) in prs}
                                    for e in w.get("entries") or []]})
-    return {"atleta": atleta, "nombre": nv(atleta), "entrenos": out,
+    return {"atleta": atleta, "nombre": nombre_demo(atleta) if es_demo(sesion) else nv(atleta), "entrenos": out,
             "tipos": {k: TIPOS[k][0] for k in ORDEN_TIPO}, "colores": COLOR_TIPO}
 
 
@@ -1765,7 +1785,7 @@ def progreso(sesion: dict, atleta: str) -> dict:
                        "pts": [{"f": p_["date"].isoformat(), "v": p_["v"], "txt": fmt_valor(p_["v"], s_["unit"])}
                                for p_ in s_["pts"]]})
     lunes, cuentas = sesiones_por_semana(ws, 8)
-    return {"atleta": atleta, "nombre": nv(atleta),
+    return {"atleta": atleta, "nombre": nombre_demo(atleta) if es_demo(sesion) else nv(atleta),
             "kpis": {"mes": sum(1 for w in ws if (hoy - a_fecha(w["date"])).days < 30),
                      "partes": _pct_partes(atleta), "seguidas": _semanas_seguidas(ws), "total": len(ws)},
             "consejos": [{"nivel": c_["nivel"], "titulo": c_["titulo"], "detalle": c_["detalle"]} for c_ in consejos(ws)],
@@ -1804,7 +1824,7 @@ def prs(sesion: dict, atleta: str) -> dict:
                      and (x["unidad"] != "kg" or int(x.get("reps") or 1) == (reps or 1))],
             "unidad": r["unidad"]} for (mov, reps), r in filas]})
     ultimo = max(mejores.values(), key=lambda r: str(r["fecha"]), default=None)
-    return {"atleta": atleta, "nombre": nv(atleta), "categorias": cats,
+    return {"atleta": atleta, "nombre": nombre_demo(atleta) if es_demo(sesion) else nv(atleta), "categorias": cats,
             "ultimo": {"mov": ultimo["movimiento"], "valor": _fmt_pr(ultimo["valor"], ultimo["unidad"]),
                        "fecha": _fecha_txt(ultimo["fecha"]), "reps": ultimo.get("reps") if ultimo["unidad"] == "kg" else None}
             if ultimo else None,

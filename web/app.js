@@ -18,6 +18,7 @@ const E = { token: mem.get("token"), atleta: mem.get("atleta"), lang: mem.get("l
 
 // ---------- textos ----------
 const FR = {
+  "de muestra": "d'exemple", "🔒 Este día se desbloquea con tu perfil": "🔒 Ce jour se débloque avec ton profil",
   "Se te quedó pendiente esta semana": "Il te reste à faire cette semaine", "Ya la hice": "Déjà fait", "Hacerla hoy": "La faire aujourd'hui",
   "Diego ya lo ha hecho. ¿Te lo pones hoy?": "Diego l'a déjà fait. Tu le fais aujourd'hui ?",
   "Toca repetir para comparar": "C'est le moment de refaire pour comparer", "La otra vez": "La dernière fois", "Lo hiciste el": "Tu l'as fait le",
@@ -532,15 +533,15 @@ function cabecera(v) {
       </div>
     </div>
     ${v.demo ? `<div class="banda-demo">👀 ${t("Modo demo · solo para mirar")} <button id="b-crear-demo">✨ ${t("Crear mi perfil")}</button>${v.abono ? `<button id="b-abono-demo">💳 ${t("Abonarse")}</button>` : v.contacto ? `<button id="b-abono-demo">💬 ${t("Contacto")}</button>` : ""}<button id="b-compartir-demo">${ic.compartir} ${t("Compartir")}</button></div>` : ""}
-    ${v.semana ? `<div class="pildora-semana">
+    ${v.semana && v.demo ? `<div class="pildora-semana"><span>${t("Semana")} ${v.semana} · <em>${t("de muestra")}</em></span></div>` : v.semana ? `<div class="pildora-semana">
       <button id="b-sem-menos" aria-label="Semana anterior" ${v.semana <= 1 ? "disabled style='opacity:.3'" : ""}>${ic.izq}</button>
       <span>${t("Semana")} ${v.semana}${v.semana === v.actual ? ` · <em>${t("de fuego")}</em>` : ""}</span>
       <button id="b-sem-mas" aria-label="Semana siguiente">${ic.der}</button>
     </div>` : ""}
     ${v.dias ? `<div class="dias" role="tablist">${v.dias.map((d) => {
       const n = (d.nombre.match(/\d+/) || [d.nombre.slice(0, 2)])[0];
-      return `<button class="dia ${d.id === v.dia.id ? "on" : ""}" role="tab" aria-selected="${d.id === v.dia.id}" data-dia="${esc(d.id)}" aria-label="${esc(trDia(d.nombre))}">
-        <small>D${esc(n)}</small><span class="punto ${d.estado}"></span>${d.pendientes ? '<span class="pend"></span>' : ""}</button>`;
+      return `<button class="dia ${d.id === v.dia.id ? "on" : ""} ${d.bloqueado ? "bloq" : ""}" role="tab" aria-selected="${d.id === v.dia.id}" data-dia="${esc(d.id)}" ${d.bloqueado ? 'data-bloq="1"' : ""} aria-label="${esc(trDia(d.nombre))}${d.bloqueado ? " 🔒" : ""}">
+        <small>D${esc(n)}</small>${d.bloqueado ? '<span class="candado">🔒</span>' : `<span class="punto ${d.estado}"></span>`}${d.pendientes ? '<span class="pend"></span>' : ""}</button>`;
     }).join("")}</div>` : ""}
   </header>`;
 }
@@ -674,6 +675,7 @@ function enlazar() {
   on("b-fin", (ev) => hacer({ tipo: "semana", nueva: v.actual + 1, ver_semana: v.actual + 1, ver_dia: null }, ev.currentTarget).then(() => window.scrollTo(0, 0)));
   on("b-actual", (ev) => hacer({ tipo: "semana", nueva: v.semana }, ev.currentTarget));
   $app.querySelectorAll("[data-dia]").forEach((b) => b.onclick = () => {
+    if (b.dataset.bloq) { aviso(t("🔒 Este día se desbloquea con tu perfil")); return setTimeout(hojaBienvenidaDemo, 400); }
     if (b.dataset.dia === E.dia) return;
     $app.querySelectorAll(".dia").forEach((x) => x.classList.toggle("on", x === b));
     cargar({ dia: b.dataset.dia });

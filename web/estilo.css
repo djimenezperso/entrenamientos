@@ -542,3 +542,6 @@ main { padding: 4px 16px 0; display: flex; flex-direction: column; gap: 12px; }
 .card-cab .tick { width: 34px; height: 34px; font-size: 17px; }
 .card-cab .hist { display: none; }
 @media (min-width: 400px) { .card-cab .hist { display: flex; } }
+
+.dia.bloq { opacity: .55; }
+.dia .candado { font-size: 13px; line-height: 1; }
