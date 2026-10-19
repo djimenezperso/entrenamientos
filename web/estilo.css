@@ -508,3 +508,13 @@ main { padding: 4px 16px 0; display: flex; flex-direction: column; gap: 12px; }
 .btn-abono { background: #1baf7a; color: #fff; border-color: #1baf7a; display: flex; align-items: center; justify-content: center; gap: 8px; }
 .btn-abono small { font-weight: 600; opacity: .9; }
 #b-abono-demo { background: #1baf7a !important; color: #fff !important; }
+
+/* pago */
+.pago-ok { width: 64px; height: 64px; border-radius: 50%; background: #1baf7a; color: #fff; font-size: 34px; font-weight: 800;
+  display: flex; align-items: center; justify-content: center; }
+.act-pagos { background: #fff; border-radius: 16px; padding: 12px 14px; border-left: 5px solid #1baf7a; display: flex; flex-direction: column; gap: 8px; font-size: 13.5px; }
+.act-pagos .pago { display: flex; gap: 10px; align-items: center; justify-content: space-between; border-top: 1px solid var(--linea); padding-top: 8px; }
+.act-pagos .pago.visto { opacity: .55; }
+.act-pagos a { color: var(--brasa-osc); font-weight: 600; text-decoration: none; }
+.act-pagos small { color: var(--suave); }
+.act-pagos .chip { flex: none; }

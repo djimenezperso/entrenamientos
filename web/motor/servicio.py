@@ -320,7 +320,7 @@ def _igual(a: str, b: str) -> bool:
     return bool(a) and bool(b) and hmac.compare_digest(a.encode(), b.encode())
 
 
-VERSION = "4.1"
+VERSION = "4.2"
 CLAVES_NECESARIAS = ["SUPABASE_URL", "SUPABASE_KEY", "APP_PASSWORD", "CONTRASENA_ARCHCHANA", "CONTRASENA_INVITADOS", "COACH_PIN",
                      "APP_ANTIGUA_URL", "CONTRASENA_DEMO"]
 
@@ -534,6 +534,52 @@ def abonarse(sesion: dict, c: dict) -> dict:
     return {"url": f"{url}{sep}client_reference_id={ref}" if "stripe.com" in url else url}
 
 
+def datos_pago(sesion: dict | None, c: dict) -> dict:
+    """Después de pagar en Stripe: la persona deja su teléfono y email para que Diego compruebe el pago y le dé de alta."""
+    import uuid
+    nombre = " ".join(str(c.get("nombre") or "").split())[:60]
+    tel = "".join(ch for ch in str(c.get("telefono") or "") if ch.isdigit() or ch in "+ ").strip()[:20]
+    email = str(c.get("email") or "").strip()[:120]
+    cs = re.sub(r"[^A-Za-z0-9_]", "", str(c.get("cs") or ""))[:120]
+    if not sesion and not cs.startswith("cs_"):
+        raise Error("Vuelve a abrir la app desde el enlace del pago", 400)
+    if not nombre:
+        raise Error("Escribe tu nombre")
+    if len("".join(ch for ch in tel if ch.isdigit())) < 9:
+        raise Error("Escribe un teléfono válido")
+    if not re.fullmatch(r"[^@\s]+@[^@\s]+\.[^@\s]+", email):
+        raise Error("Escribe un email válido")
+    quien = None
+    if sesion and not es_demo(sesion):
+        quien = sesion.get("u") or None
+
+    def cambio(act):
+        pagos = act.setdefault("pagos", [])
+        if cs and any(x.get("cs") == cs for x in pagos):
+            for x in pagos:
+                if x.get("cs") == cs:
+                    x.update(nombre=nombre, telefono=tel, email=email)
+            return
+        pagos.insert(0, {"id": uuid.uuid4().hex[:10], "cuando": _ahora().isoformat(timespec="minutes"), "nombre": nombre,
+                         "telefono": tel, "email": email, "cs": cs, "perfil": quien, "visto": False})
+        del pagos[300:]
+    _apuntar_actividad(cambio)
+    return {"ok": True}
+
+
+def pago_visto(sesion: dict, c: dict) -> dict:
+    if not es_coach(sesion):
+        raise Error("Solo el coach", 403)
+    pid = str(c.get("id") or "")
+
+    def cambio(act):
+        for x in act.get("pagos", []):
+            if x.get("id") == pid:
+                x["visto"] = not c.get("deshacer")
+    _apuntar_actividad(cambio)
+    return {"ok": True}
+
+
 # ===== actividad: quién entra y cuándo =====
 def _ahora() -> dt.datetime:
     try:
@@ -630,6 +676,7 @@ def actividad(sesion: dict) -> dict:
             "abonos": [{"nombre": x.get("nombre", k), "n": x.get("n", 0), "hace": _hace(x.get("ultimo"), ahora)}
                        for k, x in sorted(todo.get("abonos", {}).items(), key=lambda kv: kv[1].get("ultimo", ""), reverse=True)],
             "abono_activo": bool(env("ABONO_URL")),
+            "pagos": [dict(x, hace=_hace(x.get("cuando"), ahora)) for x in todo.get("pagos", [])][:50],
             "altas": [{"nombre": a["nombre"], "hace": _hace(a.get("cuando"), ahora)} for a in todo.get("altas", [])][:20]}
 
 

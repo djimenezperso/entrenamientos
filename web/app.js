@@ -220,6 +220,7 @@ function poner(v) {
   if (v.solo && v.lang && !mem.get("lang_elegido")) E.lang = v.lang;
   pintar();
   if (v.pr) { aviso("🎉 " + v.pr); confeti(); } else if (v.aviso) aviso(v.aviso);
+  if (E.pagoCs !== undefined && !E.pagoMostrado) { E.pagoMostrado = true; E.bienvenidaDemo = true; setTimeout(() => hojaPago(E.pagoCs), 300); }
   if (v.demo && !E.bienvenidaDemo && E.pantalla !== "registrar") { E.bienvenidaDemo = true; setTimeout(hojaBienvenidaDemo, 450); }
 }
 
@@ -232,6 +233,39 @@ async function abonarse() {
   } catch (e) { if (w) w.close(); aviso(e.message, true); }
 }
 const botonAbono = (v, id, extra = "") => v.abono ? `<button class="btn btn-abono" id="${id}" ${extra}>💳 ${t("Abonarse")}${v.abono.texto ? ` <small>${esc(v.abono.texto)}</small>` : ""}</button>` : "";
+
+function hojaPago(cs) {
+  const v = E.vista || {};
+  abrirHoja(`<div class="demo-hola"><div class="pago-ok">✓</div>
+      <h3>${t("¡Gracias por abonarte!")}</h3>
+      <p>${t("Estamos comprobando el pago. Déjanos tu teléfono y tu email para darte de alta y escribirte.")}</p></div>
+    <form id="f-pago" style="display:flex;flex-direction:column;gap:10px">
+      <label class="paso-etq" for="pg-nombre" style="margin:0 4px">${t("Tu nombre")}</label>
+      <input class="campo" id="pg-nombre" autocomplete="name" style="background:#fff" value="${esc(v.demo ? "" : (v.nombre || ""))}" required>
+      <label class="paso-etq" for="pg-tel" style="margin:0 4px">${t("Teléfono")}</label>
+      <input class="campo" id="pg-tel" type="tel" autocomplete="tel" inputmode="tel" placeholder="+34 600 000 000" style="background:#fff" required>
+      <label class="paso-etq" for="pg-email" style="margin:0 4px">Email</label>
+      <input class="campo" id="pg-email" type="email" autocomplete="email" inputmode="email" placeholder="tu@email.com" style="background:#fff" required>
+      <p class="error" id="pg-error" hidden></p>
+      <button class="btn btn-abono" type="submit" style="height:54px">${t("Enviar")}</button>
+    </form>`, (h) => {
+    const f = h.querySelector("#f-pago");
+    f.onsubmit = async (ev) => {
+      ev.preventDefault();
+      const err = h.querySelector("#pg-error"); const boton = f.querySelector("button");
+      boton.disabled = true; err.hidden = true;
+      try {
+        await api("datos_pago", { metodo: "POST", cuerpo: { cs, nombre: h.querySelector("#pg-nombre").value,
+          telefono: h.querySelector("#pg-tel").value, email: h.querySelector("#pg-email").value } });
+        mem.set("pago_pendiente", null);
+        h.innerHTML = `<div class="asa"></div><div class="demo-hola"><div class="pago-ok">✓</div><h3>${t("¡Recibido!")}</h3>
+          <p>${t("En cuanto Diego compruebe el pago te escribirá para empezar. ¡Nos vemos entrenando! 🔥")}</p></div>
+          <button class="btn btn-fuego" data-cerrar>${t("Vale")}</button>`;
+        h.querySelector("[data-cerrar]").onclick = cerrarHoja;
+      } catch (e) { err.textContent = e.message; err.hidden = false; boton.disabled = false; }
+    };
+  });
+}
 
 function hojaBienvenidaDemo() {
   if (!$hoja.hidden) return;
@@ -970,6 +1004,11 @@ async function hojaActividad() {
     ${d.desde ? "" : `<br><b>${t("Se empieza a contar desde hoy.")}</b>`}</p>
     <div class="act-totales"><div><b>${d.total_compartidos || 0}</b><span>${t("veces compartido")}</span></div>
       <div><b>${d.total_llegadas || 0}</b><span>${t("han entrado por un enlace")}</span></div></div>
+    ${d.pagos && d.pagos.length ? `<div class="act-pagos"><b>🧾 ${t("Pagos por comprobar")} (${d.pagos.filter((x) => !x.visto).length})</b>
+      ${d.pagos.map((x) => `<div class="pago ${x.visto ? "visto" : ""}"><div><b>${esc(x.nombre)}</b> <small>${esc(x.hace)}${x.perfil ? " · " + t("perfil") + ": " + esc(x.perfil) : ""}</small><br>
+        <a href="tel:${esc(x.telefono)}">📞 ${esc(x.telefono)}</a> · <a href="mailto:${esc(x.email)}">${esc(x.email)}</a>
+        ${x.cs ? `<br><small>Stripe: ${esc(x.cs.slice(0, 24))}…</small>` : ""}</div>
+        <button class="chip ${x.visto ? "on" : ""}" data-pago="${esc(x.id)}" data-visto="${x.visto ? 1 : 0}">${x.visto ? "✓ " + t("Comprobado") : t("Marcar comprobado")}</button></div>`).join("")}</div>` : ""}
     <div class="act-altas" style="border-left-color:#1baf7a"><b>💳 ${d.abonos.reduce((a, x) => a + x.n, 0)} ${t("veces han pulsado «Abonarse»")}</b>
       ${d.abonos.length ? `<span>${d.abonos.map((x) => `${esc(x.nombre)} <small>(${x.n > 1 ? x.n + "× · " : ""}${esc(x.hace)})</small>`).join(" · ")}</span>` : ""}
       <small>${d.abono_activo ? t("Los pagos de verdad los ves en Stripe (cada pago lleva el nombre de quien pulsó).") : t("El botón aún no sale: falta poner ABONO_URL en Vercel.")}</small></div>
@@ -977,6 +1016,11 @@ async function hojaActividad() {
       <span>${d.altas.map((a) => `${esc(a.nombre)} <small>(${esc(a.hace)})</small>`).join(" · ")}</span></div>` : ""}
     <div class="act-lista">${filas}</div>`;
   $hoja.querySelectorAll("[data-cerrar]").forEach((b) => b.onclick = cerrarHoja);
+  $hoja.querySelectorAll("[data-pago]").forEach((b) => b.onclick = async () => {
+    b.disabled = true;
+    try { await api("pago_visto", { metodo: "POST", cuerpo: { id: b.dataset.pago, deshacer: b.dataset.visto === "1" } }); hojaActividad(); }
+    catch (e) { aviso(e.message, true); b.disabled = false; }
+  });
 }
 
 function hojaSolicitudes() {
@@ -1739,8 +1783,12 @@ function hojaNuevoPr() {
 
 // ---------- arranque ----------
 (async () => {
-  const inv = new URLSearchParams(location.search).get("inv");
-  if (inv) history.replaceState(null, "", location.pathname);
+  const qs = new URLSearchParams(location.search);
+  const inv = qs.get("inv");
+  if (qs.get("pago") === "ok") { E.pagoCs = qs.get("cs") || ""; mem.set("pago_pendiente", E.pagoCs || "-"); }
+  else if (mem.get("pago_pendiente")) E.pagoCs = mem.get("pago_pendiente") === "-" ? "" : mem.get("pago_pendiente");
+  if (inv || qs.get("pago")) history.replaceState(null, "", location.pathname);
+  if (E.pagoCs !== undefined && !E.token) { pintarEntrar(); E.pagoMostrado = true; return hojaPago(E.pagoCs); }
   if (inv && !E.token) {
     try {
       const r = await api("login", { metodo: "POST", cuerpo: { inv } });
