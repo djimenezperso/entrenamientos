@@ -69,6 +69,8 @@ class handler(BaseHTTPRequestHandler):
                 return self._responder(200, servicio.datos_pago(ses, self._cuerpo()))
             if ruta == "pago_visto" and metodo == "POST":
                 return self._responder(200, servicio.pago_visto(self._sesion(), self._cuerpo()))
+            if ruta == "telegram" and metodo == "POST":
+                return self._responder(200, servicio.telegram(self._sesion(), self._cuerpo()))
             if ruta == "me_gusta" and metodo == "POST":
                 return self._responder(200, servicio.me_gusta(self._sesion(), self._cuerpo()))
             if ruta == "contactar" and metodo == "POST":

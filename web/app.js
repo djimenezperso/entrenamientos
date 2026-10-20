@@ -18,6 +18,8 @@ const E = { token: mem.get("token"), atleta: mem.get("atleta"), lang: mem.get("l
 
 // ---------- textos ----------
 const FR = {
+  "Sin conexión o el servidor ha tardado. Vuelve a intentarlo en unos segundos.": "Pas de connexion ou le serveur a tardé. Réessaie dans quelques secondes.",
+  "Avisos por Telegram": "Alertes Telegram", "Enviar prueba": "Envoyer un test", "Conectar": "Connecter",
   "Conoce al creador": "Découvre le créateur",
   "Ver vídeo de técnica": "Voir la vidéo technique", "Añadir vídeo": "Ajouter une vidéo", "Técnica": "Technique",
   "Abrir el vídeo": "Ouvrir la vidéo", "Este ejercicio aún no tiene vídeo.": "Cet exercice n'a pas encore de vidéo.",
@@ -242,10 +244,13 @@ function aviso(msg, mal = false) {
 async function api(ruta, { metodo = "GET", cuerpo, q } = {}) {
   const url = new URL("api/" + ruta, location.href);
   Object.entries(q || {}).forEach(([k, v]) => v != null && url.searchParams.set(k, v));
-  const r = await fetch(url, {
+  let r;
+  try { r = await fetch(url, {
     method: metodo, headers: { "Content-Type": "application/json", ...(E.token ? { Authorization: "Bearer " + E.token } : {}) },
     body: cuerpo ? JSON.stringify(cuerpo) : undefined,
-  });
+  }); } catch (e) {
+    throw new Error(t("Sin conexión o el servidor ha tardado. Vuelve a intentarlo en unos segundos."));
+  }
   let d = {};
   try { d = await r.json(); } catch { }
   if (r.status === 401 && ruta !== "login") { salir(); throw new Error(d.error || "Entra otra vez"); }
@@ -958,6 +963,15 @@ function hojaAjustes() {
     <div class="caja-coach"><div class="paso-etq" style="margin:0 0 8px">${ic.candado} ${t("Modo coach")}</div>
       ${v.coach ? `<div class="mini" style="margin-bottom:10px">${t("Activado: puedes cambiar los pesos de todos.")}</div>
         ${v.atleta !== "Yo" ? `<label class="interruptor"><span>${esc(v.nombre)} ${t("puede cambiar sus pesos sin preguntarte")}</span><input type="checkbox" id="c-permiso" ${v.permiso_pesos ? "checked" : ""}></label>` : ""}
+        <div class="tg-caja">${v.telegram
+          ? `<b>📲 ${t("Avisos por Telegram")}: ✅</b><div style="display:grid;grid-template-columns:1fr auto;gap:8px;margin-top:8px"><button class="btn" id="b-tg-probar">${t("Enviar prueba")}</button><button class="btn" id="b-tg-quitar">${t("Quitar")}</button></div>`
+          : `<b>📲 ${t("Avisos por Telegram")}</b>
+            <ol class="mini" style="margin:6px 0 8px;padding-left:18px">
+              <li>${t("En Telegram abre")} <a href="https://t.me/BotFather" target="_blank" rel="noopener">@BotFather</a>, ${t("escribe /newbot y ponle un nombre (p. ej. Djimenez Avisos).")}</li>
+              <li>${t("Abre tu bot nuevo y pulsa INICIAR.")}</li>
+              <li>${t("Copia el token que te da BotFather y pégalo aquí:")}</li></ol>
+            <div style="display:flex;gap:8px"><input class="campo" id="i-tg" placeholder="123456789:AAH…" autocomplete="off" style="height:46px;background:#fff">
+            <button class="btn btn-negro" id="b-tg">${t("Conectar")}</button></div>`}</div>
         <button class="btn btn-fuego" id="b-actividad" style="width:100%;margin-top:10px;height:50px">📊 ${t("Quién usa la app")}</button>
         <button class="btn" id="b-limpiar" style="width:100%;margin-top:10px">🧹 ${t("Limpiar la biblioteca")}</button>
         <div id="limpiar-res"></div>
@@ -991,6 +1005,10 @@ function hojaAjustes() {
     h.querySelector("#b-compartir-app").onclick = () => { cerrarHoja(); compartir("app", t("💪 Mira la app con la que entreno con Diego (Djimenez Prog)"), "app"); };
     h.querySelector("#b-qr").onclick = () => hojaQR();
     const bab = h.querySelector("#b-abono"); if (bab) bab.onclick = abonarse;
+    const tg = async (cuerpo, b) => { if (b) b.disabled = true; try { const r = await api("telegram", { metodo: "POST", cuerpo }); cerrarHoja(); aviso(r.aviso); cargar(); } catch (e) { aviso(e.message, true); if (b) b.disabled = false; } };
+    const btg = h.querySelector("#b-tg"); if (btg) btg.onclick = () => tg({ token: h.querySelector("#i-tg").value }, btg);
+    const btp = h.querySelector("#b-tg-probar"); if (btp) btp.onclick = () => tg({ probar: true }, btp);
+    const btq = h.querySelector("#b-tg-quitar"); if (btq) btq.onclick = () => tg({ quitar: true }, btq);
     const ba = h.querySelector("#b-actividad");
     if (ba) ba.onclick = () => hojaActividad();
     const bl = h.querySelector("#b-limpiar");

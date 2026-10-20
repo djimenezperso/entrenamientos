@@ -75,6 +75,7 @@ VOLUMEN = [
 PROTEGIDOS = ["Yo", "Diego", "Manu Anel", "Salatti", "Mi esposa", "Dario", "Juan", "Archchana"]
 CLAVE_INVITADOS = "__invitados__"
 CLAVE_ACTIVIDAD = "__actividad__"
+CLAVE_CONFIG = "__config__"  # ajustes privados del coach (p. ej. el bot de Telegram); nunca se mandan al navegador
 CLAVE_VIDEOS = "__videos__"  # {ejercicio normalizado: {"url", "titulo"}} que pone el coach
 VIDEOS_BASE: dict = {}  # quién abre la app y cuándo (solo lo ve el coach)
 PLANTILLAS = {"Salatti": "Rutina de Salatti", "Dario": "Rutina de Dario"}
@@ -323,7 +324,7 @@ def _igual(a: str, b: str) -> bool:
     return bool(a) and bool(b) and hmac.compare_digest(a.encode(), b.encode())
 
 
-VERSION = "5.4"
+VERSION = "5.5"
 CLAVES_NECESARIAS = ["SUPABASE_URL", "SUPABASE_KEY", "APP_PASSWORD", "CONTRASENA_ARCHCHANA", "CONTRASENA_INVITADOS", "COACH_PIN",
                      "APP_ANTIGUA_URL", "CONTRASENA_DEMO"]
 
@@ -534,6 +535,7 @@ def crear_perfil(sesion: dict, c: dict) -> dict:
                 altas.insert(0, {"nombre": nombre, "cuando": _ahora().isoformat(timespec="minutes")})
                 del altas[50:]
         _apuntar_actividad(cambio)
+        notificar(f"✨ Perfil nuevo desde la demo: {nombre}")
     return r
 
 
@@ -613,6 +615,7 @@ def datos_pago(sesion: dict | None, c: dict) -> dict:
                          "telefono": tel, "email": email, "cs": cs, "perfil": quien, "visto": False})
         del pagos[300:]
     _apuntar_actividad(cambio)
+    notificar(f"💳 Pago nuevo por comprobar\n{nombre} · {tel} · {email}" + (f"\nStripe: {cs}" if cs else ""))
     return {"ok": True}
 
 
@@ -648,6 +651,74 @@ def pago_visto(sesion: dict, c: dict) -> dict:
                 x["visto"] = not c.get("deshacer")
     _apuntar_actividad(cambio)
     return {"ok": True}
+
+
+# ===== avisos a Diego por Telegram =====
+def _telegram() -> dict:
+    if env("TELEGRAM_TOKEN") and env("TELEGRAM_CHAT_ID"):
+        return {"token": env("TELEGRAM_TOKEN"), "chat_id": env("TELEGRAM_CHAT_ID")}
+    try:
+        return (datos().rutinas([CLAVE_CONFIG]).get(CLAVE_CONFIG) or {}).get("telegram") or {}
+    except Exception:  # noqa: BLE001
+        return {}
+
+
+def _tg(token: str, metodo: str, cuerpo: dict | None = None, timeout: float = 5) -> dict:
+    req = urllib.request.Request(f"https://api.telegram.org/bot{token}/{metodo}",
+                                 data=json.dumps(cuerpo or {}).encode(), method="POST",
+                                 headers={"Content-Type": "application/json"})
+    try:
+        with urllib.request.urlopen(req, timeout=timeout) as x:
+            return json.loads(x.read() or b"{}")
+    except urllib.error.HTTPError as e:
+        try:
+            return json.loads(e.read() or b"{}")
+        except ValueError:
+            return {"ok": False}
+
+
+def notificar(texto: str) -> None:
+    """Manda un aviso a Diego por Telegram (si está conectado). Nunca rompe nada."""
+    try:
+        cfg = _telegram()
+        if cfg.get("token") and cfg.get("chat_id"):
+            _tg(cfg["token"], "sendMessage", {"chat_id": cfg["chat_id"], "text": texto[:3500],
+                                              "disable_web_page_preview": True}, timeout=4)
+    except Exception:  # noqa: BLE001
+        pass
+
+
+def telegram(sesion: dict, c: dict) -> dict:
+    """Conecta (con el token de @BotFather), prueba o quita los avisos por Telegram. Solo el coach."""
+    if not es_coach(sesion):
+        raise Error("Solo el coach", 403)
+    reg = dict(datos().rutinas([CLAVE_CONFIG]).get(CLAVE_CONFIG) or {})
+    if c.get("quitar"):
+        reg.pop("telegram", None)
+        datos().guardar(CLAVE_CONFIG, reg)
+        return {"ok": True, "aviso": "Avisos de Telegram quitados"}
+    if c.get("probar"):
+        cfg = _telegram()
+        if not cfg.get("chat_id"):
+            raise Error("Telegram no está conectado")
+        r = _tg(cfg["token"], "sendMessage", {"chat_id": cfg["chat_id"], "text": "🔥 Djimenez Prog: los avisos funcionan. Aquí te llegarán las solicitudes, los pagos y los perfiles nuevos."})
+        if not r.get("ok"):
+            raise Error("Telegram no ha aceptado el mensaje: " + str(r.get("description", ""))[:120])
+        return {"ok": True, "aviso": "Mensaje de prueba enviado 📲"}
+    token = "".join(str(c.get("token") or "").split())
+    if not re.fullmatch(r"\d{5,}:[A-Za-z0-9_-]{20,}", token):
+        raise Error("Eso no parece un token de bot. Cópialo entero de @BotFather (números:letras)")
+    yo = _tg(token, "getMe")
+    if not yo.get("ok"):
+        raise Error("Telegram no reconoce ese token")
+    ups = _tg(token, "getUpdates", {"limit": 50, "timeout": 0}).get("result") or []
+    chat = next((u["message"]["chat"]["id"] for u in reversed(ups) if (u.get("message") or {}).get("chat", {}).get("type") == "private"), None)
+    if not chat:
+        raise Error(f"Casi: abre tu bot @{yo['result'].get('username')} en Telegram, pulsa INICIAR (o escribe /start) y vuelve a pulsar Conectar")
+    reg["telegram"] = {"token": token, "chat_id": chat, "bot": yo["result"].get("username")}
+    datos().guardar(CLAVE_CONFIG, reg)
+    _tg(token, "sendMessage", {"chat_id": chat, "text": "✅ Conectado con Djimenez Prog. Te avisaré aquí de solicitudes, pagos y perfiles nuevos."})
+    return {"ok": True, "aviso": f"Telegram conectado (@{yo['result'].get('username')}) ✅"}
 
 
 # ===== actividad: quién entra y cuándo =====
@@ -1018,7 +1089,7 @@ def vista(sesion: dict, atleta: str | None, semana: int | None, dia_id: str | No
     atleta = atleta if atleta in personas else personas[0]
     puede_ver(sesion, atleta)
     alumno = es_alumno(atleta, inv)
-    guardadas = datos().rutinas(list({atleta, "Yo", CLAVE_SOLICITUDES, CLAVE_NOVEDADES, CLAVE_ACTIVIDAD, CLAVE_VIDEOS}))
+    guardadas = datos().rutinas(list({atleta, "Yo", CLAVE_SOLICITUDES, CLAVE_NOVEDADES, CLAVE_ACTIVIDAD, CLAVE_VIDEOS, CLAVE_CONFIG}))
     rut = rutina(atleta, guardadas)
     _apuntar(guardadas, sesion, atleta)
     coach = es_coach(sesion)
@@ -1030,6 +1101,8 @@ def vista(sesion: dict, atleta: str | None, semana: int | None, dia_id: str | No
             "unidades": UNIDADES, "con_prs": atleta not in SIN_PRS, "coach": coach, "demo": es_demo(sesion),
             "abono": {"texto": (env("ABONO_TEXTO") or ABONO_DEFECTO["texto"])} if _abono_url() else None,
             "contacto": _contacto() if not _abono_url() else None,
+            "telegram": (bool(env("TELEGRAM_CHAT_ID")) or bool(((guardadas.get(CLAVE_CONFIG) or {}).get("telegram") or {}).get("chat_id")))
+                        if es_coach(sesion) else None,
             "puede_pesos": coach or bool((rut or {}).get("permiso_pesos")),
             "permiso_pesos": bool((rut or {}).get("permiso_pesos")),
             "solicitudes": [x for x in todas_sol if coach and (not sesion.get("u") or x["atleta"] == sesion["u"])],
@@ -1489,6 +1562,8 @@ def accion(sesion: dict, c: dict) -> dict:
                       "fecha": dt.datetime.now(dt.timezone.utc).isoformat()})
         datos().guardar(CLAVE_SOLICITUDES, {"lista": lista[-200:]})
         v = vista(sesion, atleta, int(c.get("ver_semana") or semana), c.get("ver_dia"))
+        notificar(f"⚖️ {nv(atleta)} pide cambiar peso\n{l['ejercicio']}: {c.get('texto') or ''} → {', '.join(str(x) for x in valores)} kg"
+                  + (f"\n💬 {c.get('mensaje')}" if c.get("mensaje") else "") + "\nÁbrelo en la app → 🔔")
         v["aviso"] = f"Enviado a {nv('Yo')}: te avisará cuando lo apruebe"
         return v
     elif tipo in CAMBIOS_PROGRAMA:
@@ -1503,6 +1578,8 @@ def accion(sesion: dict, c: dict) -> dict:
                           "mensaje": str(c.get("mensaje") or "")[:500], "fecha": dt.datetime.now(dt.timezone.utc).isoformat()})
             datos().guardar(CLAVE_SOLICITUDES, {"lista": lista[-200:]})
             v = vista(sesion, atleta, int(c.get("ver_semana") or semana), c.get("ver_dia"))
+            notificar(f"✏️ {nv(atleta)} pide un cambio en su rutina\n{_resumen_cambio(tipo, c, rut)[:300]}"
+                      + (f"\n💬 {c.get('mensaje')}" if c.get("mensaje") else "") + "\nÁbrelo en la app → 🔔")
             v["aviso"] = f"Enviado a {nv('Yo')} para que lo apruebe"
             return v
         rut, aviso = aplicar_programa(rut, tipo, c, semana, atleta)
@@ -1697,8 +1774,10 @@ def resolver_solicitud(sesion: dict, c: dict) -> dict:
     reg = datos().rutinas([CLAVE_SOLICITUDES]).get(CLAVE_SOLICITUDES) or {}
     lista = reg.get("lista") or []
     sol = next((x for x in lista if x["id"] == c.get("id")), None)
-    if not sol:
-        raise Error("Esa solicitud ya no existe")
+    if not sol:  # p. ej. se aprobó pero se cortó la conexión antes de ver la respuesta
+        v = vista(sesion, c.get("atleta"), c.get("ver_semana"), c.get("ver_dia"))
+        v["aviso"] = "Esa solicitud ya estaba resuelta ✅"
+        return v
     aviso = f"Rechazado el cambio de {sol['nombre']}"
     if c.get("aprobar") and sol.get("kind") in CAMBIOS_PROGRAMA:
         rut = rutina(sol["atleta"])
