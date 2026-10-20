@@ -27,7 +27,7 @@ PRIORIDADES_TXT = {"fuerza": "Fuerza", "halterofilia": "Halterofilia", "gym": "G
                    "movilidad": "Movilidad"}
 APRENDER_TXT = {"pullups": "Pull ups", "hspu": "HSPU", "t2b": "Toes to bar", "du": "Double unders",
                 "muscleup": "Muscle up", "pistols": "Pistols", "halterofilia": "Snatch / clean & jerk"}
-TIPO_TXT = {"Yo": "como la de Diego", "Salatti": "fuerza + WOD (Salatti)", "Manu Anel": "base de fuerza (Manu)",
+TIPO_TXT = {"Yo": "Progresión Diego Compite (tu rutina)", "Salatti": "fuerza + WOD (Salatti)", "Manu Anel": "base de fuerza (Manu)",
             "Archchana": "en casa (Archchana)"}
 
 # (ciclo, material que necesita: basta con uno de la lista; vacío = nada)
