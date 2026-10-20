@@ -18,6 +18,17 @@ const E = { token: mem.get("token"), atleta: mem.get("atleta"), lang: mem.get("l
 
 // ---------- textos ----------
 const FR = {
+  "se repite": "se répète",
+  "solo esta semana": "cette semaine seulement",
+  "dinámico": "dynamique",
+  "peso orientativo: ajústalo": "poids indicatif : ajuste-le",
+  "sin máquina: cámbialo por carrera o burpees": "pas de machine : remplace par course ou burpees",
+  "sin barra de dominadas: remo con goma / sit ups": "sans barre de traction : rowing élastique / sit ups",
+  "sin comba: saltos sin cuerda": "sans corde : sauts sur place",
+  "¿40 min?": "40 min ?",
+  "propuesta: cámbialo por lo que hiciste": "proposition : remplace par ce que tu as fait",
+  "propuesta: ajusta el peso": "proposition : ajuste le poids",
+  "propuesta de gym": "proposition de gym",
   "Ver clientes": "Voir les clients",
   "Toca para ver otros clientes": "Touche pour voir d'autres clients",
   "Rutinas de ejemplo": "Programmes d'exemple",
@@ -440,6 +451,17 @@ async function cargar(opc = {}) {
   }
 }
 
+// textos de entreno escritos en español → francés (palabras típicas; los nombres de movimientos ya son en inglés)
+const WOD_FR = [[/\brondas\b/gi, "tours"], [/\bronda\b/gi, "tour"], [/\bpor lado\b/gi, "par côté"], [/\bpor pierna\b/gi, "par jambe"],
+  [/\bpor brazo\b/gi, "par bras"], [/\bdescanso\b/gi, "repos"], [/\blento\b/gi, "lent"], [/\barriba\b/gi, "en haut"],
+  [/\babajo\b/gi, "en bas"], [/\bcada\b/gi, "toutes les"], [/\bimpar\b/gi, "impair"], [/\bpar\b(?= \d| ·)/g, "pair"],
+  [/\bzona 2\b/gi, "zone 2"], [/\bnegativas?\b/gi, "négatives"], [/\bcon banda\b/gi, "avec élastique"], [/\ben pared\b/gi, "au mur"],
+  [/\bsi hace falta\b/gi, "si besoin"], [/\bpuedes hablar\b/gi, "tu peux parler"], [/\bsuave\b/gi, "facile"], [/\brápido\b/gi, "rapide"],
+  [/\bandando\b/gi, "en marchant"], [/\bpausa\b/gi, "pause"], [/\bmáx\.?/gi, "max."], [/\bminutos\b/gi, "minutes"],
+  [/\bcon\b/gi, "avec"], [/\by\b/g, "et"], [/\bo\b/g, "ou"], [/\bsin\b/gi, "sans"], [/\bde tu\b/gi, "de ton"], [/\bpor\b/gi, "par"]];
+const trWod = (x) => E.lang !== "fr" || !x ? x : WOD_FR.reduce((a, [r, v]) => a.replace(r, v), String(x));
+// notas cortas de la rutina («dinámico · peso orientativo…») en francés, trozo a trozo
+const trNota = (n) => E.lang !== "fr" ? n : String(n).split(" · ").map((x) => t(x.trim())).join(" · ");
 // «Cliente 1» de la demo → «Client 1» en francés
 const trCliente = (n) => E.lang === "fr" ? String(n || "").replace(/^Cliente(\s+\d+)$/, "Client$1") : n;
 function poner(v) {
@@ -751,14 +773,14 @@ function pintar() {
     <div class="barra"><i style="width:${total ? Math.round(hechas / total * 100) : 0}%"></i></div>
     ${(v.novedades || []).map((n) => `<section class="novedad">
       <div class="nov-cab">${ic.llama("#FFB400", 22)}<div><small>${t("Novedad de Diego")} · ${esc(n.etiqueta)}</small><b>${esc(n.nombre)}</b></div></div>
-      <div class="texto-wod">${esc(n.texto)}</div>
+      <div class="texto-wod">${esc(trWod(n.texto))}</div>
       <div class="mini" style="color:#FFD9BD">${t("Diego ya lo ha hecho. ¿Te lo pones hoy?")}</div>
       <div class="nov-botones"><button class="btn" data-nov-no="${esc(n.id)}">${t("Hoy no")}</button>
         <button class="btn btn-fuego" data-nov-si="${esc(n.id)}" style="height:50px">${t("Ponérmelo hoy")}</button></div>
     </section>`).join("")}
     ${(v.retests || []).map((x) => `<section class="novedad retest">
       <div class="nov-cab"><span style="font-size:22px">🔁</span><div><small>${t("Toca repetir para comparar")} · ${esc(x.etiqueta)}</small><b>${esc(x.nombre)}</b></div></div>
-      <div class="texto-wod">${esc(x.texto)}</div>
+      <div class="texto-wod">${esc(trWod(x.texto))}</div>
       <div class="mini" style="color:#FFD9BD">${x.antes ? `${t("La otra vez")} (${esc(trFecha(x.creado))}): <b style="color:#fff">${esc(x.antes.valor)}</b>` : `${t("Lo hiciste el")} ${esc(trFecha(x.creado))}`}</div>
       <div class="nov-botones"><button class="btn" data-rt-semana="${esc(x.id)}">${t("En una semana")}</button>
         <button class="btn btn-fuego" data-rt-si="${esc(x.id)}" style="height:50px">${t("Ponérmelo hoy")}</button></div>
@@ -878,8 +900,8 @@ function hojaVideo(k) {
 const ultimoHtml = (l) => l.ultimo ? `<div class="ultimo">${ic.reloj.replace('width="22" height="22"', 'width="14" height="14"')}<span>${t("Último")}: <b>${esc(l.ultimo.valor)}</b> · ${esc(trFecha(l.ultimo.fecha))}</span></div>` : "";
 
 function linea(l, p, k) {
-  const extra = l.extra ? ` <span class="etq ${l.extra.tono}">${esc(l.extra.texto)}</span>` : "";
-  const nota = l.nota ? `<div class="mini">${esc(l.nota)}</div>` : "";
+  const extra = l.extra ? ` <span class="etq ${l.extra.tono}">${esc(t(l.extra.texto))}</span>` : "";
+  const nota = l.nota ? `<div class="mini">${esc(trNota(l.nota))}</div>` : "";
   if (l.kind === "peso") {
     const bloq = E.vista.puede_pesos === false;
     const pend = (E.vista.mis_solicitudes || {})[l.id];
@@ -888,7 +910,7 @@ function linea(l, p, k) {
       + (pend ? `<span class="etq aviso">${t("pendiente")} → ${esc(pend.valores.map(num).join(" · "))}</span>` : "");
     return `<div class="linea" data-l="${k}">
       ${p.lineas.length > 1 || extra ? `<div class="linea-cab"><b>${p.lineas.length > 1 ? esc(l.ejercicio) : ""}${extra}</b></div>` : ""}
-      ${l.esquema ? `<div class="esquema">${esc(l.esquema)}</div>` : ""}
+      ${l.esquema ? `<div class="esquema">${esc(trWod(l.esquema))}</div>` : ""}
       <div class="pesos">${pesos}</div>${nota}${ultimoHtml(l)}${videoHtml(l, k)}
       ${p.origen ? "" : `<div class="acciones-linea"><button class="mini-btn" data-editar="${k}">${ic.lapiz} ${t(l.kind === "peso" ? "Cambiar movimiento / reps" : "Ajustar reps")}</button>${l.texto_sig && l.texto_sig !== l.texto ? `<span class="mini">${t("Semana que viene")}: ${esc(l.texto_sig.slice(0, 60))}</span>` : ""}</div>`}
       ${l.no_hecha !== undefined ? `<label class="check"><input type="checkbox" data-nh="${k}" ${l.no_hecha ? "checked" : ""}> ${t("No lo hice · te lo recuerdo esta semana")}</label>` : ""}
@@ -898,7 +920,7 @@ function linea(l, p, k) {
   const nombre = l.solo_bloque || (p.lineas.length === 1) ? "" : `<b>${esc(l.ejercicio)}</b>`;
   let html = `<div class="linea" data-l="${k}">
     ${nombre || extra || (l.nivel && l.nivel !== "RX") ? `<div class="linea-cab">${nombre}<span>${extra}${l.nivel && l.nivel !== "RX" && visto ? ` <span class="etq nivel">${esc(l.nivel)}</span>` : ""}</span></div>` : ""}
-    <div class="texto-wod">${visto ? esc(visto) : `<span class="mini">${t("por definir")}</span>`}</div>${nota}${ultimoHtml(l)}${videoHtml(l, k)}`;
+    <div class="texto-wod">${visto ? esc(trWod(visto)) : `<span class="mini">${t("por definir")}</span>`}</div>${nota}${ultimoHtml(l)}${videoHtml(l, k)}`;
   if (l.sugerencia) html += `<div class="sug">${ic.llama("#8A5E00", 20)}<span>${t("WOD de Diego · semana")} ${l.sugerencia.semana}, ${esc(l.sugerencia.dia)}</span>
     <button data-fijar="${k}">${t("Fijar")}</button></div>`;
   if (l.tabla) html += `<details class="desplegable"><summary>${t("RX · Inter · Scaled por movimiento")} ${ic.abajo}</summary>
@@ -906,7 +928,7 @@ function linea(l, p, k) {
       f.RX === f.Inter && f.Inter === f.Scaled ? `<tr><td colspan="3" style="color:var(--tinta);font-weight:500">${esc(f.RX)}</td></tr>`
         : `<tr><td>${esc(f.RX)}</td><td>${esc(f.Inter)}</td><td>${esc(f.Scaled)}</td></tr>`).join("")}</tbody></table></details>`;
   else if (l.versiones_nivel) html += `<details class="desplegable"><summary>${t("Versiones")} RX · Inter · Scaled · Elite ${ic.abajo}</summary>
-    <div class="versiones">${Object.entries(l.versiones_nivel).map(([n, txt]) => `<div><b>${esc(n)}</b><span class="texto-wod">${esc(txt)}</span></div>`).join("")}</div></details>`;
+    <div class="versiones">${Object.entries(l.versiones_nivel).map(([n, txt]) => `<div><b>${esc(n)}</b><span class="texto-wod">${esc(trWod(txt))}</span></div>`).join("")}</div></details>`;
   if (!p.origen) html += `<div class="acciones-linea"><button class="mini-btn" data-editar="${k}">${ic.lapiz} ${t("Ajustar")}</button>${l.tipo !== "fuerza" ? `<button class="mini-btn azar" data-azar="${k}">🎲 ${t("Al azar")}</button>` : ""}${["wod", "emom", "fortime", "amrap", "conditioning"].includes(l.tipo) && (l.visto || l.texto || "").trim() ? ((E.vista.retest_lineas || {})[l.id]
       ? `<span class="etq ok">🔁 ${t("Retest el")} ${esc(trFecha(E.vista.retest_lineas[l.id]))}</span>`
       : `<button class="mini-btn" data-retest="${k}">🔁 ${t("Repetir en 1 mes")}</button>`) : ""}${l.texto_sig && l.texto_sig !== l.texto ? `<span class="mini">${t("Semana que viene")}: ${esc(l.texto_sig.split("\n")[0].slice(0, 60))}</span>` : ""}</div>`;
