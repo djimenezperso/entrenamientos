@@ -557,3 +557,5 @@ main { padding: 4px 16px 0; display: flex; flex-direction: column; gap: 12px; }
 .tg-caja { background: #fff; border-radius: 14px; padding: 12px; margin-top: 10px; font-size: 14px; }
 .tg-caja a { color: #229ED9; font-weight: 700; }
 .tg-caja li { margin-bottom: 3px; }
+
+.promo-fundador { margin: -2px 0 0; text-align: center; font-size: 13px; font-weight: 700; color: #127a55; }
