@@ -484,7 +484,7 @@ main { padding: 4px 16px 0; display: flex; flex-direction: column; gap: 12px; }
 #b-compartir-app { display: flex; align-items: center; justify-content: center; gap: 8px; }
 .act-comp { font-size: 13px; color: var(--medio); background: var(--crema); border-radius: 12px; padding: 8px 10px; line-height: 1.5; }
 .act-comp small { display: block; color: var(--suave); font-size: 12px; margin-top: 2px; }
-.act-totales { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.act-totales { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
 .act-totales div { background: var(--tinta); color: #fff; border-radius: 16px; padding: 12px 14px; }
 .act-totales b { display: block; font-size: 26px; color: var(--ambar); line-height: 1.1; }
 .act-totales span { font-size: 12.5px; color: #FFD9BD; }

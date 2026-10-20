@@ -329,7 +329,7 @@ def _igual(a: str, b: str) -> bool:
     return bool(a) and bool(b) and hmac.compare_digest(a.encode(), b.encode())
 
 
-VERSION = "6.9"
+VERSION = "7.0"
 CLAVES_NECESARIAS = ["CONTRASENA_DIEGO", "SUPABASE_URL", "SUPABASE_KEY", "APP_PASSWORD", "CONTRASENA_ARCHCHANA", "CONTRASENA_INVITADOS", "COACH_PIN",
                      "APP_ANTIGUA_URL", "CONTRASENA_DEMO"]
 
@@ -367,6 +367,12 @@ def login(cuerpo: dict) -> dict:
         return _login_perfil(cuerpo)
     if cuerpo.get("inv"):
         return _login_invitacion(str(cuerpo["inv"]))
+    if cuerpo.get("origen") == "instagram":  # enlace fijo de la bio de Instagram: entra directo a la demo (solo mirar)
+        if not env("CONTRASENA_DEMO"):
+            raise Error("La demo no está activa ahora mismo. Escríbele a Diego.", 401)
+        _apuntar_actividad(lambda act: _sumar(act.setdefault("llegadas", {}), "Instagram"))
+        _apuntar(None, {"d": 1}, "Demo", entrada=True)
+        return _sesion_para(demo_personas()[0], demo=True)
     intento = str(cuerpo.get("password") or "").strip()
     if not intento:
         raise Error("Escribe la contraseña")
@@ -976,6 +982,7 @@ def actividad(sesion: dict) -> dict:
     return {"personas": filas, "desde": min((d for a in act.values() for d in a.get("dias", {})), default=None),
             "total_compartidos": sum(x.get("app", 0) + x.get("entreno", 0) for x in comp.values()),
             "total_llegadas": sum(x.get("n", 0) for x in lleg.values()),
+            "llegadas_instagram": lleg.get("Instagram", {}).get("n", 0),
             "abonos": [{"nombre": x.get("nombre", k), "n": x.get("n", 0), "hace": _hace(x.get("ultimo"), ahora)}
                        for k, x in sorted(todo.get("abonos", {}).items(), key=lambda kv: kv[1].get("ultimo", ""), reverse=True)],
             "abono_activo": bool(_abono_url()),

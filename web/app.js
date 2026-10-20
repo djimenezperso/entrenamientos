@@ -18,6 +18,7 @@ const E = { token: mem.get("token"), atleta: mem.get("atleta"), lang: mem.get("l
 
 // ---------- textos ----------
 const FR = {
+  "desde Instagram": "depuis Instagram",
   "semana": "semaine",
   "Ciclo": "Cycle",
   "¿Cuál es tu objetivo principal?": "Quel est ton objectif principal ?",
@@ -1500,7 +1501,8 @@ async function hojaActividad() {
     <p class="mini" style="margin:0 4px">${t("Cada cuadrito es un día de las últimas 2 semanas (el último es hoy). Naranja = abrió la app ese día.")}
     ${d.desde ? "" : `<br><b>${t("Se empieza a contar desde hoy.")}</b>`}</p>
     <div class="act-totales"><div><b>${d.total_compartidos || 0}</b><span>${t("veces compartido")}</span></div>
-      <div><b>${d.total_llegadas || 0}</b><span>${t("han entrado por un enlace")}</span></div></div>
+      <div><b>${d.total_llegadas || 0}</b><span>${t("han entrado por un enlace")}</span></div>
+      <div><b>${d.llegadas_instagram || 0}</b><span>📸 ${t("desde Instagram")}</span></div></div>
     ${d.pagos && d.pagos.length ? `<div class="act-pagos"><b>🧾 ${t("Pagos por comprobar")} (${d.pagos.filter((x) => !x.visto).length})</b>
       ${d.pagos.map((x) => `<div class="pago ${x.visto ? "visto" : ""}"><div><b>${esc(x.nombre)}</b> <small>${esc(x.hace)}${x.perfil ? " · " + t("perfil") + ": " + esc(x.perfil) : ""}</small><br>
         <a href="tel:${esc(x.telefono)}">📞 ${esc(x.telefono)}</a> · <a href="mailto:${esc(x.email)}">${esc(x.email)}</a>
@@ -2286,10 +2288,17 @@ function hojaNuevoPr() {
 (async () => {
   const qs = new URLSearchParams(location.search);
   const inv = qs.get("inv");
+  const ig = qs.has("ig") || qs.has("insta");
   if (qs.get("pago") === "ok") { E.pagoCs = qs.get("cs") || ""; mem.set("pago_pendiente", E.pagoCs || "-"); }
   else if (mem.get("pago_pendiente")) E.pagoCs = mem.get("pago_pendiente") === "-" ? "" : mem.get("pago_pendiente");
-  if (inv || qs.get("pago")) history.replaceState(null, "", location.pathname);
+  if (inv || ig || qs.get("pago")) history.replaceState(null, "", location.pathname);
   if (E.pagoCs !== undefined && !E.token) { pintarEntrar(); E.pagoMostrado = true; return hojaPago(E.pagoCs); }
+  if (ig && !E.token) {  // enlace de la bio de Instagram: directo a la demo
+    try {
+      const r = await api("login", { metodo: "POST", cuerpo: { origen: "instagram" } });
+      E.token = r.token; mem.set("token", r.token);
+    } catch (e) { pintarEntrar(); return aviso(e.message, true); }
+  }
   if (inv && !E.token) {
     try {
       const r = await api("login", { metodo: "POST", cuerpo: { inv } });
