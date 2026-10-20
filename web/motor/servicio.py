@@ -327,7 +327,7 @@ def _igual(a: str, b: str) -> bool:
     return bool(a) and bool(b) and hmac.compare_digest(a.encode(), b.encode())
 
 
-VERSION = "5.9"
+VERSION = "6.0"
 CLAVES_NECESARIAS = ["CONTRASENA_DIEGO", "SUPABASE_URL", "SUPABASE_KEY", "APP_PASSWORD", "CONTRASENA_ARCHCHANA", "CONTRASENA_INVITADOS", "COACH_PIN",
                      "APP_ANTIGUA_URL", "CONTRASENA_DEMO"]
 
@@ -1776,6 +1776,19 @@ def registrar(sesion: dict, c: dict) -> dict:
         datos().guardar(atleta, rut)
     else:
         fin_semana = None
+    if atleta != "Yo" and not es_demo(sesion):  # a Diego le llega por Telegram lo que registran sus alumnos
+        lineas = [f"🏋️ {nv(atleta)} ha registrado" + (f": {w['title']}" if w["title"] else "")]
+        for e in resultados[:8]:
+            lineas.append(f"• {e['name']}: {fmt_valor(e['value'], e.get('unit', ''))}")
+        if w.get("notes"):
+            lineas.append(f"💬 {w['notes'][:600]}")
+        if aviso_pr:
+            lineas.append(f"🎉 {aviso_pr}")
+        if w.get("photo_path"):
+            lineas.append(f"📸 {datos().url_foto(w['photo_path'])}")
+        if fin_semana:
+            lineas.append(f"✅ {fin_semana}")
+        notificar("\n".join(lineas))
     v = vista(sesion, atleta, c.get("ver_semana"), c.get("ver_dia"))
     v["aviso"] = fin_semana or "Entreno guardado" + (f" · {len(hechas)} parte{'s' if len(hechas) != 1 else ''} hecha{'s' if len(hechas) != 1 else ''}" if hechas else "")
     if aviso_pr:
