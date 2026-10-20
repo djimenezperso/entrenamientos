@@ -329,7 +329,7 @@ def _igual(a: str, b: str) -> bool:
     return bool(a) and bool(b) and hmac.compare_digest(a.encode(), b.encode())
 
 
-VERSION = "7.4"
+VERSION = "7.5"
 CLAVES_NECESARIAS = ["CONTRASENA_DIEGO", "SUPABASE_URL", "SUPABASE_KEY", "APP_PASSWORD", "CONTRASENA_ARCHCHANA", "CONTRASENA_INVITADOS", "COACH_PIN",
                      "APP_ANTIGUA_URL", "CONTRASENA_DEMO"]
 
@@ -578,6 +578,7 @@ def _login_perfil(cuerpo: dict) -> dict:
     return _sesion_para(existente)
 
 
+DEMO_DIAS_CERRADOS = {3, 4, 5, 6}  # en la demo, solo se pueden abrir los días 1 y 2
 PLANTILLAS_DEMO = {"Salatti": "Rutina 1 · fuerza + WOD", "Dario": "Rutina 2 · fuerza + WOD"}
 
 
@@ -1361,6 +1362,8 @@ def vista(sesion: dict, atleta: str | None, semana: int | None, dia_id: str | No
             return [d["id"] for d in rut["dias"] if resumen_dia(rut, sem, d) == "hecho"]
         semana = actual if (_completos(actual) or actual == 1) else actual - 1
         abiertos = _completos(semana) or [rut["dias"][0]["id"]]
+        cerrados = {d["id"] for i, d in enumerate(rut["dias"]) if i + 1 in DEMO_DIAS_CERRADOS}
+        abiertos = [x for x in abiertos if x not in cerrados] or [d["id"] for d in rut["dias"] if d["id"] not in cerrados][:1] or abiertos
     nivel = rut.get("nivel") or NIVEL_DEFECTO.get(atleta, "Inter")
     sugs = sugerencias(rut, semana, wods_de_diego(rutina("Yo", guardadas))) if alumno else {}
 
