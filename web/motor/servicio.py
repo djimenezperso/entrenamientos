@@ -329,7 +329,7 @@ def _igual(a: str, b: str) -> bool:
     return bool(a) and bool(b) and hmac.compare_digest(a.encode(), b.encode())
 
 
-VERSION = "7.2"
+VERSION = "7.3"
 CLAVES_NECESARIAS = ["CONTRASENA_DIEGO", "SUPABASE_URL", "SUPABASE_KEY", "APP_PASSWORD", "CONTRASENA_ARCHCHANA", "CONTRASENA_INVITADOS", "COACH_PIN",
                      "APP_ANTIGUA_URL", "CONTRASENA_DEMO"]
 
@@ -1272,6 +1272,37 @@ def _parte(rut, dia, parte, lineas, semana, partes_semana, nivel, alumno, sugs, 
     }
 
 
+def _rellenar_demo(partes: list[dict], dia_id: str, semana: int, nivel: str) -> None:
+    """En la demo no puede salir nada «por definir»: cada parte vacía lleva un entreno de verdad que encaja con ella
+    (EMOM en la parte EMOM, conditioning en Conditioning…), distinto en cada parte, con sus niveles y su cronómetro."""
+    semilla = int(hashlib.sha256(f"{dia_id}|{semana}".encode()).hexdigest(), 16)
+    ya = set()
+    for i, p in enumerate(partes):
+        etq = norm_busqueda(p.get("etiqueta") or "")
+        for l in p["lineas"]:
+            if l.get("kind") != "texto" or (l.get("texto") or "").strip():
+                continue
+            pista = norm_busqueda(f"{etq} {l.get('ejercicio', '')}")
+            lista = REPERTORIO["conditioning"] if "conditioning" in pista else \
+                [w for w in REPERTORIO["wod"] if "(Diego)" not in w[0]]
+            for fmt, clave in (("emom", "emom"), ("amrap", "amrap"), ("for time", "for time")):
+                if fmt in pista:
+                    afines = [w for w in REPERTORIO["wod"] + REPERTORIO["conditioning"]
+                              if clave in norm_busqueda(w[1]) and "(Diego)" not in w[0]]
+                    lista = afines or lista
+            libres = [w for w in lista if w[1] not in ya] or lista
+            nombre, txt = libres[(semilla + i * 7) % len(libres)]
+            ya.add(txt)
+            nv_ = l.get("nivel") or nivel
+            l["texto"] = txt
+            l["visto"] = escalar(txt, nv_) if nv_ != "RX" else txt
+            l["versiones_nivel"] = {n: escalar(txt, n) for n in NIVELES}
+            l["crono"] = crono_de(txt, p.get("parte", ""), l.get("ejercicio", ""))
+            l["texto_sig"] = None
+            if len(p["lineas"]) == 1 and norm_busqueda(l.get("ejercicio", "")) in ("wod", "conditioning", "emom", "amrap", "for time", "gym / wod", "metcon"):
+                l["ejercicio"] = nombre
+
+
 def vista(sesion: dict, atleta: str | None, semana: int | None, dia_id: str | None) -> dict:
     inv = invitados()
     personas = demo_personas() if es_demo(sesion) else [sesion["u"]] if sesion.get("u") else todas_las_personas(inv)
@@ -1374,6 +1405,8 @@ def vista(sesion: dict, atleta: str | None, semana: int | None, dia_id: str | No
             vid = videos.get(norm(l["ejercicio"]))
             if vid and vid.get("url"):
                 l["video"] = vid
+    if demo:  # en la demo no puede salir nada «por definir»: cada parte vacía lleva un WOD de verdad (distinto en B y C)
+        _rellenar_demo(partes, dia["id"], semana, nivel)
     if aviso_semana:
         base["aviso"] = aviso_semana
     return {**base, "semana": semana, "actual": actual, "nivel": nivel, "niveles": NIVELES, "alumno": alumno,
