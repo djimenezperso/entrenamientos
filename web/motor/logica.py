@@ -1308,7 +1308,7 @@ _FACTOR = {"Inter": 0.75, "Scaled": 0.55, "Elite": 1.15}
 
 _SUSTITUCIONES = {
     "Inter": [
-        (r"(?:ring |bar )?muscle[ -]?ups?(?: ring)?|\b[br]?mu'?s?\b(?: ring)?", "C2B pull ups"),
+        (r"(?:ring |bar )?muscle[ -]?ups?(?: ring)?|(?<![a-z])[br]?mu'?s?\b(?: ring)?", "C2B pull ups"),
         (r"strict hspu|strict handstand push ?ups?", "HSPU con abmat"),
         (r"\bhspu'?s?\b|handstand push ?ups?", "HSPU con abmat"),
         (r"handstand walks?|\bhw\b", "wall walks"),
@@ -1317,7 +1317,7 @@ _SUSTITUCIONES = {
         (r"legless rope climbs?", "rope climbs"),
     ],
     "Scaled": [
-        (r"(?:ring |bar )?muscle[ -]?ups?(?: ring)?|\b[br]?mu'?s?\b(?: ring)?", "pull ups con banda"),
+        (r"(?:ring |bar )?muscle[ -]?ups?(?: ring)?|(?<![a-z])[br]?mu'?s?\b(?: ring)?", "pull ups con banda"),
         (r"\bc2b\b|chest to bar(?: pull ups?)?", "pull ups con banda"),
         (r"(?<!weighted )(?:butterfly |kipping |strict )?pull ?ups?", "ring rows"),
         (r"strict hspu|strict handstand push ?ups?|\bhspu'?s?\b|handstand push ?ups?", "pike push ups"),
@@ -1329,7 +1329,7 @@ _SUSTITUCIONES = {
         (r"(?:legless )?rope climbs?", "rope pulls desde el suelo"),
         (r"burpees? box jump overs?", "burpees + step ups"),
         (r"box jump overs?|box jumps?", "box step ups"),
-        (r"ring dips?", "box dips"),
+        (r"ring dips?|(?<![a-z])r ?dips?\b", "box dips"),
         (r"ghd sit[ -]?ups?", "abmat sit ups"),
     ],
     "Elite": [
@@ -1338,6 +1338,11 @@ _SUSTITUCIONES = {
         (r"(?<!strict )\bhspu'?s?\b", "strict HSPU"),
     ],
 }
+
+
+_MU_CON_REPS = re.compile(r"(?<![\d.,])(?P<n>\d+)\s*(?:x\s*)?(?:ring |bar )?(?:muscle[ -]?ups?|(?<![a-z])[rb]?mus?\b)(?: ring)?", re.I)
+_MU_A = {"Inter": lambda n: f"{n * 2} C2B pull ups",               # Inter: casi nunca muscle ups → C2B (x2)
+         "Scaled": lambda n: f"{n * 3} pull ups (con banda si hace falta)"}  # Scaled: nunca muscle ups
 
 
 def _redondear(v: float, tipo: str) -> float:
@@ -1396,10 +1401,20 @@ def escalar(texto: str, nivel: str) -> str:
                       for i, trozo in enumerate(re.split(r"(,\s+|\s\+\s|;\s*|\s/\s)", l)))
               for l in texto.split("\n")]
     out = "\n".join(lineas)
+    # muscle ups con número delante («3x 1RMU», «5 bar muscle ups»): se cambian con más reps de un movimiento más fácil
+    guardados = []
+
+    def _mu(m):
+        n = int(m.group("n"))
+        nuevo = _MU_A[nivel](n) if nivel in _MU_A else m.group(0)
+        guardados.append(nuevo)
+        return f"\x00{len(guardados) - 1}\x00"
+    out = _MU_CON_REPS.sub(_mu, out)
     reglas = _SUSTITUCIONES.get(nivel, [])
     if reglas:
         grande = re.compile("|".join(f"(?P<r{i}>{p})" for i, (p, _) in enumerate(reglas)), re.I)
         out = grande.sub(lambda m: next(reglas[int(k[1:])][1] for k, v in m.groupdict().items() if v is not None), out)
+    out = re.sub("\x00(\\d+)\x00", lambda m: guardados[int(m.group(1))], out)
     if nivel == "Elite":
         out += "\n🎯 Elite: todo unbroken siempre que se pueda"
     return out
