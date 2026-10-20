@@ -69,6 +69,8 @@ class handler(BaseHTTPRequestHandler):
                 except servicio.Error:
                     ses = None  # vuelve de Stripe sin sesión: vale con el id del pago
                 return self._responder(200, servicio.datos_pago(ses, self._cuerpo()))
+            if ruta == "objetivos" and metodo == "POST":
+                return self._responder(200, servicio.objetivos(self._sesion(), self._cuerpo()))
             if ruta == "pago_visto" and metodo == "POST":
                 return self._responder(200, servicio.pago_visto(self._sesion(), self._cuerpo()))
             if ruta == "telegram" and metodo == "POST":

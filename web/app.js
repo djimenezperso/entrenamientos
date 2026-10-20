@@ -18,6 +18,76 @@ const E = { token: mem.get("token"), atleta: mem.get("atleta"), lang: mem.get("l
 
 // ---------- textos ----------
 const FR = {
+  "¿Cuál es tu objetivo principal?": "Quel est ton objectif principal ?",
+  "💪 Ponerme fuerte": "💪 Devenir plus fort(e)",
+  "🏋️ Halterofilia (snatch, clean & jerk)": "🏋️ Haltérophilie (snatch, clean & jerk)",
+  "🔥 CrossFit completo / competir": "🔥 CrossFit complet / compétition",
+  "❤️ Ponerme en forma y salud": "❤️ Me remettre en forme, santé",
+  "⚡ Perder grasa": "⚡ Perdre du gras",
+  "¿Cuánto tiempo llevas entrenando?": "Depuis combien de temps tu t'entraînes ?",
+  "Empiezo de cero": "Je débute",
+  "Menos de 1 año": "Moins d'1 an",
+  "1–3 años": "1–3 ans",
+  "Más de 3 años": "Plus de 3 ans",
+  "Pesos de referencia": "Charges de référence",
+  "Hombre": "Homme",
+  "Mujer": "Femme",
+  "¿Cuántos días por semana puedes entrenar?": "Combien de jours par semaine peux-tu t'entraîner ?",
+  "¿Qué material tienes?": "Quel matériel as-tu ?",
+  "Marca todo lo que tengas a mano.": "Coche tout ce que tu as sous la main.",
+  "Barra y discos": "Barre et disques",
+  "Rack": "Rack",
+  "Mancuernas": "Haltères",
+  "Kettlebell": "Kettlebell",
+  "Barra de dominadas": "Barre de traction",
+  "Anillas": "Anneaux",
+  "Remo / bike / ski": "Rameur / bike / ski",
+  "Comba": "Corde à sauter",
+  "Gomas": "Élastiques",
+  "Cajón": "Box",
+  "Box de CrossFit completo": "Box de CrossFit complète",
+  "¿Qué quieres priorizar?": "Qu'est-ce que tu veux prioriser ?",
+  "Hasta 2.": "Jusqu'à 2.",
+  "Halterofilia": "Haltérophilie",
+  "Gimnásticos": "Gymnastique",
+  "Motor / cardio": "Cardio / moteur",
+  "Movilidad": "Mobilité",
+  "¿Hay algún movimiento que no sepas hacer y quieras aprender?": "Un mouvement que tu ne sais pas faire et que tu veux apprendre ?",
+  "Te metemos un ciclo de varias semanas para conseguirlo.": "On t'ajoute un cycle de plusieurs semaines pour y arriver.",
+  "Otro (escríbelo)": "Autre (écris-le)",
+  "¿Qué tipo de rutina te apetece?": "Quel type de programme te tente ?",
+  "✨ Que la app elija por mí": "✨ Laisse l'appli choisir pour moi",
+  "Con tus respuestas": "Selon tes réponses",
+  "🏋️ Como la de Diego": "🏋️ Comme celui de Diego",
+  "Halterofilia + fuerza + WOD · 5–6 días": "Haltéro + force + WOD · 5–6 jours",
+  "💪 Fuerza + WOD": "💪 Force + WOD",
+  "4 días · equilibrada": "4 jours · équilibré",
+  "🌱 Base de fuerza": "🌱 Bases de force",
+  "3 días · para empezar con buena técnica": "3 jours · pour commencer avec une bonne technique",
+  "🏠 En casa": "🏠 À la maison",
+  "Mancuernas, gomas y mucha movilidad": "Haltères, élastiques et beaucoup de mobilité",
+  "¿Algo más que deba saber Diego?": "Autre chose que Diego doit savoir ?",
+  "Lesiones o molestias": "Blessures ou douleurs",
+  "Ej.: hombro derecho, lumbar…": "Ex. : épaule droite, lombaires…",
+  "Comentarios": "Commentaires",
+  "Horarios, competiciones, lo que quieras…": "Horaires, compétitions, ce que tu veux…",
+  "Tu rutina a medida": "Ton programme sur mesure",
+  "Atrás": "Retour",
+  "Más tarde": "Plus tard",
+  "Siguiente": "Suivant",
+  "Crear mi rutina": "Créer mon programme",
+  "Elige una opción para seguir": "Choisis une option pour continuer",
+  "¡Tu rutina está lista! Diego la revisará 🔥": "Ton programme est prêt ! Diego va le vérifier 🔥",
+  "¡Recibido! Diego ajustará tu rutina 🔥": "Reçu ! Diego va ajuster ton programme 🔥",
+  "Mis objetivos": "Mes objectifs",
+  "Hacer mi rutina a medida": "Faire mon programme sur mesure",
+  "Pull ups": "Pull ups",
+  "Handstand push ups": "Handstand push ups",
+  "Toes to bar": "Toes to bar",
+  "Double unders": "Double unders",
+  "Muscle up": "Muscle up",
+  "Pistols": "Pistols",
+  "Snatch / clean & jerk": "Snatch / clean & jerk",
   "todavía no tiene rutina.": "n'a pas encore de programme.", "Diego te la prepara en breve. Recarga en un rato.": "Diego te le prépare très vite. Recharge dans un moment.",
   "El servidor ha tardado demasiado. Espera unos segundos y vuelve a intentarlo.": "Le serveur a mis trop de temps. Attends quelques secondes et réessaie.",
   "Falta el número: escribe tu móvil después del prefijo": "Il manque le numéro : écris ton portable après l'indicatif",
@@ -359,7 +429,10 @@ function poner(v) {
   pintar();
   if (v.pr) { aviso("🎉 " + v.pr); confeti(); } else if (v.aviso) aviso(v.aviso);
   if (E.pagoCs !== undefined && !E.pagoMostrado) { E.pagoMostrado = true; E.bienvenidaDemo = true; setTimeout(() => hojaPago(E.pagoCs), 300); }
-  if (v.abonado_nuevo && !mem.get("bienvenida_" + v.atleta) && $hoja.hidden) { mem.set("bienvenida_" + v.atleta, "1"); setTimeout(hojaNuevoAbonado, 300); }
+  if (v.objetivos_pendientes && !E.objMostrado && !mem.get("objetivos_luego") && $hoja.hidden && E.pagoCs === undefined) {
+    E.objMostrado = true; const ya = mem.get("bienvenida_" + v.atleta); mem.set("bienvenida_" + v.atleta, "1");
+    setTimeout(() => hojaObjetivos(ya ? null : hojaNuevoAbonado), 300);
+  } else if (v.abonado_nuevo && !mem.get("bienvenida_" + v.atleta) && $hoja.hidden) { mem.set("bienvenida_" + v.atleta, "1"); setTimeout(hojaNuevoAbonado, 300); }
   const fijo = mem.get("perfil_fijo");
   if (!v.solo && !v.demo && !v.coach && !v.es_diego && (!fijo || (fijo === "Yo" && v.diego_aparte)) && !E.quienMostrado && $hoja.hidden) { E.quienMostrado = true; setTimeout(hojaQuienEres, 300); }
   if (v.demo && !E.bienvenidaDemo && E.pantalla !== "registrar") { E.bienvenidaDemo = true; setTimeout(hojaBienvenidaDemo, 450); }
@@ -438,13 +511,13 @@ function hojaPago(cs) {
       try {
         const pinEl = h.querySelector("#pg-pin");
         const r = await api("datos_pago", { metodo: "POST", cuerpo: { cs, nombre: h.querySelector("#pg-nombre").value,
-          telefono: h.querySelector("#pg-tel").value, email: h.querySelector("#pg-email").value, pin: pinEl ? pinEl.value : undefined } });
+          telefono: h.querySelector("#pg-tel").value, email: h.querySelector("#pg-email").value, pin: pinEl ? pinEl.value : undefined, lang: E.lang } });
         mem.set("pago_pendiente", null);
         if (r.token) {  // abonado nuevo: entra ya en su perfil
           E.token = r.token; mem.set("token", r.token); E.atleta = r.solo; mem.set("atleta", r.solo); mem.set("perfil_fijo", r.solo);
           E.semana = null; E.dia = null; E.bienvenidaDemo = true;
           mem.set("bienvenida_" + r.solo, "1");
-          cerrarHoja(); confeti(); await cargar(); return hojaNuevoAbonado();
+          cerrarHoja(); confeti(); await cargar(); E.objMostrado = true; return hojaObjetivos(hojaNuevoAbonado);
         }
         h.innerHTML = `<div class="asa"></div><div class="demo-hola"><div class="pago-ok">✓</div><h3>${t("¡Recibido!")}</h3>
           <p>${t("En cuanto Diego compruebe el pago te escribirá para empezar. ¡Nos vemos entrenando! 🔥")}</p></div>
@@ -471,6 +544,97 @@ function hojaNuevoAbonado() {
       <li><b>${t("Cronómetro")}</b> ${t("arriba a la derecha, con EMOM, AMRAP, Tabata…")}</li>
     </ol>
     <button class="btn btn-fuego" data-cerrar style="height:54px">${t("¡Vamos!")} 💪</button>`);
+}
+
+// ---------- cuestionario de objetivos (abonado nuevo) → rutina de inicio a su medida ----------
+const OBJ_PASOS = [
+  { k: "objetivo", tit: "¿Cuál es tu objetivo principal?", ops: [["fuerza", "💪 Ponerme fuerte"], ["halterofilia", "🏋️ Halterofilia (snatch, clean & jerk)"],
+    ["crossfit", "🔥 CrossFit completo / competir"], ["forma", "❤️ Ponerme en forma y salud"], ["grasa", "⚡ Perder grasa"]] },
+  { k: "nivel", tit: "¿Cuánto tiempo llevas entrenando?", ops: [["empiezo", "Empiezo de cero"], ["menos1", "Menos de 1 año"], ["1a3", "1–3 años"], ["mas3", "Más de 3 años"]],
+    extra: { k: "categoria", tit: "Pesos de referencia", ops: [["hombre", "Hombre"], ["mujer", "Mujer"]] } },
+  { k: "dias", tit: "¿Cuántos días por semana puedes entrenar?", ops: [["2", "2"], ["3", "3"], ["4", "4"], ["5", "5"], ["6", "6"]], fila: true },
+  { k: "material", multi: true, tit: "¿Qué material tienes?", sub: "Marca todo lo que tengas a mano.",
+    todo: ["barra", "rack", "mancuernas", "kettlebell", "dominadas", "anillas", "maquinas", "comba", "gomas", "cajon"],
+    ops: [["barra", "Barra y discos"], ["rack", "Rack"], ["mancuernas", "Mancuernas"], ["kettlebell", "Kettlebell"], ["dominadas", "Barra de dominadas"],
+      ["anillas", "Anillas"], ["maquinas", "Remo / bike / ski"], ["comba", "Comba"], ["gomas", "Gomas"], ["cajon", "Cajón"]] },
+  { k: "prioridades", multi: true, max: 2, tit: "¿Qué quieres priorizar?", sub: "Hasta 2.",
+    ops: [["fuerza", "Fuerza"], ["halterofilia", "Halterofilia"], ["gym", "Gimnásticos"], ["motor", "Motor / cardio"], ["movilidad", "Movilidad"]] },
+  { k: "aprender", multi: true, max: 3, opcional: true, tit: "¿Hay algún movimiento que no sepas hacer y quieras aprender?",
+    sub: "Te metemos un ciclo de varias semanas para conseguirlo.",
+    ops: [["pullups", "Pull ups"], ["hspu", "Handstand push ups"], ["t2b", "Toes to bar"], ["du", "Double unders"], ["muscleup", "Muscle up"],
+      ["pistols", "Pistols"], ["halterofilia", "Snatch / clean & jerk"]], texto: "aprender_otro" },
+  { k: "tipo", tit: "¿Qué tipo de rutina te apetece?", ops: [["auto", "✨ Que la app elija por mí", "Con tus respuestas"],
+    ["Yo", "🏋️ Como la de Diego", "Halterofilia + fuerza + WOD · 5–6 días"], ["Salatti", "💪 Fuerza + WOD", "4 días · equilibrada"],
+    ["Manu Anel", "🌱 Base de fuerza", "3 días · para empezar con buena técnica"], ["Archchana", "🏠 En casa", "Mancuernas, gomas y mucha movilidad"]] },
+  { k: "fin", tit: "¿Algo más que deba saber Diego?", libre: true },
+];
+function hojaObjetivos(despues, previo) {
+  const o = { objetivo: null, nivel: null, categoria: null, dias: null, material: [], prioridades: [], aprender: [], aprender_otro: "", tipo: "auto",
+    lesiones: "", comentario: "", ...(previo || {}) };
+  if (o.dias != null) o.dias = String(o.dias);
+  let i = 0;
+  const fin = () => { cerrarHoja(); if (despues) despues(); };
+  const chips = (paso, sel) => paso.ops.map(([val, txt, sub]) => {
+    const on = paso.multi ? (o[paso.k] || []).includes(val) : o[paso.k] === val;
+    return sub ? `<button type="button" class="obj-op ${on ? "on" : ""}" data-k="${paso.k}" data-v="${val}"><b>${t(txt)}</b><small>${t(sub)}</small></button>`
+      : `<button type="button" class="chip obj-chip ${on ? "on" : ""}" data-k="${paso.k}" data-v="${val}">${t(txt)}</button>`;
+  }).join("");
+  const pinta = () => {
+    const paso = OBJ_PASOS[i];
+    const cuerpo = paso.libre
+      ? `<label class="paso-etq" for="ob-les">${t("Lesiones o molestias")}</label>
+         <textarea class="campo obj-area" id="ob-les" placeholder="${t("Ej.: hombro derecho, lumbar…")}">${esc(o.lesiones)}</textarea>
+         <label class="paso-etq" for="ob-com">${t("Comentarios")}</label>
+         <textarea class="campo obj-area" id="ob-com" placeholder="${t("Horarios, competiciones, lo que quieras…")}">${esc(o.comentario)}</textarea>`
+      : `${paso.sub ? `<p class="mini" style="margin:-4px 2px 4px">${t(paso.sub)}</p>` : ""}
+         ${paso.todo ? `<button type="button" class="chip obj-todo" id="ob-box">🏟️ ${t("Box de CrossFit completo")}</button>` : ""}
+         <div class="${paso.ops[0][2] ? "obj-ops" : "fila-chips obj-fila"}">${chips(paso)}</div>
+         ${paso.extra ? `<div class="paso-etq" style="margin:14px 2px 6px">${t(paso.extra.tit)}</div><div class="fila-chips obj-fila">${chips(paso.extra)}</div>` : ""}
+         ${paso.texto ? `<input class="campo" id="ob-otro" style="background:#fff;height:48px;margin-top:6px" placeholder="${t("Otro (escríbelo)")}" value="${esc(o[paso.texto] || "")}">` : ""}`;
+    const html = `<div class="obj-prog">${OBJ_PASOS.map((_, j) => `<span class="${j <= i ? "on" : ""}"></span>`).join("")}</div>
+      <div class="obj-cab"><small>🎯 ${t("Tu rutina a medida")} · ${i + 1}/${OBJ_PASOS.length}</small><h3>${t(paso.tit)}</h3></div>
+      ${cuerpo}
+      <p class="error" id="ob-error" hidden></p>
+      <div class="obj-nav">${i > 0 ? `<button class="btn" id="ob-atras">← ${t("Atrás")}</button>` : `<button class="btn" id="ob-luego">${t("Más tarde")}</button>`}
+        <button class="btn btn-fuego" id="ob-sig">${i === OBJ_PASOS.length - 1 ? "✨ " + t("Crear mi rutina") : t("Siguiente") + " →"}</button></div>`;
+    const enlaza = (h) => {
+      h.querySelectorAll("[data-k]").forEach((b) => b.onclick = () => {
+        const k = b.dataset.k, v = b.dataset.v; const p = [paso, paso.extra].find((x) => x && x.k === k);
+        if (p.multi) {
+          const l = o[k]; const at = l.indexOf(v);
+          if (at >= 0) l.splice(at, 1); else { if (p.max && l.length >= p.max) l.shift(); l.push(v); }
+        } else o[k] = v;
+        guarda(); pinta();
+      });
+      const box = h.querySelector("#ob-box"); if (box) box.onclick = () => { o.material = [...paso.todo]; pinta(); };
+      const guarda = () => {
+        const otro = h.querySelector("#ob-otro"); if (otro) o.aprender_otro = otro.value;
+        const les = h.querySelector("#ob-les"); if (les) { o.lesiones = les.value; o.comentario = h.querySelector("#ob-com").value; }
+      };
+      const at = h.querySelector("#ob-atras"); if (at) at.onclick = () => { guarda(); i--; pinta(); };
+      const lu = h.querySelector("#ob-luego"); if (lu) lu.onclick = () => { mem.set("objetivos_luego", "1"); fin(); };
+      h.querySelector("#ob-sig").onclick = async (ev) => {
+        guarda();
+        const err = h.querySelector("#ob-error");
+        const falta = paso.libre || paso.opcional ? false : paso.multi ? !o[paso.k].length && paso.k !== "material" : !o[paso.k] || (paso.extra && !o[paso.extra.k]);
+        if (falta) { err.textContent = t("Elige una opción para seguir"); err.hidden = false; return; }
+        if (i < OBJ_PASOS.length - 1) { i++; return pinta(); }
+        ev.target.disabled = true; err.hidden = true;
+        try {
+          const r = await api("objetivos", { metodo: "POST", cuerpo: { ...o, lang: E.lang } });
+          mem.set("objetivos_luego", null);
+          cerrarHoja(); E.semana = null; E.dia = null; await cargar();
+          aviso(r.rehecha ? t("¡Tu rutina está lista! Diego la revisará 🔥") : t("¡Recibido! Diego ajustará tu rutina 🔥"));
+          if (despues) despues();
+        } catch (e) { err.textContent = e.message; err.hidden = false; ev.target.disabled = false; }
+      };
+    };
+    const h0 = !$hoja.hidden && $hoja.querySelector(".obj-cab") && $hoja.firstElementChild;
+    if (h0) { const y = h0.scrollTop; h0.innerHTML = `<div class="asa"></div>${html}`; enlaza(h0); h0.scrollTop = paso === OBJ_PASOS[i] && pinta.ultimo === i ? y : 0; }
+    else abrirHoja(html, enlaza);
+    pinta.ultimo = i;
+  };
+  pinta();
 }
 
 function hojaBienvenidaDemo() {
@@ -1060,13 +1224,15 @@ function hojaAjustes() {
         <div style="display:flex;gap:8px"><input class="campo" id="i-pin-coach" type="password" autocapitalize="off" autocomplete="off" placeholder="PIN o clave" style="height:48px;background:#fff">
         <button class="btn btn-negro" id="b-coach">${t("Activar")}</button></div>`}
     </div>
-    ${v.coach ? "" : botonAbono(v, "b-abono")}
+    ${v.invitado ? `<button class="btn btn-fuego" id="b-objetivos" style="height:52px">🎯 ${t(v.objetivos ? "Mis objetivos" : "Hacer mi rutina a medida")}</button>` : ""}
+    ${v.coach || v.invitado ? "" : botonAbono(v, "b-abono")}
     <div style="display:grid;grid-template-columns:1fr auto;gap:8px">
       <button class="btn btn-fuego" id="b-compartir-app">${ic.compartir} ${t("Compartir la app")}</button>
       <button class="btn btn-negro" id="b-qr" style="padding:0 18px">${ic.qr} QR</button></div>
     ${botonCreador()}
     ${v.app_antigua ? `<a class="btn" href="${esc(v.app_antigua)}" target="_blank" rel="noopener">${t("Abrir la app de siempre")}</a>` : ""}
     <button class="btn btn-negro" id="b-salir">${t("Salir")}</button>`, (h) => {
+    const bo = h.querySelector("#b-objetivos"); if (bo) bo.onclick = () => hojaObjetivos(null, v.objetivos);
     const bc = h.querySelector("#b-coach");
     if (bc) bc.onclick = async () => {
       bc.disabled = true;

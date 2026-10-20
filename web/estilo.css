@@ -565,3 +565,22 @@ main { padding: 4px 16px 0; display: flex; flex-direction: column; gap: 12px; }
 
 .error-campo { margin: -4px 4px 0; color: #c0392b; font-size: 13px; font-weight: 600; }
 .campo.mal { border-color: #e74c3c !important; background: #fff5f4 !important; }
+
+/* cuestionario de objetivos */
+.obj-prog { display: flex; gap: 5px; margin: 2px 0 4px; }
+.obj-prog span { flex: 1; height: 5px; border-radius: 99px; background: var(--borde); }
+.obj-prog span.on { background: var(--fuego); }
+.obj-cab small { color: var(--suave, #8a6a55); font-weight: 700; font-size: 12.5px; letter-spacing: .02em; }
+.obj-cab h3 { margin: 4px 0 2px; font-family: var(--titulo); font-size: 23px; line-height: 1.15; }
+.obj-fila { flex-wrap: wrap; gap: 8px; }
+.obj-fila .chip { height: 44px; font-size: 15px; }
+.obj-todo { align-self: flex-start; height: 40px; border-style: dashed; }
+.obj-ops { display: flex; flex-direction: column; gap: 8px; }
+.obj-op { text-align: left; border: 2px solid var(--borde); background: #fff; border-radius: 16px; padding: 12px 15px;
+  display: flex; flex-direction: column; gap: 2px; font: inherit; color: inherit; cursor: pointer; }
+.obj-op b { font-size: 16px; }
+.obj-op small { color: #8a6a55; font-size: 13px; }
+.obj-op.on { border-color: var(--fuego); background: #FFF1E6; box-shadow: 0 0 0 3px rgba(255,106,0,.15); }
+.obj-area { height: 84px; padding: 12px 16px; background: #fff; resize: vertical; font: inherit; }
+.obj-nav { display: grid; grid-template-columns: auto 1fr; gap: 8px; margin-top: 6px; }
+.obj-nav .btn { height: 52px; }

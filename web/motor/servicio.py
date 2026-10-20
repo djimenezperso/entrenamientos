@@ -46,6 +46,7 @@ from logica import (
 )
 from repertorio import ELITE, REPERTORIO
 from rutinas_iniciales import migrar, rutinas_iniciales
+import cuestionario
 
 # ===== personas (igual que en app.py) =====
 ATLETAS = ["Yo", "Manu Anel", "Salatti", "Mi esposa", "Dario", "Archchana", "Juan"]
@@ -327,7 +328,7 @@ def _igual(a: str, b: str) -> bool:
     return bool(a) and bool(b) and hmac.compare_digest(a.encode(), b.encode())
 
 
-VERSION = "6.5"
+VERSION = "6.6"
 CLAVES_NECESARIAS = ["CONTRASENA_DIEGO", "SUPABASE_URL", "SUPABASE_KEY", "APP_PASSWORD", "CONTRASENA_ARCHCHANA", "CONTRASENA_INVITADOS", "COACH_PIN",
                      "APP_ANTIGUA_URL", "CONTRASENA_DEMO"]
 
@@ -421,6 +422,12 @@ def _login_invitado(cuerpo: dict) -> dict:
 def _rutina_inicio(nombre: str, plantilla: str | None) -> dict | None:
     """Copia la rutina de partida (plantilla) para un perfil nuevo. Si algo falló al crearlo, se vuelve a llamar sola."""
     import uuid
+    resp = (invitados().get(nombre) or {}).get("cuestionario")
+    if resp:
+        try:
+            return _rutina_cuestionario(nombre, resp)[0]
+        except Exception:  # noqa: BLE001
+            pass
     base = rutina(plantilla if plantilla in PLANTILLAS else next(iter(PLANTILLAS)))
     if not base:
         return None
@@ -431,6 +438,41 @@ def _rutina_inicio(nombre: str, plantilla: str | None) -> dict | None:
     nueva.pop("permiso_pesos", None)
     datos().guardar(nombre, nueva)
     return nueva
+
+
+def _rutina_cuestionario(nombre: str, r: dict) -> tuple[dict, str, str, list[str]]:
+    import uuid
+    ref, porque = cuestionario.elegir_referencia(r)
+    base = rutina(ref)
+    if not base or not base.get("dias"):
+        ref, porque = next(iter(PLANTILLAS)), porque + " (la de referencia no estaba, uso otra)"
+        base = rutina(ref)
+    nueva, notas = cuestionario.construir(base, ref, r, lambda: uuid.uuid4().hex[:8])
+    datos().guardar(nombre, nueva)
+    return nueva, ref, porque, notas
+
+
+def objetivos(sesion: dict, c: dict) -> dict:
+    """Cuestionario del abonado: con sus respuestas se le hace la rutina de inicio (si aún no ha entrenado nada)
+    y a Diego le llega todo por Telegram."""
+    quien = sesion.get("u")
+    reg = dict(invitados())
+    if es_demo(sesion) or not quien or quien not in reg:
+        raise Error("Esto es para los perfiles de abonado", 403)
+    r = cuestionario.limpiar(c)
+    reg[quien] = {**reg[quien], "cuestionario": r, "cuestionario_fecha": dt.date.today().isoformat(), "lang": r["lang"]}
+    datos().guardar(CLAVE_INVITADOS, reg)
+    try:
+        ya_entreno = bool(datos().entrenos(quien, 1))
+    except Exception:  # noqa: BLE001
+        ya_entreno = False
+    if ya_entreno and not c.get("rehacer"):
+        notificar(cuestionario.resumen(quien, r, *cuestionario.elegir_referencia(r),
+                                       ["ya ha entrenado: NO le he cambiado la rutina, ajústasela tú"]))
+        return {"ok": True, "rehecha": False}
+    _, ref, porque, notas = _rutina_cuestionario(quien, r)
+    notificar(cuestionario.resumen(quien, r, ref, porque, notas))
+    return {"ok": True, "rehecha": True}
 
 
 def demo_personas() -> list[str]:
@@ -642,7 +684,8 @@ def datos_pago(sesion: dict | None, c: dict) -> dict:
         quien = r_alta["solo"]
         reg_inv = dict(invitados())
         if quien in reg_inv:
-            reg_inv[quien] = {**reg_inv[quien], "abonado": dt.date.today().isoformat(), "telefono": tel, "email": email}
+            reg_inv[quien] = {**reg_inv[quien], "abonado": dt.date.today().isoformat(), "telefono": tel, "email": email,
+                              **({"lang": c["lang"]} if c.get("lang") in ("es", "fr") else {})}
             datos().guardar(CLAVE_INVITADOS, reg_inv)
         respuesta = {"ok": True, **r_alta, "nuevo_abonado": True}
 
@@ -1187,12 +1230,16 @@ def vista(sesion: dict, atleta: str | None, semana: int | None, dia_id: str | No
     todas_sol = (guardadas.get(CLAVE_SOLICITUDES) or {}).get("lista") or []
     nombre_de = nombre_demo if es_demo(sesion) else nv  # en la demo, los alumnos salen como «Cliente 1, 2…»
     base = {"atleta": atleta, "nombre": nombre_de(atleta), "solo": None if es_demo(sesion) else sesion.get("u") or None,
-            "personas": [{"id": p, "nombre": nombre_de(p)} for p in personas], "lang": IDIOMA_DEFECTO.get(atleta, "es"),
+            "personas": [{"id": p, "nombre": nombre_de(p)} for p in personas], "lang": IDIOMA_DEFECTO.get(atleta) or (inv.get(atleta) or {}).get("lang") or (None if atleta in inv else "es"),
             "app_antigua": env("APP_ANTIGUA_URL"), "tipos": {k: v[0] for k, v in TIPOS.items()},
             "unidades": UNIDADES, "con_prs": atleta not in SIN_PRS, "coach": coach, "demo": es_demo(sesion),
             "abono": {"texto": (env("ABONO_TEXTO") or ABONO_DEFECTO["texto"])} if _abono_url() else None,
             "contacto": _contacto() if not _abono_url() else None,
             "es_diego": bool(sesion.get("y")), "diego_aparte": bool(env("CONTRASENA_DIEGO")),
+            "invitado": bool(sesion.get("u") == atleta and atleta in inv and not es_demo(sesion)),
+            "objetivos_pendientes": bool(sesion.get("u") == atleta and atleta in inv and not es_demo(sesion)
+                                         and (inv.get(atleta) or {}).get("abonado") and not (inv.get(atleta) or {}).get("cuestionario")),
+            "objetivos": (inv.get(atleta) or {}).get("cuestionario") if sesion.get("u") == atleta else None,
             "abonado_nuevo": bool(sesion.get("u") == atleta and (inv.get(atleta) or {}).get("abonado", "") >=
                                   (dt.date.today() - dt.timedelta(days=3)).isoformat()),
             "telegram": (bool(env("TELEGRAM_CHAT_ID")) or bool(((guardadas.get(CLAVE_CONFIG) or {}).get("telegram") or {}).get("chat_id")))
