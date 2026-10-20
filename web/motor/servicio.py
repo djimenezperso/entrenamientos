@@ -324,7 +324,7 @@ def _igual(a: str, b: str) -> bool:
     return bool(a) and bool(b) and hmac.compare_digest(a.encode(), b.encode())
 
 
-VERSION = "5.5"
+VERSION = "5.6"
 CLAVES_NECESARIAS = ["SUPABASE_URL", "SUPABASE_KEY", "APP_PASSWORD", "CONTRASENA_ARCHCHANA", "CONTRASENA_INVITADOS", "COACH_PIN",
                      "APP_ANTIGUA_URL", "CONTRASENA_DEMO"]
 
@@ -592,8 +592,6 @@ def datos_pago(sesion: dict | None, c: dict) -> dict:
     tel = "".join(ch for ch in str(c.get("telefono") or "") if ch.isdigit() or ch in "+ ").strip()[:20]
     email = str(c.get("email") or "").strip()[:120]
     cs = re.sub(r"[^A-Za-z0-9_]", "", str(c.get("cs") or ""))[:120]
-    if not sesion and not cs.startswith("cs_"):
-        raise Error("Vuelve a abrir la app desde el enlace del pago", 400)
     if not nombre:
         raise Error("Escribe tu nombre")
     if len("".join(ch for ch in tel if ch.isdigit())) < 9:
