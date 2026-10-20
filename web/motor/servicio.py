@@ -327,7 +327,7 @@ def _igual(a: str, b: str) -> bool:
     return bool(a) and bool(b) and hmac.compare_digest(a.encode(), b.encode())
 
 
-VERSION = "6.0"
+VERSION = "6.1"
 CLAVES_NECESARIAS = ["CONTRASENA_DIEGO", "SUPABASE_URL", "SUPABASE_KEY", "APP_PASSWORD", "CONTRASENA_ARCHCHANA", "CONTRASENA_INVITADOS", "COACH_PIN",
                      "APP_ANTIGUA_URL", "CONTRASENA_DEMO"]
 
@@ -1777,9 +1777,19 @@ def registrar(sesion: dict, c: dict) -> dict:
     else:
         fin_semana = None
     if atleta != "Yo" and not es_demo(sesion):  # a Diego le llega por Telegram lo que registran sus alumnos
-        lineas = [f"🏋️ {nv(atleta)} ha registrado" + (f": {w['title']}" if w["title"] else "")]
-        for e in resultados[:8]:
+        try:  # ¿es una corrección de algo que acaba de registrar?
+            previos = [x for x in datos().entrenos(atleta, 5) if x["id"] != w["id"] and x.get("title") == w["title"]
+                       and str(x.get("date", ""))[:10] == w["date"]]
+        except Exception:  # noqa: BLE001
+            previos = []
+        lineas = [f"{'✏️' if previos else '🏋️'} {nv(atleta)} {'corrige su registro' if previos else 'ha registrado'}"
+                  + (f": {w['title']}" if w["title"] else "")]
+        con_valor = [e for e in resultados if e.get("value") is not None]
+        for e in con_valor[:8]:
             lineas.append(f"• {e['name']}: {fmt_valor(e['value'], e.get('unit', ''))}")
+        sin = [e["name"] for e in resultados if e.get("value") is None]
+        if sin:
+            lineas.append(f"• Sin resultado: {', '.join(sin[:6])}")
         if w.get("notes"):
             lineas.append(f"💬 {w['notes'][:600]}")
         if aviso_pr:
