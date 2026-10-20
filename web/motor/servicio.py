@@ -329,7 +329,7 @@ def _igual(a: str, b: str) -> bool:
     return bool(a) and bool(b) and hmac.compare_digest(a.encode(), b.encode())
 
 
-VERSION = "7.8"
+VERSION = "7.9"
 CLAVES_NECESARIAS = ["CONTRASENA_DIEGO", "SUPABASE_URL", "SUPABASE_KEY", "APP_PASSWORD", "CONTRASENA_ARCHCHANA", "CONTRASENA_INVITADOS", "COACH_PIN",
                      "APP_ANTIGUA_URL", "CONTRASENA_DEMO"]
 
@@ -580,6 +580,7 @@ def _login_perfil(cuerpo: dict) -> dict:
 
 DEMO_ACCESSORY = [("GHD lateral crunch", "3x10 por lado"), ("GHD hip extension", "3x15 lento, 2\" arriba"),
                   ("Superman hold", "3x30\"")]  # refuerzo de espalda y core del día 2 de la demo
+DEMO_CICLO_EN = "Salatti"  # en la demo, este cliente enseña el ciclo de handstand push ups
 DEMO_DIAS_CERRADOS = {3, 4, 5, 6}  # en la demo, solo se pueden abrir los días 1 y 2
 PLANTILLAS_DEMO = {"Salatti": "Rutina 1 · fuerza + WOD", "Dario": "Rutina 2 · fuerza + WOD"}
 
@@ -1275,28 +1276,45 @@ def _parte(rut, dia, parte, lineas, semana, partes_semana, nivel, alumno, sugs, 
     }
 
 
-def _demo_accessory(partes: list[dict], semilla: int) -> None:
-    """Parte C «Accessory» de ejemplo para la demo (3 ejercicios del repertorio)."""
+_FORMATO_WOD = re.compile(r"(?i)\b(amrap|emom|e\dmom|for time|rondas?|rounds?|rft|tabata|chipper|every|cada|ladder|escalera|"
+                          r"intervalos?|zona ?2|z2)\b|\d+\s*-\s*\d+\s*-\s*\d+|\d+\s*x\s*\d+|\d+\s*(?:'|min)")
+_PALABRAS_COMENTARIO = re.compile(r"(?i)\b(no puedo|quitamos|he hecho|me duele|mejor|hoy no|je ne peux|j'ai)\b")
+
+
+def _parece_entreno(texto: str) -> bool:
+    """¿El texto es un entreno de verdad (y no vacío o un comentario del alumno)? Para la demo."""
+    t = (texto or "").strip()
+    if not t:
+        return False
+    if _PALABRAS_COMENTARIO.search(t):
+        return False
+    return bool(_FORMATO_WOD.search(t)) or len(re.findall(r"\d+", t)) >= 3
+
+
+def _demo_accessory(partes: list[dict], semilla: int, acc: list | None = None, ciclo: dict | None = None) -> None:
+    """Parte «Accessory» de ejemplo para la demo (la siguiente letra libre). Con `ciclo`, sale como parte de un ciclo."""
     molde = next((p for p in partes if p["lineas"]), None)
     if not molde:
         return
-    acc = DEMO_ACCESSORY
+    acc = acc or DEMO_ACCESSORY
+    letras = [(x.get("letra") or "").upper() for x in partes if (x.get("letra") or "")[:1].isalpha()]
+    letra = chr(ord(max(letras)) + 1) if letras else "A"
     p = copy.deepcopy(molde)
-    p.update(parte="C) Accessory", letra="C", etiqueta="Accessory", tipo="accessory", historial=[], ciclo=None,
+    p.update(parte=f"{letra}) Accessory", letra=letra, etiqueta="Accessory", tipo="accessory", historial=[], ciclo=ciclo,
              no_hechas=0, es_cambio=False)
     base_l = copy.deepcopy(next((l for l in molde["lineas"] if l.get("kind") == "texto"), molde["lineas"][0]))
     lineas = []
-    for j in range(3):
-        nombre, txt = acc[j % len(acc)]
-        l = {k: v for k, v in base_l.items() if k not in ("pesos", "esquema", "no_hecha", "crono", "elite", "tabla", "versiones_nivel", "sugerencia")}
+    for j in range(len(acc)):
+        nombre, txt = acc[j]
+        l = {k: v for k, v in base_l.items() if k not in ("pesos", "esquema", "no_hecha", "crono", "elite", "tabla", "versiones_nivel", "sugerencia", "ultimo", "video")}
         l.update(id=f"demo-acc-{j}", ejercicio=nombre, texto=txt, visto=txt, kind="texto", tipo="accessory", nivel="RX",
-                 nota="", extra=None, texto_sig=None, solo_bloque=False, ciclo=False)
+                 nota="", extra=None, texto_sig=None, solo_bloque=False, ciclo=bool(ciclo))
         lineas.append(l)
     p["lineas"] = lineas
     partes.append(p)
 
 
-def _rellenar_demo(partes: list[dict], dia_id: str, semana: int, nivel: str, numero: int = 1) -> None:
+def _rellenar_demo(partes: list[dict], dia_id: str, semana: int, nivel: str, numero: int = 1, atleta: str = "") -> None:
     """En la demo no puede salir nada «por definir»: la B vacía lleva siempre un WOD y la C un conditioning
     (de verdad, distintos, con sus niveles y su cronómetro). Otras partes vacías, lo que encaje con su nombre."""
     semilla = int(hashlib.sha256(f"{dia_id}|{semana}".encode()).hexdigest(), 16)
@@ -1310,8 +1328,13 @@ def _rellenar_demo(partes: list[dict], dia_id: str, semana: int, nivel: str, num
     gym = [w for w in wods if any(m in norm_busqueda(w[1]) for m in gym_mov)] or wods
     if numero == 2 and partes and not any((p.get("letra") or "").upper() == "C" for p in partes):
         _demo_accessory(partes, semilla)
+    if atleta == DEMO_CICLO_EN and numero == 1 and partes:  # un cliente con el ciclo de HSPU en marcha
+        c = next(x for x in CICLOS if x["id"] == "hspu")
+        w = min(2, len(c["semanas"]))
+        lineas = [(x["ejercicio"], x["prescripcion"]) for x in c["semanas"][w - 1]["sesiones"][0]]
+        _demo_accessory(partes, semilla, lineas, {"semana": w, "total": len(c["semanas"]), "nombre": c["nombre"]})
     for i, p in enumerate(partes):
-        vacias = [l for l in p["lineas"] if l.get("kind") == "texto" and not (l.get("texto") or "").strip()]
+        vacias = [l for l in p["lineas"] if l.get("kind") == "texto" and not _parece_entreno(l.get("visto") or l.get("texto") or "")]
         if not vacias:
             continue
         letra = (p.get("letra") or "").upper()
@@ -1333,9 +1356,16 @@ def _rellenar_demo(partes: list[dict], dia_id: str, semana: int, nivel: str, num
             l["versiones_nivel"] = {n: escalar(txt, n) for n in NIVELES}
             l["crono"] = crono_de(txt, f"{letra}) {titulo}", titulo)
             l["texto_sig"] = None
+            l.pop("ultimo", None)
+            l["extra"] = None
+            l["nota"] = ""
+            for k in ("tabla", "sugerencia", "elite"):
+                l.pop(k, None)
             if len(p["lineas"]) == 1:
                 l["ejercicio"] = nombre
                 l["solo_bloque"] = False
+        if vacias and letra in ("B", "C"):
+            p["es_cambio"] = False
 
 
 def vista(sesion: dict, atleta: str | None, semana: int | None, dia_id: str | None) -> dict:
@@ -1443,7 +1473,7 @@ def vista(sesion: dict, atleta: str | None, semana: int | None, dia_id: str | No
             if vid and vid.get("url"):
                 l["video"] = vid
     if demo:  # en la demo no puede salir nada «por definir»: cada parte vacía lleva un WOD de verdad (distinto en B y C)
-        _rellenar_demo(partes, dia["id"], semana, nivel, 1 + [d["id"] for d in rut["dias"]].index(dia["id"]))
+        _rellenar_demo(partes, dia["id"], semana, nivel, 1 + [d["id"] for d in rut["dias"]].index(dia["id"]), atleta)
     if aviso_semana:
         base["aviso"] = aviso_semana
     return {**base, "semana": semana, "actual": actual, "nivel": nivel, "niveles": NIVELES, "alumno": alumno,
