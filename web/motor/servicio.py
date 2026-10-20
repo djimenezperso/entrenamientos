@@ -328,7 +328,7 @@ def _igual(a: str, b: str) -> bool:
     return bool(a) and bool(b) and hmac.compare_digest(a.encode(), b.encode())
 
 
-VERSION = "6.6"
+VERSION = "6.7"
 CLAVES_NECESARIAS = ["CONTRASENA_DIEGO", "SUPABASE_URL", "SUPABASE_KEY", "APP_PASSWORD", "CONTRASENA_ARCHCHANA", "CONTRASENA_INVITADOS", "COACH_PIN",
                      "APP_ANTIGUA_URL", "CONTRASENA_DEMO"]
 
@@ -741,7 +741,8 @@ def pago_visto(sesion: dict, c: dict) -> dict:
 
 
 def _resumen_dia_registro(rut: dict, semana: int, dia_id: str, resultados: list[dict], atleta: str = "") -> list[str]:
-    """Resumen del día para Telegram: si lo ha hecho todo, qué hizo en cada parte y qué cambió respecto a lo programado."""
+    """Resumen del día para Telegram: si lo ha hecho todo, qué TOCABA en cada parte (el WOD entero, la fuerza con
+    sus series y pesos), qué hizo y qué cambió respecto a lo programado."""
     dia = next((d for d in rut["dias"] if d["id"] == dia_id), None)
     if not dia:
         return []
@@ -751,24 +752,48 @@ def _resumen_dia_registro(rut: dict, semana: int, dia_id: str, resultados: list[
     cuentan = [(p, ls) for p, ls in grupos if not (es_movilidad(p, ls) and atleta not in MOVILIDAD_ES_PARTE)]
     ests = {p: estado_parte(rut, semana, dia_id, p)["estado"] for p, _ in grupos}
     hechas_n = sum(1 for p, _ in cuentan if ests[p] == "hecho")
+    faltan = [p.split(")", 1)[-1].strip() for p, _ in cuentan if ests[p] != "hecho"]
     out = [f"📅 {dia['nombre']} · semana {semana}",
-           "✅ Día completo" if cuentan and hechas_n == len(cuentan) else f"⏳ {hechas_n} de {len(cuentan)} partes hechas"]
+           "✅ HA HECHO TODO EL DÍA" if cuentan and not faltan
+           else f"⏳ {hechas_n} de {len(cuentan)} partes hechas · falta: {', '.join(faltan)}"]
     cambios = []
     ICON = {"hecho": "✅", "no_hecho": "❌", "pospuesto": "➡️", "pendiente": "⬜"}
     aj = ((rut.get("ajustes") or {}).get(str(semana)) or {})
+    nivel = rut.get("nivel") or NIVEL_DEFECTO.get(atleta, "Inter")
+    try:
+        sugs = sugerencias(rut, semana, wods_de_diego(rutina("Yo")))
+    except Exception:  # noqa: BLE001
+        sugs = {}
     for p, ls in grupos:
         out.append(f"\n{ICON.get(ests[p], '⬜')} {p.replace(')', ' ·', 1)}")
         for l in ls:
             txt = prescripcion_semana(l, semana, rut.get("ajustes"))[0] or l.get("prescripcion", "")
+            if not txt and sugs.get(l["id"]):
+                txt = sugs[l["id"]]["texto"]  # el WOD de Diego que le salía ese día
+            fuerza = tipo_de_linea(p, l["ejercicio"]) is None and l.get("plan") is None
             e = por_nombre.get(norm(l["ejercicio"]))
             if e is None and len(ls) == 1:  # el WOD se suele apuntar con el nombre de la parte
                 e = next((x for k, x in por_nombre.items() if k not in usados and (k in norm(p) or norm(p) in k or k in ("wod", "resultado"))), None)
             if e is not None:
                 usados.add(norm(e["name"]))
-            res = fmt_valor(e["value"], e.get("unit", "")) if e and e.get("value") is not None else "sin resultado"
-            corto = " ".join(txt.split())[:70]
-            out.append(f"  • {l['ejercicio']}{(' ' + corto) if corto and corto != l['ejercicio'] else ''} → {res}")
-            if linea_no_hecha(l, semana):
+            res = fmt_valor(e["value"], e.get("unit", "")) if e and e.get("value") is not None else None
+            no_hecha = linea_no_hecha(l, semana)
+            marca = "❌ no lo hizo" if no_hecha else (f"✅ {res}" if res else ("✅ hecho" if ests[p] == "hecho" else "— sin resultado"))
+            if fuerza:
+                tocaba = " ".join(txt.split()) or "sin pesos"
+                out.append(f"  • {l['ejercicio']}: tocaba {tocaba} → {marca}")
+            else:
+                escalable = norm_busqueda(_etiqueta_parte(p)) != "gym" and _tipo_ui(p, l["ejercicio"]) in TIPOS_WOD + ("conditioning", "accessory")
+                visto = escalar(txt, nivel) if txt and escalable and nivel != "RX" else txt
+                if l["ejercicio"] and norm(l["ejercicio"]) not in norm(p):
+                    out.append(f"  • {l['ejercicio']}")
+                if visto:
+                    out.append("    📋 Tocaba" + (f" ({nivel})" if escalable else "") + ":")
+                    out += [f"    {x.strip()}" for x in visto.splitlines() if x.strip()][:12]
+                else:
+                    out.append("    📋 Tocaba: (sin escribir)")
+                out.append(f"    → {marca}")
+            if no_hecha:
                 cambios.append(f"{l['ejercicio']}: marcado como no hecho")
             pesos = [float(x.replace(",", ".")) for x in NUM_PESO.findall(txt)]
             if e and e.get("unit") == "kg" and e.get("value") is not None and pesos and abs(float(e["value"]) - max(pesos)) >= 0.5:
@@ -784,6 +809,8 @@ def _resumen_dia_registro(rut: dict, semana: int, dia_id: str, resultados: list[
     if cambios:
         out.append("\n🔧 Cambios respecto a lo programado:")
         out += [f"  • {c}" for c in dict.fromkeys(cambios)]
+    else:
+        out.append("\n👌 Sin cambios respecto a lo programado")
     return out
 
 
