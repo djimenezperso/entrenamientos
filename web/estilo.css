@@ -585,3 +585,11 @@ main { padding: 4px 16px 0; display: flex; flex-direction: column; gap: 12px; }
 .obj-nav { display: grid; grid-template-columns: auto 1fr; gap: 8px; margin-top: 6px; }
 .obj-nav .btn { height: 52px; }
 .banda-demo button.clientes-demo { background: var(--tinta); color: var(--ambar); }
+/* ciclos: que llamen la atención */
+.card.con-ciclo { position: relative; border: 2px solid var(--fuego); box-shadow: 0 0 0 4px rgba(255,106,0,.12), 0 10px 28px rgba(255,106,0,.18); }
+.cinta-ciclo { position: absolute; top: -12px; right: 16px; background: var(--grad, #FF6A00); color: #fff; font-weight: 800;
+  font-size: 12px; letter-spacing: .04em; text-transform: uppercase; padding: 4px 10px; border-radius: 999px;
+  box-shadow: 0 4px 12px rgba(255,106,0,.35); animation: late-ciclo 2.4s ease-in-out infinite; }
+@keyframes late-ciclo { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.07); } }
+.etq-ciclo { margin-left: auto; white-space: nowrap; flex: none; font-size: 12px; font-weight: 800; color: #fff; background: var(--fuego); padding: 3px 9px; border-radius: 999px; }
+.lista-personas .persona .avatar { font-size: 20px; }

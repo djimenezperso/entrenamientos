@@ -329,7 +329,7 @@ def _igual(a: str, b: str) -> bool:
     return bool(a) and bool(b) and hmac.compare_digest(a.encode(), b.encode())
 
 
-VERSION = "8.3"
+VERSION = "8.4"
 CLAVES_NECESARIAS = ["CONTRASENA_DIEGO", "SUPABASE_URL", "SUPABASE_KEY", "APP_PASSWORD", "CONTRASENA_ARCHCHANA", "CONTRASENA_INVITADOS", "COACH_PIN",
                      "APP_ANTIGUA_URL", "CONTRASENA_DEMO"]
 
@@ -489,9 +489,9 @@ def demo_personas() -> list[str]:
 
 
 def nombre_demo(p: str) -> str:
-    """En la demo solo se ve el nombre de Diego; el resto, anónimo."""
-    if p == "Yo":
-        return nv(p)
+    """En la demo cada rutina sale como un programa («Prog Principiante»…), sin el nombre del alumno."""
+    if p in NOMBRES_DEMO:
+        return NOMBRES_DEMO[p][0]
     otros = [x for x in demo_personas() if x != "Yo"]
     return f"Cliente {otros.index(p) + 1}" if p in otros else "Cliente"
 
@@ -580,6 +580,9 @@ def _login_perfil(cuerpo: dict) -> dict:
 
 DEMO_ACCESSORY = [("GHD lateral crunch", "3x10 por lado"), ("GHD hip extension", "3x15 lento, 2\" arriba"),
                   ("Superman hold", "3x30\"")]  # refuerzo de espalda y core del día 2 de la demo
+# nombre e icono de cada rutina en la demo (el francés lo pone la app)
+NOMBRES_DEMO = {"Yo": ("Prog Competidor · Diego", "🏆"), "Archchana": ("Prog Casa y Movilidad", "🏠"),
+                "Manu Anel": ("Prog Principiante", "🌱"), "Salatti": ("Prog Fuerza + WOD", "💪")}
 DEMO_CICLO_EN = "Salatti"  # en la demo, este cliente enseña el ciclo de handstand push ups
 DEMO_DIAS_CERRADOS = {3, 4, 5, 6}  # en la demo, solo se pueden abrir los días 1 y 2
 PLANTILLAS_DEMO = {"Salatti": "Rutina 1 · fuerza + WOD", "Dario": "Rutina 2 · fuerza + WOD"}
@@ -1389,7 +1392,9 @@ def vista(sesion: dict, atleta: str | None, semana: int | None, dia_id: str | No
     todas_sol = (guardadas.get(CLAVE_SOLICITUDES) or {}).get("lista") or []
     nombre_de = nombre_demo if es_demo(sesion) else nv  # en la demo, los alumnos salen como «Cliente 1, 2…»
     base = {"atleta": atleta, "nombre": nombre_de(atleta), "solo": None if es_demo(sesion) else sesion.get("u") or None,
-            "personas": [{"id": p, "nombre": nombre_de(p)} for p in personas], "lang": IDIOMA_DEFECTO.get(atleta) or (inv.get(atleta) or {}).get("lang") or (None if atleta in inv else "es"),
+            "personas": [{"id": p, "nombre": nombre_de(p), **({"icono": NOMBRES_DEMO.get(p, ("", "👤"))[1],
+                                                                 "ciclo": p == DEMO_CICLO_EN} if es_demo(sesion) else {})}
+                         for p in personas], "lang": IDIOMA_DEFECTO.get(atleta) or (inv.get(atleta) or {}).get("lang") or (None if atleta in inv else "es"),
             "app_antigua": env("APP_ANTIGUA_URL"), "tipos": {k: v[0] for k, v in TIPOS.items()},
             "unidades": UNIDADES, "con_prs": atleta not in SIN_PRS, "coach": coach, "demo": es_demo(sesion),
             "abono": {"texto": (env("ABONO_TEXTO") or ABONO_DEFECTO["texto"])} if _abono_url() else None,

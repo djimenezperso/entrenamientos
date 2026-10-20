@@ -18,6 +18,14 @@ const E = { token: mem.get("token"), atleta: mem.get("atleta"), lang: mem.get("l
 
 // ---------- textos ----------
 const FR = {
+  "Prog Competidor · Diego": "Prog Compétiteur · Diego",
+  "Prog Casa y Movilidad": "Prog Maison & Mobilité",
+  "Prog Principiante": "Prog Débutant",
+  "Prog Fuerza + WOD": "Prog Renforcement Force",
+  "Toca para ver otros programas": "Touche pour voir d'autres programmes",
+  "Ver programas": "Voir les programmes",
+  "Cada programa está hecho para un tipo de atleta. Mira cómo cambian.": "Chaque programme est fait pour un type d'athlète. Regarde comme ils changent.",
+  "con ciclo": "avec cycle",
   "se repite": "se répète",
   "solo esta semana": "cette semaine seulement",
   "dinámico": "dynamique",
@@ -463,9 +471,13 @@ const trWod = (x) => E.lang !== "fr" || !x ? x : WOD_FR.reduce((a, [r, v]) => a.
 // notas cortas de la rutina («dinámico · peso orientativo…») en francés, trozo a trozo
 const trNota = (n) => E.lang !== "fr" ? n : String(n).split(" · ").map((x) => t(x.trim())).join(" · ");
 // «Cliente 1» de la demo → «Client 1» en francés
-const trCliente = (n) => E.lang === "fr" ? String(n || "").replace(/^Cliente(\s+\d+)$/, "Client$1") : n;
+const trCliente = (n) => E.lang === "fr" ? t(String(n || "").replace(/^Cliente(\s+\d+)$/, "Client$1")) : n;
 function poner(v) {
-  if (v.demo) { v.nombre = trCliente(v.nombre); (v.personas || []).forEach((p) => { p.nombre = trCliente(p.nombre); }); }
+  if (v.demo) {
+    const yo = (v.personas || []).find((p) => p.id === v.atleta);
+    if (yo && yo.icono) v.icono = yo.icono;
+    v.nombre = trCliente(v.nombre); (v.personas || []).forEach((p) => { p.nombre = trCliente(p.nombre); });
+  }
   E.vista = v; E.atleta = v.atleta; mem.set("atleta", v.atleta);
   E.semana = v.semana; E.dia = v.dia && v.dia.id;
   if (v.solo && v.lang && !mem.get("lang_elegido")) E.lang = v.lang;
@@ -806,8 +818,8 @@ function cabecera(v) {
   <header class="cabecera">
     <div class="fila-cab">
       <button class="quien" id="b-persona" ${varias ? "" : "disabled"} aria-label="${t("Personas")}">
-        <span class="avatar">${esc(inicial(v.nombre))}</span>
-        <span><small>${v.demo && varias ? "👆 " + t("Toca para ver otros clientes") : t("Hola,")}</small><strong>${esc(v.nombre)} ${varias ? `<span style="color:#fff">${ic.abajo}</span>` : ""}</strong></span>
+        <span class="avatar">${v.icono ? v.icono : esc(inicial(v.nombre))}</span>
+        <span><small>${v.demo && varias ? "👆 " + t("Toca para ver otros programas") : t("Hola,")}</small><strong>${esc(v.nombre)} ${varias ? `<span style="color:#fff">${ic.abajo}</span>` : ""}</strong></span>
       </button>
       <div style="display:flex;gap:8px">
         ${v.coach && v.solicitudes && v.solicitudes.length ? `<button class="redondo campana" id="b-solicitudes" aria-label="${t("Solicitudes")}">${ic.campana}<i>${v.solicitudes.length}</i></button>` : ""}
@@ -815,7 +827,7 @@ function cabecera(v) {
         <button class="redondo" id="b-ajustes" aria-label="${t("Ajustes")}">${ic.ajustes}</button>
       </div>
     </div>
-    ${v.demo ? `<div class="banda-demo">👀 ${t("Modo demo · solo para mirar")} <button id="b-crear-demo">✨ ${t("Crear mi perfil")}</button>${v.abono ? `<button id="b-abono-demo">💳 ${t("Abonarse")}</button>` : v.contacto ? `<button id="b-abono-demo">💬 ${t("Contacto")}</button>` : ""}<button id="b-compartir-demo">${ic.compartir} ${t("Compartir")}</button>${varias ? `<button id="b-clientes-demo" class="clientes-demo">👥 ${t("Ver clientes")}</button>` : ""}</div>` : ""}
+    ${v.demo ? `<div class="banda-demo">👀 ${t("Modo demo · solo para mirar")} <button id="b-crear-demo">✨ ${t("Crear mi perfil")}</button>${v.abono ? `<button id="b-abono-demo">💳 ${t("Abonarse")}</button>` : v.contacto ? `<button id="b-abono-demo">💬 ${t("Contacto")}</button>` : ""}<button id="b-compartir-demo">${ic.compartir} ${t("Compartir")}</button>${varias ? `<button id="b-clientes-demo" class="clientes-demo">👥 ${t("Ver programas")}</button>` : ""}</div>` : ""}
     ${v.semana && v.demo ? `<div class="pildora-semana"><span>${t("Semana")} ${v.semana} · <em>${t("de muestra")}</em></span></div>` : v.semana ? `<div class="pildora-semana">
       <button id="b-sem-menos" aria-label="Semana anterior" ${v.semana <= 1 ? "disabled style='opacity:.3'" : ""}>${ic.izq}</button>
       <span>${t("Semana")} ${v.semana}${v.semana === v.actual ? ` · <em>${t("de fuego")}</em>` : ""}</span>
@@ -845,7 +857,8 @@ function tarjeta(p, k) {
   const tagTxt = p.calentamiento ? (nombreTit === "Mobility" ? "Warm up" : "Warm up · Mobility")
     : nombreTit === etqParte(p.etiqueta) ? `${t("Parte")} ${p.letra || ""}`.trim() : `${p.letra ? p.letra + " · " : ""}${etqParte(p.etiqueta)}`;
   return `
-  <section class="card ${p.estado === "hecho" ? "hecha" : ""} ${p.calentamiento ? "warmup" : ""}">
+  <section class="card ${p.estado === "hecho" ? "hecha" : ""} ${p.calentamiento ? "warmup" : ""} ${p.ciclo ? "con-ciclo" : ""}">
+    ${p.ciclo ? `<div class="cinta-ciclo">🔥 ${t("Ciclo")}</div>` : ""}
     <div class="card-cab">
       <div class="letra ${p.estado}">${letra}</div>
       <div style="flex:1;min-width:0">
@@ -1213,7 +1226,7 @@ function hojaQuienEres() {
   abrirHoja(`<div class="demo-hola">${ic.llama("#FF6A00", 40)}<h3>${t("¿Quién eres?")}</h3>
       <p>${t("Elige tu perfil. Se queda guardado en este móvil y ya no se cambia solo.")}</p></div>
     <div class="lista-personas">${v.personas.filter((p) => !(v.diego_aparte && p.id === "Yo")).map((p) => `<button class="persona" data-yo="${esc(p.id)}">
-      <span class="avatar">${esc(inicial(p.nombre))}</span>${esc(p.nombre)}</button>`).join("")}</div>`, (h) => {
+      <span class="avatar">${p.icono || esc(inicial(p.nombre))}</span>${esc(p.nombre)}${p.ciclo ? ` <span class="etq-ciclo">🔁 ${t("con ciclo")}</span>` : ""}</button>`).join("")}</div>`, (h) => {
     h.querySelectorAll("[data-yo]").forEach((b) => b.onclick = async () => {
       const quien = b.dataset.yo;
       mem.set("perfil_fijo", quien);
@@ -1230,9 +1243,9 @@ function hojaQuienEres() {
 function hojaPersonas() {
   const v = E.vista;
   abrirHoja(`${cabHoja("Djimenez Prog", v.demo ? t("Rutinas de ejemplo") : t("Personas"))}
-    ${v.demo ? `<p class="mini" style="margin:0 4px">${t("Cada cliente tiene su propia rutina, hecha para él. Mira cómo cambian.")}</p>` : ""}
+    ${v.demo ? `<p class="mini" style="margin:0 4px">${t("Cada programa está hecho para un tipo de atleta. Mira cómo cambian.")}</p>` : ""}
     <div class="lista-personas">${v.personas.map((p) => `<button class="persona ${p.id === v.atleta ? "on" : ""}" data-p="${esc(p.id)}">
-      <span class="avatar">${esc(inicial(p.nombre))}</span>${esc(p.nombre)}</button>`).join("")}</div>`, (h) => {
+      <span class="avatar">${p.icono || esc(inicial(p.nombre))}</span>${esc(p.nombre)}${p.ciclo ? ` <span class="etq-ciclo">🔁 ${t("con ciclo")}</span>` : ""}</button>`).join("")}</div>`, (h) => {
     h.querySelectorAll("[data-p]").forEach((b) => b.onclick = () => {
       cerrarHoja();
       E.semana = null; E.dia = null;
@@ -2060,7 +2073,7 @@ function cabeceraPantalla(pantalla) {
   return `<header class="cabecera registro-cab">
     <div class="fila-cab">
       <button class="quien" id="b-persona" ${varias ? "" : "disabled"} aria-label="${t("Personas")}">
-        <span class="avatar">${esc(inicial(v.nombre))}</span>
+        <span class="avatar">${v.icono ? v.icono : esc(inicial(v.nombre))}</span>
         <span><small>${esc(v.nombre || "")} ${varias ? ic.abajo : ""}</small><strong class="titulo-pant">${titulo}</strong></span>
       </button>
       <button class="redondo" id="b-reloj" aria-label="${t("Reloj")}">${ic.reloj.replace("currentColor", "#1F1208")}</button>
