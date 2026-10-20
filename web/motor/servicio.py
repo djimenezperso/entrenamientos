@@ -324,7 +324,7 @@ def _igual(a: str, b: str) -> bool:
     return bool(a) and bool(b) and hmac.compare_digest(a.encode(), b.encode())
 
 
-VERSION = "5.6"
+VERSION = "5.7"
 CLAVES_NECESARIAS = ["SUPABASE_URL", "SUPABASE_KEY", "APP_PASSWORD", "CONTRASENA_ARCHCHANA", "CONTRASENA_INVITADOS", "COACH_PIN",
                      "APP_ANTIGUA_URL", "CONTRASENA_DEMO"]
 
@@ -539,7 +539,7 @@ def crear_perfil(sesion: dict, c: dict) -> dict:
     return r
 
 
-ABONO_DEFECTO = {"url": "https://buy.stripe.com/8x2dRadT91922iqgZz7ok03", "texto": "29 €/mes"}  # se cambia con ABONO_URL / ABONO_TEXTO
+ABONO_DEFECTO = {"url": "https://buy.stripe.com/8x2dRadT91922iqgZz7ok03", "texto": "7 días gratis · luego 29 €/mes"}  # se cambia con ABONO_URL / ABONO_TEXTO
 def _abono_url() -> str:
     return env("ABONO_URL") or ABONO_DEFECTO["url"]
 

@@ -18,6 +18,7 @@ const E = { token: mem.get("token"), atleta: mem.get("atleta"), lang: mem.get("l
 
 // ---------- textos ----------
 const FR = {
+  "7 días gratis · luego 29 €/mes": "7 jours gratuits · puis 29 €/mois",
   "Sin conexión o el servidor ha tardado. Vuelve a intentarlo en unos segundos.": "Pas de connexion ou le serveur a tardé. Réessaie dans quelques secondes.",
   "Avisos por Telegram": "Alertes Telegram", "Enviar prueba": "Envoyer un test", "Conectar": "Connecter",
   "Conoce al creador": "Découvre le créateur",
@@ -373,7 +374,7 @@ function hojaContacto() {
   });
 }
 const botonContacto = (v, id) => !v.abono && v.contacto ? `<button class="btn btn-abono" id="${id}">💬 ${t("Contactar con Diego")}</button>` : "";
-const botonAbono = (v, id, extra = "") => !v.abono ? botonContacto(v, id) : v.abono ? `<button class="btn btn-abono" id="${id}" ${extra}>💳 ${t("Abonarse")}${v.abono.texto ? ` <small>${esc(v.abono.texto)}</small>` : ""}</button>` : "";
+const botonAbono = (v, id, extra = "") => !v.abono ? botonContacto(v, id) : v.abono ? `<button class="btn btn-abono" id="${id}" ${extra}>💳 ${t("Abonarse")}${v.abono.texto ? ` <small>${esc(t(v.abono.texto))}</small>` : ""}</button>` : "";
 
 function hojaPago(cs) {
   const v = E.vista || {};
