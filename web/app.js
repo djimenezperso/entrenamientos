@@ -119,7 +119,7 @@ const FR = {
   "Diego ya lo ha hecho. ¿Te lo pones hoy?": "Diego l'a déjà fait. Tu le fais aujourd'hui ?",
   "Toca repetir para comparar": "C'est le moment de refaire pour comparer", "La otra vez": "La dernière fois", "Lo hiciste el": "Tu l'as fait le",
   "En una semana": "Dans une semaine", "Quitar este retest": "Enlever ce retest", "Retest el": "Retest le",
-  "Repetir para comparar": "Refaire pour comparer", "Repetir en un mes para comparar": "Refaire dans un mois pour comparer", "Me gusta": "J'aime", "Tu marca ahora": "Ton résultat actuel",
+  "Repetir para comparar": "Refaire pour comparer", "Repetir en 1 mes": "Refaire dans 1 mois", "Me gusta": "J'aime", "Tu marca ahora": "Ton résultat actuel",
   "Registra hoy tu resultado para poder comparar.": "Enregistre ton résultat aujourd'hui pour pouvoir comparer.",
   "Te lo volvemos a poner en tu día y verás la otra marca al lado.": "On te le remet dans ta journée avec l'ancien résultat à côté.",
   "En 1 mes": "Dans 1 mois", "En 2 meses": "Dans 2 mois", "WODs que más gustan": "Les WOD les plus aimés",
@@ -899,9 +899,9 @@ function linea(l, p, k) {
         : `<tr><td>${esc(f.RX)}</td><td>${esc(f.Inter)}</td><td>${esc(f.Scaled)}</td></tr>`).join("")}</tbody></table></details>`;
   else if (l.versiones_nivel) html += `<details class="desplegable"><summary>${t("Versiones")} RX · Inter · Scaled · Elite ${ic.abajo}</summary>
     <div class="versiones">${Object.entries(l.versiones_nivel).map(([n, txt]) => `<div><b>${esc(n)}</b><span class="texto-wod">${esc(txt)}</span></div>`).join("")}</div></details>`;
-  if (!p.origen) html += `<div class="acciones-linea"><button class="mini-btn" data-editar="${k}">${ic.lapiz} ${t("Ajustar")}</button>${l.tipo !== "fuerza" ? `<button class="mini-btn azar" data-azar="${k}">🎲 ${t("Al azar")}</button>` : ""}${["wod", "emom", "fortime", "amrap", "conditioning"].includes(l.tipo) ? ((E.vista.retest_lineas || {})[l.id]
+  if (!p.origen) html += `<div class="acciones-linea"><button class="mini-btn" data-editar="${k}">${ic.lapiz} ${t("Ajustar")}</button>${l.tipo !== "fuerza" ? `<button class="mini-btn azar" data-azar="${k}">🎲 ${t("Al azar")}</button>` : ""}${["wod", "emom", "fortime", "amrap", "conditioning"].includes(l.tipo) && (l.visto || l.texto || "").trim() ? ((E.vista.retest_lineas || {})[l.id]
       ? `<span class="etq ok">🔁 ${t("Retest el")} ${esc(trFecha(E.vista.retest_lineas[l.id]))}</span>`
-      : `<button class="mini-btn" data-retest="${k}">🔁 ${t("Repetir en un mes para comparar")}</button>`) : ""}${l.texto_sig && l.texto_sig !== l.texto ? `<span class="mini">${t("Semana que viene")}: ${esc(l.texto_sig.split("\n")[0].slice(0, 60))}</span>` : ""}</div>`;
+      : `<button class="mini-btn" data-retest="${k}">🔁 ${t("Repetir en 1 mes")}</button>`) : ""}${l.texto_sig && l.texto_sig !== l.texto ? `<span class="mini">${t("Semana que viene")}: ${esc(l.texto_sig.split("\n")[0].slice(0, 60))}</span>` : ""}</div>`;
   if (l.crono && visto) html += `<button class="btn-crono" data-crono="${k}">${ic.reloj}<span>${t("Cronómetro")}<small>${esc(etiquetaCrono(l.crono))}</small></span>${ic.der.replace(/#FFB400/g, "currentColor")}</button>`;
   if (l.elite) html += `<div class="elite"><span class="ico">${ic.estrella}</span><span><b>${esc(l.elite.quien)}: ${esc(l.elite.marca)}</b> · ${esc(l.elite.detalle)}</span></div>`;
   return html + "</div>";
