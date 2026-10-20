@@ -18,6 +18,7 @@ const E = { token: mem.get("token"), atleta: mem.get("atleta"), lang: mem.get("l
 
 // ---------- textos ----------
 const FR = {
+  "Ver la app gratis": "Voir l'appli gratuitement",
   "desde Instagram": "depuis Instagram",
   "semana": "semaine",
   "Ciclo": "Cycle",
@@ -379,7 +380,8 @@ function pintarEntrar(paso = {}) {
       <p class="error" id="e-entrar" hidden></p>
       <button class="btn btn-fuego" type="submit">${inv && paso.nuevo ? t("Empezar") : t("Entrar")}</button>
       ${inv ? (paso.conPin ? `<button type="button" class="btn" id="b-volver-entrar" style="height:44px">← ${t("Volver")}</button>` : "") : `<p class="ayuda">${t("¿Eres nuevo? Entra con el código que te ha dado Diego")}</p>
-        <button type="button" class="btn" id="b-con-pin" style="height:44px">${t("¿Ya tienes perfil? Entra con tu nombre y PIN")}</button>`}
+        <button type="button" class="btn" id="b-con-pin" style="height:44px">${t("¿Ya tienes perfil? Entra con tu nombre y PIN")}</button>
+        <button type="button" class="btn btn-fuego" id="b-ver-demo" style="height:50px">👀 ${t("Ver la app gratis")}</button>`}
     </form>
     <div class="fila-chips" style="justify-content:center">
       <button class="chip ${E.lang === "es" ? "on" : ""}" data-lang="es">ES</button>
@@ -387,6 +389,14 @@ function pintarEntrar(paso = {}) {
     </div>
   </section>`;
   $app.querySelectorAll("[data-lang]").forEach((b) => b.onclick = () => { E.lang = b.dataset.lang; mem.set("lang", E.lang); mem.set("lang_elegido", "1"); pintarEntrar(paso); });
+  const bvd = document.getElementById("b-ver-demo");
+  if (bvd) bvd.onclick = async () => {
+    bvd.disabled = true;
+    try {
+      const r = await api("login", { metodo: "POST", cuerpo: { origen: "instagram" } });
+      E.token = r.token; mem.set("token", r.token); cargar();
+    } catch (e) { bvd.disabled = false; aviso(e.message, true); }
+  };
   const bcp = document.getElementById("b-con-pin");
   if (bcp) bcp.onclick = () => pintarEntrar({ invitado: true, conPin: true });
   const bve = document.getElementById("b-volver-entrar");

@@ -1,11 +1,43 @@
 {
   "functions": {
-    "api/index.py": { "includeFiles": "motor/**", "maxDuration": 20 }
+    "api/index.py": {
+      "includeFiles": "motor/**",
+      "maxDuration": 20
+    }
   },
   "rewrites": [
-    { "source": "/api/:ruta*", "destination": "/api/index?r=:ruta" }
+    {
+      "source": "/api/:ruta*",
+      "destination": "/api/index?r=:ruta"
+    }
   ],
   "headers": [
-    { "source": "/motor/(.*)", "headers": [{ "key": "X-Robots-Tag", "value": "noindex" }] }
+    {
+      "source": "/motor/(.*)",
+      "headers": [
+        {
+          "key": "X-Robots-Tag",
+          "value": "noindex"
+        }
+      ]
+    },
+    {
+      "source": "/",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "no-cache, must-revalidate"
+        }
+      ]
+    },
+    {
+      "source": "/index.html",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "no-cache, must-revalidate"
+        }
+      ]
+    }
   ]
 }
