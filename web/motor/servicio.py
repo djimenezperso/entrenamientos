@@ -47,6 +47,7 @@ from logica import (
 from repertorio import ELITE, REPERTORIO
 from rutinas_iniciales import migrar, rutinas_iniciales
 import cuestionario
+from ciclos import CICLOS
 
 # ===== personas (igual que en app.py) =====
 ATLETAS = ["Yo", "Manu Anel", "Salatti", "Mi esposa", "Dario", "Archchana", "Juan"]
@@ -328,7 +329,7 @@ def _igual(a: str, b: str) -> bool:
     return bool(a) and bool(b) and hmac.compare_digest(a.encode(), b.encode())
 
 
-VERSION = "6.8"
+VERSION = "6.9"
 CLAVES_NECESARIAS = ["CONTRASENA_DIEGO", "SUPABASE_URL", "SUPABASE_KEY", "APP_PASSWORD", "CONTRASENA_ARCHCHANA", "CONTRASENA_INVITADOS", "COACH_PIN",
                      "APP_ANTIGUA_URL", "CONTRASENA_DEMO"]
 
@@ -1214,6 +1215,22 @@ def _opciones(rut: dict, dia: dict, sem_aqui: int, dia_aqui: str) -> list[dict]:
     ]
 
 
+_CICLO_CAT = {c["id"]: c["categoria"] for c in CICLOS}
+
+
+def _titulo_ciclo(ciclo_id, nombre: str) -> str:
+    """Título de la parte de un ciclo según lo que trabaja: fuerza, conditioning, movilidad o accessory."""
+    cat = norm_busqueda(_CICLO_CAT.get(ciclo_id or "", ""))
+    n = norm_busqueda(nombre)
+    if cat == "fuerza" or (not cat and any(w in n for w in ("squat", "deadlift", "press", "bench"))):
+        return "Fuerza"
+    if cat == "engine" or (not cat and any(w in n for w in ("motor", "engine", "row", "bike", "run"))):
+        return "Conditioning"
+    if cat == "movilidad" or (not cat and "movilidad" in n):
+        return "Movilidad"
+    return "Accessory"
+
+
 def _parte(rut, dia, parte, lineas, semana, partes_semana, nivel, alumno, sugs, desde=None) -> dict:
     est = estado_parte(rut, semana, dia["id"], parte)
     sem_aqui, dia_aqui = desde or (semana, dia["id"])
@@ -1231,6 +1248,10 @@ def _parte(rut, dia, parte, lineas, semana, partes_semana, nivel, alumno, sugs, 
         ciclo = {"semana": semana - int(l0["desde"]) + 1, "total": int(l0["hasta"]) - int(l0["desde"]) + 1}
     visible = letra_visible(partes_semana, parte) if parte in partes_semana else parte
     letra, _, etiqueta = visible.partition(") ")
+    if re.match(r"(?i)ciclo\s*:", etiqueta or ""):  # «C) Ciclo: HSPU» → título «Accessory» y debajo «Ciclo HSPU»
+        nombre_ciclo = etiqueta.split(":", 1)[1].strip()
+        etiqueta = _titulo_ciclo(lineas[0].get("ciclo") if lineas else None, nombre_ciclo)
+        ciclo = {**(ciclo or {}), "nombre": nombre_ciclo}
     return {
         "parte": parte, "letra": letra if etiqueta else "", "etiqueta": etiqueta or visible,
         "tipo": _tipo_ui(parte, lineas[0]["ejercicio"] if lineas else ""),

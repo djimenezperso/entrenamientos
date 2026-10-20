@@ -18,6 +18,8 @@ const E = { token: mem.get("token"), atleta: mem.get("atleta"), lang: mem.get("l
 
 // ---------- textos ----------
 const FR = {
+  "semana": "semaine",
+  "Ciclo": "Cycle",
   "¿Cuál es tu objetivo principal?": "Quel est ton objectif principal ?",
   "💪 Ponerme fuerte": "💪 Devenir plus fort(e)",
   "🏋️ Halterofilia (snatch, clean & jerk)": "🏋️ Haltérophilie (snatch, clean & jerk)",
@@ -115,7 +117,7 @@ const FR = {
   "Diego ya lo ha hecho. ¿Te lo pones hoy?": "Diego l'a déjà fait. Tu le fais aujourd'hui ?",
   "Toca repetir para comparar": "C'est le moment de refaire pour comparer", "La otra vez": "La dernière fois", "Lo hiciste el": "Tu l'as fait le",
   "En una semana": "Dans une semaine", "Quitar este retest": "Enlever ce retest", "Retest el": "Retest le",
-  "Repetir para comparar": "Refaire pour comparer", "Me gusta": "J'aime", "Tu marca ahora": "Ton résultat actuel",
+  "Repetir para comparar": "Refaire pour comparer", "Repetir en un mes para comparar": "Refaire dans un mois pour comparer", "Me gusta": "J'aime", "Tu marca ahora": "Ton résultat actuel",
   "Registra hoy tu resultado para poder comparar.": "Enregistre ton résultat aujourd'hui pour pouvoir comparer.",
   "Te lo volvemos a poner en tu día y verás la otra marca al lado.": "On te le remet dans ta journée avec l'ancien résultat à côté.",
   "En 1 mes": "Dans 1 mois", "En 2 meses": "Dans 2 mois", "WODs que más gustan": "Les WOD les plus aimés",
@@ -797,7 +799,7 @@ const etqParte = (x) => {
 function tarjeta(p, k) {
   const letra = p.estado === "hecho" ? ic.ok : p.calentamiento ? ic.llama("currentColor", 20) : esc(p.letra || "·");
   const estadoTxt = { hecho: t("Hecho").toLowerCase(), no_hecho: t("No hecho").toLowerCase(), pospuesto: "→ " + (p.destino_txt || "") }[p.estado];
-  const titulo = p.lineas.length === 1 && !p.lineas[0].solo_bloque ? p.lineas[0].ejercicio : etqParte(p.etiqueta);
+  const titulo = p.lineas.length === 1 && !p.lineas[0].solo_bloque && !(p.ciclo && p.ciclo.nombre) ? p.lineas[0].ejercicio : etqParte(p.etiqueta);
   const nombreTit = p.origen || titulo;
   const tagTxt = p.calentamiento ? (nombreTit === "Mobility" ? "Warm up" : "Warm up · Mobility")
     : nombreTit === etqParte(p.etiqueta) ? `${t("Parte")} ${p.letra || ""}`.trim() : `${p.letra ? p.letra + " · " : ""}${etqParte(p.etiqueta)}`;
@@ -815,7 +817,7 @@ function tarjeta(p, k) {
       <button class="mas-op compartir-op" data-compartir="${k}" aria-label="${t("Compartir este entreno")}">${ic.compartir}</button>
       ${p.origen ? "" : `<button class="mas-op" data-menu="${k}" aria-label="${t("Cambiar esta parte")}">${ic.puntos}</button>`}
     </div>
-    ${p.ciclo ? `<div class="mini" style="padding-left:48px">${ic.ciclo.replace("<svg", '<svg style="display:inline;vertical-align:-2px"')} ${t("Ciclo · semana")} ${p.ciclo.semana}/${p.ciclo.total}</div>` : ""}
+    ${p.ciclo ? `<div class="mini" style="padding-left:48px">${ic.ciclo.replace("<svg", '<svg style="display:inline;vertical-align:-2px"')} ${p.ciclo.nombre ? `<b>${t("Ciclo")} ${esc(p.ciclo.nombre)}</b>${p.ciclo.total ? ` · ${t("semana")} ${p.ciclo.semana}/${p.ciclo.total}` : ""}` : `${t("Ciclo · semana")} ${p.ciclo.semana}/${p.ciclo.total}`}</div>` : ""}
     <div class="lineas">${p.lineas.map((l, j) => linea(l, p, k + "_" + j)).join("")}</div>
     ${p.no_hechas ? `<div class="nota-estado no_hecho" style="padding-left:48px">${p.no_hechas} sin hacer · repiten peso</div>` : ""}
     ${p.registro ? `<button class="btn btn-negro" data-reg="${k}" style="height:42px">${t("Registrar resultados")}</button>` : ""}
@@ -888,7 +890,7 @@ function linea(l, p, k) {
     <div class="versiones">${Object.entries(l.versiones_nivel).map(([n, txt]) => `<div><b>${esc(n)}</b><span class="texto-wod">${esc(txt)}</span></div>`).join("")}</div></details>`;
   if (!p.origen) html += `<div class="acciones-linea"><button class="mini-btn" data-editar="${k}">${ic.lapiz} ${t("Ajustar")}</button>${l.tipo !== "fuerza" ? `<button class="mini-btn azar" data-azar="${k}">🎲 ${t("Al azar")}</button>` : ""}${["wod", "emom", "fortime", "amrap", "conditioning"].includes(l.tipo) ? ((E.vista.retest_lineas || {})[l.id]
       ? `<span class="etq ok">🔁 ${t("Retest el")} ${esc(trFecha(E.vista.retest_lineas[l.id]))}</span>`
-      : `<button class="mini-btn" data-retest="${k}">🔁 ${t("Repetir para comparar")}</button>`) : ""}${l.texto_sig && l.texto_sig !== l.texto ? `<span class="mini">${t("Semana que viene")}: ${esc(l.texto_sig.split("\n")[0].slice(0, 60))}</span>` : ""}</div>`;
+      : `<button class="mini-btn" data-retest="${k}">🔁 ${t("Repetir en un mes para comparar")}</button>`) : ""}${l.texto_sig && l.texto_sig !== l.texto ? `<span class="mini">${t("Semana que viene")}: ${esc(l.texto_sig.split("\n")[0].slice(0, 60))}</span>` : ""}</div>`;
   if (l.crono && visto) html += `<button class="btn-crono" data-crono="${k}">${ic.reloj}<span>${t("Cronómetro")}<small>${esc(etiquetaCrono(l.crono))}</small></span>${ic.der.replace(/#FFB400/g, "currentColor")}</button>`;
   if (l.elite) html += `<div class="elite"><span class="ico">${ic.estrella}</span><span><b>${esc(l.elite.quien)}: ${esc(l.elite.marca)}</b> · ${esc(l.elite.detalle)}</span></div>`;
   return html + "</div>";
