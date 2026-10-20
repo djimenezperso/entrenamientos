@@ -327,7 +327,7 @@ def _igual(a: str, b: str) -> bool:
     return bool(a) and bool(b) and hmac.compare_digest(a.encode(), b.encode())
 
 
-VERSION = "6.4"
+VERSION = "6.5"
 CLAVES_NECESARIAS = ["CONTRASENA_DIEGO", "SUPABASE_URL", "SUPABASE_KEY", "APP_PASSWORD", "CONTRASENA_ARCHCHANA", "CONTRASENA_INVITADOS", "COACH_PIN",
                      "APP_ANTIGUA_URL", "CONTRASENA_DEMO"]
 
@@ -414,13 +414,23 @@ def _login_invitado(cuerpo: dict) -> dict:
         return {"invitado": True, "nuevo": True, "plantillas": PLANTILLAS}
     registro[nombre] = {"pin": _hash(nombre, pin), "alta": dt.date.today().isoformat(), "plantilla": plantilla}
     datos().guardar(CLAVE_INVITADOS, registro)
-    base = rutina(plantilla)
-    if base:
-        import uuid
-        nueva = copiar_rutina(base, lambda: uuid.uuid4().hex[:8])
-        nueva["nivel"] = base.get("nivel") or "Inter"
-        datos().guardar(nombre, nueva)
+    _rutina_inicio(nombre, plantilla)
     return _sesion_para(nombre)
+
+
+def _rutina_inicio(nombre: str, plantilla: str | None) -> dict | None:
+    """Copia la rutina de partida (plantilla) para un perfil nuevo. Si algo falló al crearlo, se vuelve a llamar sola."""
+    import uuid
+    base = rutina(plantilla if plantilla in PLANTILLAS else next(iter(PLANTILLAS)))
+    if not base:
+        return None
+    nueva = copiar_rutina(base, lambda: uuid.uuid4().hex[:8])
+    nueva["nivel"] = base.get("nivel") or "Inter"
+    nueva["semana_actual"] = 1
+    nueva.pop("estados", None)
+    nueva.pop("permiso_pesos", None)
+    datos().guardar(nombre, nueva)
+    return nueva
 
 
 def demo_personas() -> list[str]:
@@ -764,7 +774,7 @@ def notificar(texto: str) -> None:
         cfg = _telegram()
         if cfg.get("token") and cfg.get("chat_id"):
             _tg(cfg["token"], "sendMessage", {"chat_id": cfg["chat_id"], "text": texto[:3500],
-                                              "disable_web_page_preview": True}, timeout=4)
+                                              "disable_web_page_preview": True}, timeout=2.5)
     except Exception:  # noqa: BLE001
         pass
 
@@ -1183,12 +1193,19 @@ def vista(sesion: dict, atleta: str | None, semana: int | None, dia_id: str | No
             "abono": {"texto": (env("ABONO_TEXTO") or ABONO_DEFECTO["texto"])} if _abono_url() else None,
             "contacto": _contacto() if not _abono_url() else None,
             "es_diego": bool(sesion.get("y")), "diego_aparte": bool(env("CONTRASENA_DIEGO")),
+            "abonado_nuevo": bool(sesion.get("u") == atleta and (inv.get(atleta) or {}).get("abonado", "") >=
+                                  (dt.date.today() - dt.timedelta(days=3)).isoformat()),
             "telegram": (bool(env("TELEGRAM_CHAT_ID")) or bool(((guardadas.get(CLAVE_CONFIG) or {}).get("telegram") or {}).get("chat_id")))
                         if es_coach(sesion) else None,
             "puede_pesos": coach or bool((rut or {}).get("permiso_pesos")),
             "permiso_pesos": bool((rut or {}).get("permiso_pesos")),
             "solicitudes": [x for x in todas_sol if coach and (not sesion.get("u") or x["atleta"] == sesion["u"])],
             "mis_solicitudes": {x["linea"]: x for x in todas_sol if x["atleta"] == atleta}}
+    if (not rut or not rut.get("dias")) and atleta in inv and not es_demo(sesion):
+        try:  # perfil nuevo al que no se le llegó a guardar la rutina de inicio (p. ej. se cortó la conexión)
+            rut = completar(_rutina_inicio(atleta, inv[atleta].get("plantilla")), atleta)
+        except Exception:  # noqa: BLE001
+            rut = None
     if not rut or not rut.get("dias"):
         return {**base, "sin_rutina": True}
     actual = int(rut.get("semana_actual") or 1)

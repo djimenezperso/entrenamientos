@@ -562,3 +562,6 @@ main { padding: 4px 16px 0; display: flex; flex-direction: column; gap: 12px; }
 
 .pasos-abonado { margin: 0; padding-left: 22px; display: flex; flex-direction: column; gap: 8px; font-size: 14.5px; color: var(--medio); }
 .pasos-abonado b { color: var(--tinta); }
+
+.error-campo { margin: -4px 4px 0; color: #c0392b; font-size: 13px; font-weight: 600; }
+.campo.mal { border-color: #e74c3c !important; background: #fff5f4 !important; }

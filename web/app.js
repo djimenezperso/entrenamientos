@@ -18,6 +18,11 @@ const E = { token: mem.get("token"), atleta: mem.get("atleta"), lang: mem.get("l
 
 // ---------- textos ----------
 const FR = {
+  "todavía no tiene rutina.": "n'a pas encore de programme.", "Diego te la prepara en breve. Recarga en un rato.": "Diego te le prépare très vite. Recharge dans un moment.",
+  "El servidor ha tardado demasiado. Espera unos segundos y vuelve a intentarlo.": "Le serveur a mis trop de temps. Attends quelques secondes et réessaie.",
+  "Falta el número: escribe tu móvil después del prefijo": "Il manque le numéro : écris ton portable après l'indicatif",
+  "Demasiados números: revisa que el prefijo no esté repetido": "Trop de chiffres : vérifie que l'indicatif n'est pas en double",
+  "Revisa el email (ejemplo: nombre@gmail.com)": "Vérifie l'e-mail (exemple : nom@gmail.com)", "El PIN tiene que tener al menos 4 cifras": "Le code doit avoir au moins 4 chiffres",
   "Con tu nombre y este PIN entrarás en tu perfil.": "Avec ton nom et ce code tu entreras dans ton profil.",
   "¡Ya eres de Djimenez Prog!": "Bienvenue chez Djimenez Prog !", "Tu semana gratis empieza hoy. Así funciona:": "Ta semaine gratuite commence aujourd'hui. Voici comment ça marche :",
   "Tu rutina de inicio ya está aquí.": "Ton programme de départ est déjà là.", "Diego la revisa y te la ajusta a ti en 24–48 h.": "Diego le revoit et l'adapte à toi sous 24–48 h.",
@@ -264,7 +269,7 @@ async function api(ruta, { metodo = "GET", cuerpo, q } = {}) {
   let d = {};
   try { d = await r.json(); } catch { }
   if (r.status === 401 && ruta !== "login") { salir(); throw new Error(d.error || "Entra otra vez"); }
-  if (!r.ok) throw new Error(d.error || "Algo ha fallado (" + r.status + ")");
+  if (!r.ok) throw new Error(d.error || (r.status >= 502 ? t("El servidor ha tardado demasiado. Espera unos segundos y vuelve a intentarlo.") : "Algo ha fallado (" + r.status + ")"));
   return d;
 }
 
@@ -354,6 +359,7 @@ function poner(v) {
   pintar();
   if (v.pr) { aviso("🎉 " + v.pr); confeti(); } else if (v.aviso) aviso(v.aviso);
   if (E.pagoCs !== undefined && !E.pagoMostrado) { E.pagoMostrado = true; E.bienvenidaDemo = true; setTimeout(() => hojaPago(E.pagoCs), 300); }
+  if (v.abonado_nuevo && !mem.get("bienvenida_" + v.atleta) && $hoja.hidden) { mem.set("bienvenida_" + v.atleta, "1"); setTimeout(hojaNuevoAbonado, 300); }
   const fijo = mem.get("perfil_fijo");
   if (!v.solo && !v.demo && !v.coach && !v.es_diego && (!fijo || (fijo === "Yo" && v.diego_aparte)) && !E.quienMostrado && $hoja.hidden) { E.quienMostrado = true; setTimeout(hojaQuienEres, 300); }
   if (v.demo && !E.bienvenidaDemo && E.pantalla !== "registrar") { E.bienvenidaDemo = true; setTimeout(hojaBienvenidaDemo, 450); }
@@ -393,15 +399,18 @@ function hojaPago(cs) {
   abrirHoja(`<div class="demo-hola"><div class="pago-ok">✓</div>
       <h3>${t("¡Gracias por abonarte!")}</h3>
       <p>${t("Estamos comprobando el pago. Déjanos tu teléfono y tu email para darte de alta y escribirte.")}</p></div>
-    <form id="f-pago" style="display:flex;flex-direction:column;gap:10px">
+    <form id="f-pago" novalidate style="display:flex;flex-direction:column;gap:10px">
       <label class="paso-etq" for="pg-nombre" style="margin:0 4px">${t("Tu nombre")}</label>
       <input class="campo" id="pg-nombre" autocomplete="name" style="background:#fff" value="${esc(v.demo ? "" : (v.nombre || ""))}" required>
       <label class="paso-etq" for="pg-tel" style="margin:0 4px">${t("Teléfono")}</label>
       <input class="campo" id="pg-tel" type="tel" autocomplete="tel" inputmode="tel" value="${E.lang === "fr" ? "+33 " : "+34 "}" placeholder="${E.lang === "fr" ? "+33 6 12 34 56 78" : "+34 600 000 000"}" style="background:#fff" required>
+      <p class="error-campo" id="pg-tel-e" hidden></p>
       <label class="paso-etq" for="pg-email" style="margin:0 4px">Email</label>
       <input class="campo" id="pg-email" type="email" autocomplete="email" inputmode="email" placeholder="tu@email.com" style="background:#fff" required>
+      <p class="error-campo" id="pg-email-e" hidden></p>
       ${v.solo && !v.demo ? "" : `<label class="paso-etq" for="pg-pin" style="margin:0 4px">${t("Elige un PIN (4 cifras o más)")}</label>
       <input class="campo" id="pg-pin" type="password" inputmode="numeric" autocomplete="new-password" style="background:#fff" required>
+      <p class="error-campo" id="pg-pin-e" hidden></p>
       <p class="mini" style="margin:0 4px">${t("Con tu nombre y este PIN entrarás en tu perfil.")}</p>`}
       <p class="error" id="pg-error" hidden></p>
       <button class="btn btn-abono" type="submit" style="height:54px">${t("Enviar")}</button>
@@ -410,6 +419,21 @@ function hojaPago(cs) {
     f.onsubmit = async (ev) => {
       ev.preventDefault();
       const err = h.querySelector("#pg-error"); const boton = f.querySelector("button");
+      // revisar cada casilla antes de enviar y decir el fallo justo debajo
+      const marca = (id, msg) => { const e = h.querySelector("#" + id + "-e"); const c = h.querySelector("#" + id);
+        if (e) { e.textContent = msg || ""; e.hidden = !msg; } if (c) c.classList.toggle("mal", !!msg); return !msg; };
+      const telEl = h.querySelector("#pg-tel");
+      let tel = telEl.value.replace(/[^\d+]/g, " ").replace(/\s+/g, " ").trim();
+      tel = tel.replace(/^(\+\d{2})\s*\1/, "$1");                // «+33 +33 6…» → «+33 6…»
+      tel = tel.replace(/^\+33\s*0/, "+33 ").replace(/^\+34\s*0/, "+34 ");  // «+33 06…» → «+33 6…»
+      telEl.value = tel;
+      const dig = tel.replace(/\D/g, "");
+      let ok = marca("pg-tel", dig.length < 9 ? t("Falta el número: escribe tu móvil después del prefijo")
+        : dig.length > 15 ? t("Demasiados números: revisa que el prefijo no esté repetido") : "");
+      ok = marca("pg-email", /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(h.querySelector("#pg-email").value.trim()) ? "" : t("Revisa el email (ejemplo: nombre@gmail.com)")) && ok;
+      const pinEl0 = h.querySelector("#pg-pin");
+      if (pinEl0) ok = marca("pg-pin", pinEl0.value.trim().length < 4 ? t("El PIN tiene que tener al menos 4 cifras") : "") && ok;
+      if (!ok) return;
       boton.disabled = true; err.hidden = true;
       try {
         const pinEl = h.querySelector("#pg-pin");
@@ -419,6 +443,7 @@ function hojaPago(cs) {
         if (r.token) {  // abonado nuevo: entra ya en su perfil
           E.token = r.token; mem.set("token", r.token); E.atleta = r.solo; mem.set("atleta", r.solo); mem.set("perfil_fijo", r.solo);
           E.semana = null; E.dia = null; E.bienvenidaDemo = true;
+          mem.set("bienvenida_" + r.solo, "1");
           cerrarHoja(); confeti(); await cargar(); return hojaNuevoAbonado();
         }
         h.innerHTML = `<div class="asa"></div><div class="demo-hola"><div class="pago-ok">✓</div><h3>${t("¡Recibido!")}</h3>
@@ -528,8 +553,8 @@ function pintar() {
   if (E.pantalla === "registrar") return pintarRegistrar();
   if (E.pantalla === "progreso" || E.pantalla === "prs") return pintarPantalla();
   if (v.sin_rutina) {
-    $app.innerHTML = cabecera(v) + `<main><div class="vacio"><p><b>${esc(v.nombre)}</b> todavía no tiene rutina.</p>
-      <p class="mini">Créala en la app de siempre y aparecerá aquí.</p></div></main>` + nav();
+    $app.innerHTML = cabecera(v) + `<main><div class="vacio"><p><b>${esc(v.nombre)}</b> ${t("todavía no tiene rutina.")}</p>
+      <p class="mini">${t("Diego te la prepara en breve. Recarga en un rato.")}</p></div></main>` + nav();
     enlazar(); return;
   }
   const cuentan = v.partes.filter((p) => !p.calentamiento);
