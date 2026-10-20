@@ -329,7 +329,7 @@ def _igual(a: str, b: str) -> bool:
     return bool(a) and bool(b) and hmac.compare_digest(a.encode(), b.encode())
 
 
-VERSION = "7.5"
+VERSION = "7.6"
 CLAVES_NECESARIAS = ["CONTRASENA_DIEGO", "SUPABASE_URL", "SUPABASE_KEY", "APP_PASSWORD", "CONTRASENA_ARCHCHANA", "CONTRASENA_INVITADOS", "COACH_PIN",
                      "APP_ANTIGUA_URL", "CONTRASENA_DEMO"]
 
@@ -1273,7 +1273,28 @@ def _parte(rut, dia, parte, lineas, semana, partes_semana, nivel, alumno, sugs, 
     }
 
 
-def _rellenar_demo(partes: list[dict], dia_id: str, semana: int, nivel: str) -> None:
+def _demo_accessory(partes: list[dict], semilla: int) -> None:
+    """Parte C «Accessory» de ejemplo para la demo (3 ejercicios del repertorio)."""
+    molde = next((p for p in partes if p["lineas"]), None)
+    if not molde:
+        return
+    acc = REPERTORIO["accessory"]
+    p = copy.deepcopy(molde)
+    p.update(parte="C) Accessory", letra="C", etiqueta="Accessory", tipo="accessory", historial=[], ciclo=None,
+             no_hechas=0, es_cambio=False)
+    base_l = copy.deepcopy(next((l for l in molde["lineas"] if l.get("kind") == "texto"), molde["lineas"][0]))
+    lineas = []
+    for j in range(3):
+        nombre, txt = acc[(semilla // 7 + j * 5) % len(acc)]
+        l = {k: v for k, v in base_l.items() if k not in ("pesos", "esquema", "no_hecha", "crono", "elite", "tabla", "versiones_nivel", "sugerencia")}
+        l.update(id=f"demo-acc-{j}", ejercicio=nombre, texto=txt, visto=txt, kind="texto", tipo="accessory", nivel="RX",
+                 nota="", extra=None, texto_sig=None, solo_bloque=False, ciclo=False)
+        lineas.append(l)
+    p["lineas"] = lineas
+    partes.append(p)
+
+
+def _rellenar_demo(partes: list[dict], dia_id: str, semana: int, nivel: str, numero: int = 1) -> None:
     """En la demo no puede salir nada «por definir»: la B vacía lleva siempre un WOD y la C un conditioning
     (de verdad, distintos, con sus niveles y su cronómetro). Otras partes vacías, lo que encaje con su nombre."""
     semilla = int(hashlib.sha256(f"{dia_id}|{semana}".encode()).hexdigest(), 16)
@@ -1283,13 +1304,19 @@ def _rellenar_demo(partes: list[dict], dia_id: str, semana: int, nivel: str) -> 
     cond = [w for w in REPERTORIO["conditioning"]
             if (crono_de(w[1], "B) Conditioning", "Conditioning") or {}).get("modo") not in (None, "libre")] \
         or REPERTORIO["conditioning"]
+    gym_mov = ("pull up", "toes to bar", "t2b", "hspu", "muscle up", "double unders", "chest to bar", "pistols", "ring dips", "handstand")
+    gym = [w for w in wods if any(m in norm_busqueda(w[1]) for m in gym_mov)] or wods
+    if numero == 2 and partes and not any((p.get("letra") or "").upper() == "C" for p in partes):
+        _demo_accessory(partes, semilla)
     for i, p in enumerate(partes):
         vacias = [l for l in p["lineas"] if l.get("kind") == "texto" and not (l.get("texto") or "").strip()]
         if not vacias:
             continue
         letra = (p.get("letra") or "").upper()
         etq = norm_busqueda(p.get("etiqueta") or "")
-        if letra == "B" or (letra != "C" and "conditioning" not in etq):
+        if numero == 2 and letra == "B":
+            lista, titulo = gym, "Gym / WOD"
+        elif letra == "B" or (letra != "C" and "conditioning" not in etq):
             lista, titulo = wods, "WOD"
         else:
             lista, titulo = cond, "Conditioning"
@@ -1414,7 +1441,7 @@ def vista(sesion: dict, atleta: str | None, semana: int | None, dia_id: str | No
             if vid and vid.get("url"):
                 l["video"] = vid
     if demo:  # en la demo no puede salir nada «por definir»: cada parte vacía lleva un WOD de verdad (distinto en B y C)
-        _rellenar_demo(partes, dia["id"], semana, nivel)
+        _rellenar_demo(partes, dia["id"], semana, nivel, 1 + [d["id"] for d in rut["dias"]].index(dia["id"]))
     if aviso_semana:
         base["aviso"] = aviso_semana
     return {**base, "semana": semana, "actual": actual, "nivel": nivel, "niveles": NIVELES, "alumno": alumno,
