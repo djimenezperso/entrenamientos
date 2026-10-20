@@ -18,6 +18,27 @@ const E = { token: mem.get("token"), atleta: mem.get("atleta"), lang: mem.get("l
 
 // ---------- textos ----------
 const FR = {
+  "Tu abono está": "Ton abonnement est",
+  "Volver a abonarme": "Me réabonner",
+  "Actualizar mi tarjeta": "Mettre à jour ma carte",
+  "Mi abono": "Mon abonnement",
+  "prueba gratis hasta el": "essai gratuit jusqu'au",
+  "se cancela al final del periodo": "se termine à la fin de la période",
+  "Gestionar mi abono": "Gérer mon abonnement",
+  "Cambiar la tarjeta, ver tus facturas o darte de baja.": "Changer de carte, voir tes factures ou te désabonner.",
+  "Abonados": "Abonnés",
+  "activos": "actifs",
+  "· conecta Stripe para ver su estado": "· connecte Stripe pour voir leur statut",
+  "desde": "depuis",
+  "prueba": "essai",
+  "activo": "actif",
+  "pago pendiente": "paiement en attente",
+  "impagado": "impayé",
+  "cancelado": "annulé",
+  "incompleto": "incomplet",
+  "caducado": "expiré",
+  "pausado": "en pause",
+  "sin comprobar": "non vérifié",
   "Prog Competidor · Diego": "Prog Compétiteur · Diego",
   "Prog Casa y Movilidad": "Prog Maison & Mobilité",
   "Prog Principiante": "Prog Débutant",
@@ -588,6 +609,12 @@ const urlCreador = () => E.lang === "fr" ? "https://conoce-al-creador.vercel.app
   : "https://conoce-al-creador.vercel.app/?lang=es#traductor";
 const botonCreador = (extra = "") => `<a class="btn btn-creador" href="${urlCreador()}" target="_blank" rel="noopener" ${extra}>👤 ${t("Conoce al creador")}</a>`;
 
+async function abrirPortal(boton) {
+  if (boton) boton.disabled = true;
+  try { const r = await api("portal_abono", { metodo: "POST", cuerpo: {} }); location.href = r.url; }
+  catch (e) { aviso(e.message, true); if (boton) boton.disabled = false; }
+}
+
 function hojaNuevoAbonado() {
   abrirHoja(`<div class="demo-hola"><div class="pago-ok">🔥</div>
       <h3>${t("¡Ya eres de Djimenez Prog!")}</h3>
@@ -827,6 +854,8 @@ function cabecera(v) {
         <button class="redondo" id="b-ajustes" aria-label="${t("Ajustes")}">${ic.ajustes}</button>
       </div>
     </div>
+    ${v.abono_problema ? `<div class="banda-abono"><span>⚠️ ${t("Tu abono está")} <b>${esc(t(v.abono_estado_txt || ""))}</b>.</span>
+      ${v.abono_gestion ? `<button id="b-abono-arreglar">${t(v.abono_estado === "canceled" || v.abono_estado === "incomplete_expired" ? "Volver a abonarme" : "Actualizar mi tarjeta")}</button>` : ""}</div>` : ""}
     ${v.demo ? `<div class="banda-demo">👀 ${t("Modo demo · solo para mirar")} <button id="b-crear-demo">✨ ${t("Crear mi perfil")}</button>${v.abono ? `<button id="b-abono-demo">💳 ${t("Abonarse")}</button>` : v.contacto ? `<button id="b-abono-demo">💬 ${t("Contacto")}</button>` : ""}<button id="b-compartir-demo">${ic.compartir} ${t("Compartir")}</button>${varias ? `<button id="b-clientes-demo" class="clientes-demo">👥 ${t("Ver programas")}</button>` : ""}</div>` : ""}
     ${v.semana && v.demo ? `<div class="pildora-semana"><span>${t("Semana")} ${v.semana} · <em>${t("de muestra")}</em></span></div>` : v.semana ? `<div class="pildora-semana">
       <button id="b-sem-menos" aria-label="Semana anterior" ${v.semana <= 1 ? "disabled style='opacity:.3'" : ""}>${ic.izq}</button>
@@ -1038,6 +1067,8 @@ function enlazar() {
   const bcp = document.getElementById("b-crear-demo");
   if (bcp) bcp.onclick = () => hojaCrearPerfil({});
   const bcl = document.getElementById("b-clientes-demo"); if (bcl) bcl.onclick = hojaPersonas;
+  const baa = document.getElementById("b-abono-arreglar");
+  if (baa) baa.onclick = () => (E.vista.abono_estado === "canceled" || E.vista.abono_estado === "incomplete_expired") ? abonarse() : abrirPortal(baa);
   const bcd = document.getElementById("b-compartir-demo");
   if (bcd) bcd.onclick = () => compartir("app", t("💪 Mira la app de entrenamiento de Diego (Djimenez Prog)"), "app");
   on("b-anadir-parte", () => hojaParte(null));
@@ -1282,6 +1313,9 @@ function hojaAjustes() {
         <div style="display:flex;gap:8px"><input class="campo" id="i-pin-coach" type="password" autocapitalize="off" autocomplete="off" placeholder="PIN o clave" style="height:48px;background:#fff">
         <button class="btn btn-negro" id="b-coach">${t("Activar")}</button></div>`}
     </div>
+    ${v.abono_gestion ? `<div class="caja-abono"><b>💳 ${t("Mi abono")}</b> · ${esc(t(v.abono_estado_txt || ""))}${v.abono_fin_prueba ? ` · ${t("prueba gratis hasta el")} ${esc(fechaCorta(v.abono_fin_prueba))}` : ""}${v.abono_cancela ? ` · ${t("se cancela al final del periodo")}` : ""}
+      <button class="btn btn-negro" id="b-portal" style="width:100%;margin-top:8px">${t("Gestionar mi abono")}</button>
+      <p class="mini" style="margin:6px 2px 0">${t("Cambiar la tarjeta, ver tus facturas o darte de baja.")}</p></div>` : ""}
     ${v.invitado ? `<button class="btn btn-fuego" id="b-objetivos" style="height:52px">🎯 ${t(v.objetivos ? "Mis objetivos" : "Hacer mi rutina a medida")}</button>` : ""}
     ${v.coach || v.invitado ? "" : botonAbono(v, "b-abono")}
     <div style="display:grid;grid-template-columns:1fr auto;gap:8px">
@@ -1291,6 +1325,7 @@ function hojaAjustes() {
     ${v.app_antigua ? `<a class="btn" href="${esc(v.app_antigua)}" target="_blank" rel="noopener">${t("Abrir la app de siempre")}</a>` : ""}
     <button class="btn btn-negro" id="b-salir">${t("Salir")}</button>`, (h) => {
     const bo = h.querySelector("#b-objetivos"); if (bo) bo.onclick = () => hojaObjetivos(null, v.objetivos);
+    const bp = h.querySelector("#b-portal"); if (bp) bp.onclick = () => abrirPortal(bp);
     const bc = h.querySelector("#b-coach");
     if (bc) bc.onclick = async () => {
       bc.disabled = true;
@@ -1558,6 +1593,9 @@ async function hojaActividad() {
     <div class="act-totales"><div><b>${d.total_compartidos || 0}</b><span>${t("veces compartido")}</span></div>
       <div><b>${d.total_llegadas || 0}</b><span>${t("han entrado por un enlace")}</span></div>
       <div><b>${d.llegadas_instagram || 0}</b><span>📸 ${t("desde Instagram")}</span></div></div>
+    ${d.abonados && d.abonados.length ? `<div class="act-pagos"><b>💳 ${t("Abonados")} (${d.abonados.filter((x) => !x.problema && x.estado).length} ${t("activos")})</b>${d.stripe ? "" : ` <small>${t("· conecta Stripe para ver su estado")}</small>`}
+      ${d.abonados.map((x) => `<div class="pago ${x.problema ? "" : "visto"}"><div><b>${esc(x.nombre)}</b> <span class="etq ${x.problema ? "aviso" : x.estado === "trialing" ? "gris" : "bien"}">${esc(t(x.estado_txt))}</span>
+        <small>${t("desde")} ${esc(x.desde ? fechaCorta(x.desde) : "")}</small>${x.telefono ? `<br><a href="tel:${esc(x.telefono)}">📞 ${esc(x.telefono)}</a>` : ""}</div></div>`).join("")}</div>` : ""}
     ${d.pagos && d.pagos.length ? `<div class="act-pagos"><b>🧾 ${t("Pagos por comprobar")} (${d.pagos.filter((x) => !x.visto).length})</b>
       ${d.pagos.map((x) => `<div class="pago ${x.visto ? "visto" : ""}"><div><b>${esc(x.nombre)}</b> <small>${esc(x.hace)}${x.perfil ? " · " + t("perfil") + ": " + esc(x.perfil) : ""}</small><br>
         <a href="tel:${esc(x.telefono)}">📞 ${esc(x.telefono)}</a> · <a href="mailto:${esc(x.email)}">${esc(x.email)}</a>

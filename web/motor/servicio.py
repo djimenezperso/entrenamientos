@@ -329,7 +329,7 @@ def _igual(a: str, b: str) -> bool:
     return bool(a) and bool(b) and hmac.compare_digest(a.encode(), b.encode())
 
 
-VERSION = "8.5"
+VERSION = "8.6"
 CLAVES_NECESARIAS = ["CONTRASENA_DIEGO", "SUPABASE_URL", "SUPABASE_KEY", "APP_PASSWORD", "CONTRASENA_ARCHCHANA", "CONTRASENA_INVITADOS", "COACH_PIN",
                      "APP_ANTIGUA_URL", "CONTRASENA_DEMO"]
 
@@ -445,6 +445,21 @@ def _rutina_inicio(nombre: str, plantilla: str | None) -> dict | None:
     nueva.pop("permiso_pesos", None)
     datos().guardar(nombre, nueva)
     return nueva
+
+
+def _info_abono(sesion: dict, atleta: str, inv: dict) -> dict:
+    """Para el propio abonado: estado de su abono y si puede gestionarlo (portal de Stripe)."""
+    if es_demo(sesion) or sesion.get("u") != atleta or atleta not in inv or not inv[atleta].get("stripe_sub"):
+        return {}
+    try:
+        estado = _estado_abono(atleta, inv)
+    except Exception:  # noqa: BLE001
+        estado = inv[atleta].get("stripe_estado")
+    return {"abono_estado": estado, "abono_estado_txt": ESTADOS_ABONO.get(estado, estado),
+            "abono_problema": estado in ABONO_PROBLEMA, "abono_gestion": bool(inv[atleta].get("stripe_customer")),
+            "abono_fin_prueba": dt.datetime.fromtimestamp(inv[atleta]["stripe_fin_prueba"]).date().isoformat()
+            if estado == "trialing" and inv[atleta].get("stripe_fin_prueba") else None,
+            "abono_cancela": bool(inv[atleta].get("stripe_cancela"))}
 
 
 def _rutina_cuestionario(nombre: str, r: dict) -> tuple[dict, str, str, list[str]]:
@@ -668,6 +683,86 @@ def abonarse(sesion: dict, c: dict) -> dict:
     return {"url": f"{url}{sep}client_reference_id={ref}" if "stripe.com" in url else url}
 
 
+# ===== Stripe (clave limitada en STRIPE_SECRET_KEY; solo lectura + portal de clientes) =====
+ESTADOS_ABONO = {"trialing": "prueba", "active": "activo", "past_due": "pago pendiente", "unpaid": "impagado",
+                 "canceled": "cancelado", "incomplete": "incompleto", "incomplete_expired": "caducado", "paused": "pausado"}
+ABONO_PROBLEMA = ("past_due", "unpaid", "canceled", "incomplete_expired", "paused")
+
+
+def _stripe(metodo: str, ruta: str, params: dict | None = None, timeout: float = 4) -> dict | None:
+    """Llama a la API de Stripe. Devuelve None si no hay clave o falla (la app sigue funcionando sin Stripe)."""
+    clave = env("STRIPE_SECRET_KEY")
+    if not clave:
+        return None
+    datos_url = urllib.parse.urlencode(params or {}, doseq=True)
+    url = f"https://api.stripe.com/v1/{ruta}" + (f"?{datos_url}" if metodo == "GET" and datos_url else "")
+    req = urllib.request.Request(url, data=datos_url.encode() if metodo != "GET" else None, method=metodo,
+                                 headers={"Authorization": f"Bearer {clave}", "Stripe-Version": "2024-06-20"})
+    try:
+        with urllib.request.urlopen(req, timeout=timeout) as r:
+            return json.loads(r.read() or b"{}")
+    except urllib.error.HTTPError as e:
+        try:
+            return {"error": json.loads(e.read() or b"{}").get("error", {})}
+        except ValueError:
+            return {"error": {"message": str(e)}}
+    except Exception as e:  # noqa: BLE001
+        return {"error": {"message": str(e)}}
+
+
+def _comprobar_pago_stripe(cs: str) -> dict | None:
+    """¿Esta sesión de Checkout está pagada (o en prueba)? → {ok, estado, customer, sub, email, fin_prueba}."""
+    if not cs or not cs.startswith("cs_"):
+        return None
+    x = _stripe("GET", f"checkout/sessions/{cs}", {"expand[]": "subscription"})
+    if not x or x.get("error"):
+        return None
+    sub = x.get("subscription") if isinstance(x.get("subscription"), dict) else {}
+    pagado = x.get("status") == "complete" and x.get("payment_status") in ("paid", "no_payment_required")
+    return {"ok": pagado, "estado": sub.get("status") or ("active" if pagado else x.get("status")),
+            "customer": x.get("customer"), "sub": sub.get("id") or x.get("subscription"),
+            "email": (x.get("customer_details") or {}).get("email"), "fin_prueba": sub.get("trial_end")}
+
+
+def _estado_abono(nombre: str, reg: dict | None = None, forzar: bool = False) -> str | None:
+    """Estado del abono en Stripe (cacheado 6 h). Avisa a Diego si pasa a cancelado / impagado."""
+    reg = dict(invitados()) if reg is None else reg
+    x = reg.get(nombre) or {}
+    if not x.get("stripe_sub") or not env("STRIPE_SECRET_KEY"):
+        return x.get("stripe_estado")
+    if not forzar and time.time() - float(x.get("stripe_mirado") or 0) < 6 * 3600:
+        return x.get("stripe_estado")
+    sub = _stripe("GET", f"subscriptions/{x['stripe_sub']}")
+    if not sub or sub.get("error"):
+        return x.get("stripe_estado")
+    nuevo, antes = sub.get("status"), x.get("stripe_estado")
+    reg = dict(invitados())
+    reg[nombre] = {**reg.get(nombre, x), "stripe_estado": nuevo, "stripe_mirado": time.time(),
+                   "stripe_fin_prueba": sub.get("trial_end"), "stripe_cancela": bool(sub.get("cancel_at_period_end"))}
+    datos().guardar(CLAVE_INVITADOS, reg)
+    if nuevo != antes and antes:
+        icono = "⚠️" if nuevo in ABONO_PROBLEMA else "✅"
+        notificar(f"{icono} Abono de {nombre}: {ESTADOS_ABONO.get(antes, antes)} → {ESTADOS_ABONO.get(nuevo, nuevo)}")
+    return nuevo
+
+
+def portal_abono(sesion: dict) -> dict:
+    """Enlace al portal de clientes de Stripe: cambiar tarjeta, ver facturas o darse de baja."""
+    quien = sesion.get("u")
+    x = (invitados().get(quien) or {}) if quien and not es_demo(sesion) else {}
+    if not x.get("stripe_customer"):
+        raise Error("No encuentro tu abono. Escríbele a Diego.", 404)
+    r = _stripe("POST", "billing_portal/sessions", {"customer": x["stripe_customer"],
+                                                   "return_url": "https://entrenamientos-web-two.vercel.app/"})
+    if not r or r.get("error") or not r.get("url"):
+        raise Error("Ahora mismo no se puede abrir la gestión del abono. Prueba en un rato.", 502)
+    try:
+        _estado_abono(quien, forzar=True)
+    except Exception:  # noqa: BLE001
+        pass
+    return {"url": r["url"]}
+
+
 def datos_pago(sesion: dict | None, c: dict) -> dict:
     """Después de pagar en Stripe: la persona deja su teléfono y email para que Diego compruebe el pago y le dé de alta."""
     import uuid
@@ -688,6 +783,10 @@ def datos_pago(sesion: dict | None, c: dict) -> dict:
     if sesion and not es_demo(sesion):
         quien = sesion.get("u") or None
     respuesta = {"ok": True}
+    try:
+        stripe = _comprobar_pago_stripe(cs)
+    except Exception:  # noqa: BLE001
+        stripe = None
     pin = str(c.get("pin") or "").strip()
     if not quien and pin:  # abonado nuevo: se le crea su perfil al momento con una rutina de inicio
         if len(pin) < 4:
@@ -699,7 +798,10 @@ def datos_pago(sesion: dict | None, c: dict) -> dict:
         reg_inv = dict(invitados())
         if quien in reg_inv:
             reg_inv[quien] = {**reg_inv[quien], "abonado": dt.date.today().isoformat(), "telefono": tel, "email": email,
-                              **({"lang": c["lang"]} if c.get("lang") in ("es", "fr") else {})}
+                              **({"lang": c["lang"]} if c.get("lang") in ("es", "fr") else {}),
+                              **({"stripe_customer": stripe["customer"], "stripe_sub": stripe["sub"],
+                                  "stripe_estado": stripe["estado"], "stripe_mirado": time.time(),
+                                  "stripe_fin_prueba": stripe.get("fin_prueba")} if stripe and stripe["ok"] else {})}
             datos().guardar(CLAVE_INVITADOS, reg_inv)
         respuesta = {"ok": True, **r_alta, "nuevo_abonado": True}
 
@@ -711,10 +813,21 @@ def datos_pago(sesion: dict | None, c: dict) -> dict:
                     x.update(nombre=nombre, telefono=tel, email=email)
             return
         pagos.insert(0, {"id": uuid.uuid4().hex[:10], "cuando": _ahora().isoformat(timespec="minutes"), "nombre": nombre,
-                         "telefono": tel, "email": email, "cs": cs, "perfil": quien, "visto": False})
+                         "telefono": tel, "email": email, "cs": cs, "perfil": quien,
+                         "visto": bool(stripe and stripe["ok"]),  # confirmado por Stripe: no hace falta comprobarlo a mano
+                         "stripe": (stripe or {}).get("estado") if stripe else None})
         del pagos[300:]
     _apuntar_actividad(cambio)
-    notificar(f"💳 {'Nuevo abonado (semana gratis)' if respuesta.get('nuevo_abonado') else 'Pago nuevo por comprobar'}\n"
+    if stripe and quien and not respuesta.get("nuevo_abonado") and stripe["ok"]:
+        reg_inv = dict(invitados())  # alumno que ya existía y se abona: se le apunta su abono
+        if quien in reg_inv:
+            reg_inv[quien] = {**reg_inv[quien], "stripe_customer": stripe["customer"], "stripe_sub": stripe["sub"],
+                              "stripe_estado": stripe["estado"], "stripe_mirado": time.time(),
+                              "abonado": reg_inv[quien].get("abonado") or dt.date.today().isoformat()}
+            datos().guardar(CLAVE_INVITADOS, reg_inv)
+    verif = ("\n✅ Stripe lo confirma: " + ESTADOS_ABONO.get(stripe["estado"], str(stripe["estado"]))) if stripe and stripe["ok"] else \
+        ("\n⚠️ Stripe NO confirma este pago: revísalo" if stripe else "")
+    notificar(f"💳 {'Nuevo abonado (semana gratis)' if respuesta.get('nuevo_abonado') else ('Pago nuevo' if stripe and stripe['ok'] else 'Pago nuevo por comprobar')}{verif}\n"
               f"{nombre} · {tel} · {email}" + (f"\n👤 Perfil creado: {quien} · rutina de inicio, ajústasela" if respuesta.get("nuevo_abonado") else "")
               + (f"\nStripe: {cs}" if cs else ""))
     return respuesta
@@ -950,6 +1063,26 @@ def _hace(iso: str | None, ahora: dt.datetime) -> str:
     return f"Hace {dias} días"
 
 
+def _lista_abonados() -> list[dict]:
+    """Abonados con su estado en Stripe (refresca hasta 8 por visita para no tardar)."""
+    reg = dict(invitados())
+    out, mirados = [], 0
+    for n, x in sorted(reg.items(), key=lambda kv: kv[1].get("abonado", ""), reverse=True):
+        if not x.get("abonado"):
+            continue
+        estado = x.get("stripe_estado")
+        if x.get("stripe_sub") and mirados < 8 and time.time() - float(x.get("stripe_mirado") or 0) > 6 * 3600:
+            mirados += 1
+            try:
+                estado = _estado_abono(n, forzar=True)
+            except Exception:  # noqa: BLE001
+                pass
+        out.append({"nombre": n, "desde": x.get("abonado"), "estado": estado,
+                    "estado_txt": ESTADOS_ABONO.get(estado, estado) if estado else "sin comprobar",
+                    "problema": estado in ABONO_PROBLEMA, "telefono": x.get("telefono"), "email": x.get("email")})
+    return out[:60]
+
+
 def actividad(sesion: dict) -> dict:
     """Para el coach: quién entra a la app, cuántos días y si registra entrenos."""
     if not es_coach(sesion):
@@ -999,6 +1132,8 @@ def actividad(sesion: dict) -> dict:
             "contactos": [{"nombre": x.get("nombre", k), "n": x.get("n", 0), "hace": _hace(x.get("ultimo"), ahora)}
                           for k, x in sorted(todo.get("contactos", {}).items(), key=lambda kv: kv[1].get("ultimo", ""), reverse=True)],
             "pagos": [dict(x, hace=_hace(x.get("cuando"), ahora)) for x in todo.get("pagos", [])][:50],
+            "abonados": _lista_abonados(),
+            "stripe": bool(env("STRIPE_SECRET_KEY")),
             "altas": [{"nombre": a["nombre"], "hace": _hace(a.get("cuando"), ahora)} for a in todo.get("altas", [])][:20]}
 
 
@@ -1404,6 +1539,7 @@ def vista(sesion: dict, atleta: str | None, semana: int | None, dia_id: str | No
             "objetivos_pendientes": bool(sesion.get("u") == atleta and atleta in inv and not es_demo(sesion)
                                          and (inv.get(atleta) or {}).get("abonado") and not (inv.get(atleta) or {}).get("cuestionario")),
             "objetivos": (inv.get(atleta) or {}).get("cuestionario") if sesion.get("u") == atleta else None,
+            **_info_abono(sesion, atleta, inv),
             "abonado_nuevo": bool(sesion.get("u") == atleta and (inv.get(atleta) or {}).get("abonado", "") >=
                                   (dt.date.today() - dt.timedelta(days=3)).isoformat()),
             "telegram": (bool(env("TELEGRAM_CHAT_ID")) or bool(((guardadas.get(CLAVE_CONFIG) or {}).get("telegram") or {}).get("chat_id")))
