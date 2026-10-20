@@ -327,7 +327,7 @@ def _igual(a: str, b: str) -> bool:
     return bool(a) and bool(b) and hmac.compare_digest(a.encode(), b.encode())
 
 
-VERSION = "6.1"
+VERSION = "6.2"
 CLAVES_NECESARIAS = ["CONTRASENA_DIEGO", "SUPABASE_URL", "SUPABASE_KEY", "APP_PASSWORD", "CONTRASENA_ARCHCHANA", "CONTRASENA_INVITADOS", "COACH_PIN",
                      "APP_ANTIGUA_URL", "CONTRASENA_DEMO"]
 
@@ -1414,7 +1414,7 @@ def _tipo_de_etiqueta(etiqueta: str) -> str:
 def _novedad(rut_yo: dict, etiqueta: str, nombre: str, texto: str, semana: int, dia: str | None = None):
     """Lo que Diego se pone a sí mismo, para ofrecérselo a sus alumnos."""
     import uuid
-    if not (texto or "").strip():
+    if not _novedad_valida({"texto": texto}):
         return
     reg = datos().rutinas([CLAVE_NOVEDADES]).get(CLAVE_NOVEDADES) or {}
     lista = [x for x in reg.get("lista") or [] if norm_busqueda(x.get("texto", "")) != norm_busqueda(texto)]
@@ -1458,7 +1458,13 @@ def novedades_para(rut: dict, novedades: list[dict], rut_yo: dict | None = None)
     vistas = set(rut.get("novedades_vistas") or [])
     hace = (dt.date.today() - dt.timedelta(days=21)).isoformat()
     return [x for x in reversed(novedades) if x["id"] not in vistas and x.get("fecha", "") >= hace
-            and _novedad_hecha(rut_yo, x)][:3]
+            and _novedad_valida(x) and _novedad_hecha(rut_yo, x)][:3]
+
+
+def _novedad_valida(x: dict) -> bool:
+    """Fuera las de prueba o vacías (p. ej. texto «0»)."""
+    txt = str(x.get("texto") or "").strip()
+    return len(txt) >= 6 and bool(re.search(r"[A-Za-zÀ-ÿ]{3}", txt))
 
 
 def puede_programar(sesion: dict, rut: dict) -> bool:
