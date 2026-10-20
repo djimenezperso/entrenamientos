@@ -329,7 +329,7 @@ def _igual(a: str, b: str) -> bool:
     return bool(a) and bool(b) and hmac.compare_digest(a.encode(), b.encode())
 
 
-VERSION = "8.1"
+VERSION = "8.2"
 CLAVES_NECESARIAS = ["CONTRASENA_DIEGO", "SUPABASE_URL", "SUPABASE_KEY", "APP_PASSWORD", "CONTRASENA_ARCHCHANA", "CONTRASENA_INVITADOS", "COACH_PIN",
                      "APP_ANTIGUA_URL", "CONTRASENA_DEMO"]
 
@@ -1333,6 +1333,14 @@ def _rellenar_demo(partes: list[dict], dia_id: str, semana: int, nivel: str, num
         w = min(2, len(c["semanas"]))
         lineas = [(x["ejercicio"], x["prescripcion"]) for x in c["semanas"][w - 1]["sesiones"][0]]
         _demo_accessory(partes, semilla, lineas, {"semana": w, "total": len(c["semanas"]), "nombre": c["nombre"]})
+    for p in partes:  # fuerza sin peso puesto → uno ligero de ejemplo (mancuerna 8 kg, lo demás 10 kg)
+        for l in p["lineas"]:
+            if l.get("kind") == "peso" and not l.get("pesos"):
+                kg = 8 if re.search(r"(?i)\b(db|dumbbell|halt[eè]re|mancuerna|goblet|kb|kettlebell)\b", l.get("ejercicio", "")) else 10
+                l["pesos"] = [float(kg)]
+                l["texto"] = f"{(l.get('texto') or '').strip()} @{kg}".strip()
+                if l.get("texto_sig") and "@" not in l["texto_sig"]:
+                    l["texto_sig"] = f"{l['texto_sig'].strip()} @{kg}"
     for i, p in enumerate(partes):
         vacias = [l for l in p["lineas"] if l.get("kind") == "texto" and not _parece_entreno(l.get("visto") or l.get("texto") or "")]
         if not vacias:
