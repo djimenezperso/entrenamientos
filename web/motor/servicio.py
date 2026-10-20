@@ -6,6 +6,7 @@ así que las dos funcionan a la vez sobre lo mismo. Sin dependencias: solo la li
 Variables de entorno (en Vercel → Settings → Environment Variables):
   SUPABASE_URL, SUPABASE_KEY      la misma url y clave sb_secret_… que en los secrets de Streamlit
   APP_PASSWORD                    contraseña general (ve a todos)
+  CONTRASENA_DIEGO                opcional: la de Diego. Si está puesta, con la general cada uno elige su perfil y no puede ser «Diego»
   CONTRASENA_ARCHCHANA            contraseña solo de Archchana
   CONTRASENA_INVITADOS            contraseña para invitados (nombre + PIN)
   CONTRASENA_DEMO                 opcional: contraseña de "solo mirar" para enseñar la app (no puede cambiar nada)
@@ -269,8 +270,10 @@ def leer_sesion(token: str) -> dict:
     return s
 
 
-def _sesion_para(solo: str | None, coach: bool = False, demo: bool = False) -> dict:
+def _sesion_para(solo: str | None, coach: bool = False, demo: bool = False, diego: bool = False) -> dict:
     datos_s = {"u": solo or "", "exp": int(time.time()) + (14 if demo else 120) * 86400}
+    if diego:
+        datos_s["y"] = 1
     if coach:
         datos_s["c"] = 1
     if demo:
@@ -300,14 +303,14 @@ def modo_coach(sesion: dict, c: dict) -> dict:
     """Activa (con el PIN del coach) o quita el modo coach. Devuelve una sesión nueva."""
     solo_lectura(sesion)
     if c.get("salir"):
-        return _sesion_para(sesion.get("u") or None, False)
+        return _sesion_para(sesion.get("u") or None, False, diego=bool(sesion.get("y")))
     pin = env("COACH_PIN")
     if not pin:
         raise Error("Falta COACH_PIN en las variables de Vercel", 500)
     if not _igual(str(c.get("pin") or ""), pin):
         time.sleep(0.8)  # frena a quien pruebe PINs al azar
         raise Error("PIN incorrecto", 403)
-    return _sesion_para(sesion.get("u") or None, True)
+    return _sesion_para(sesion.get("u") or None, True, diego=bool(sesion.get("y")))
 
 
 def _limpia(txt: str) -> str:
@@ -324,8 +327,8 @@ def _igual(a: str, b: str) -> bool:
     return bool(a) and bool(b) and hmac.compare_digest(a.encode(), b.encode())
 
 
-VERSION = "5.8"
-CLAVES_NECESARIAS = ["SUPABASE_URL", "SUPABASE_KEY", "APP_PASSWORD", "CONTRASENA_ARCHCHANA", "CONTRASENA_INVITADOS", "COACH_PIN",
+VERSION = "5.9"
+CLAVES_NECESARIAS = ["CONTRASENA_DIEGO", "SUPABASE_URL", "SUPABASE_KEY", "APP_PASSWORD", "CONTRASENA_ARCHCHANA", "CONTRASENA_INVITADOS", "COACH_PIN",
                      "APP_ANTIGUA_URL", "CONTRASENA_DEMO"]
 
 
@@ -375,6 +378,8 @@ def login(cuerpo: dict) -> dict:
         pass
     if env("CONTRASENA_ARCHCHANA"):
         personales["Archchana"] = env("CONTRASENA_ARCHCHANA")
+    if _igual(intento, env("CONTRASENA_DIEGO")):
+        return _sesion_para(None, diego=True)
     if _igual(intento, general):
         return _sesion_para(None)
     for nombre, clave in personales.items():
@@ -524,6 +529,8 @@ def fijar_perfil(sesion: dict, c: dict) -> dict:
     atleta = c.get("atleta")
     if atleta not in todas_las_personas():
         raise Error("Persona desconocida")
+    if atleta == "Yo" and env("CONTRASENA_DIEGO") and not sesion.get("y"):
+        raise Error("Diego entra con su propia contraseña", 403)
     return _sesion_para(atleta)
 
 
@@ -1109,6 +1116,7 @@ def vista(sesion: dict, atleta: str | None, semana: int | None, dia_id: str | No
             "unidades": UNIDADES, "con_prs": atleta not in SIN_PRS, "coach": coach, "demo": es_demo(sesion),
             "abono": {"texto": (env("ABONO_TEXTO") or ABONO_DEFECTO["texto"])} if _abono_url() else None,
             "contacto": _contacto() if not _abono_url() else None,
+            "es_diego": bool(sesion.get("y")), "diego_aparte": bool(env("CONTRASENA_DIEGO")),
             "telegram": (bool(env("TELEGRAM_CHAT_ID")) or bool(((guardadas.get(CLAVE_CONFIG) or {}).get("telegram") or {}).get("chat_id")))
                         if es_coach(sesion) else None,
             "puede_pesos": coach or bool((rut or {}).get("permiso_pesos")),

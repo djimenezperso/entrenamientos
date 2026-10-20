@@ -348,7 +348,8 @@ function poner(v) {
   pintar();
   if (v.pr) { aviso("🎉 " + v.pr); confeti(); } else if (v.aviso) aviso(v.aviso);
   if (E.pagoCs !== undefined && !E.pagoMostrado) { E.pagoMostrado = true; E.bienvenidaDemo = true; setTimeout(() => hojaPago(E.pagoCs), 300); }
-  if (!v.solo && !v.demo && !v.coach && !mem.get("perfil_fijo") && !E.quienMostrado && $hoja.hidden) { E.quienMostrado = true; setTimeout(hojaQuienEres, 300); }
+  const fijo = mem.get("perfil_fijo");
+  if (!v.solo && !v.demo && !v.coach && !v.es_diego && (!fijo || (fijo === "Yo" && v.diego_aparte)) && !E.quienMostrado && $hoja.hidden) { E.quienMostrado = true; setTimeout(hojaQuienEres, 300); }
   if (v.demo && !E.bienvenidaDemo && E.pantalla !== "registrar") { E.bienvenidaDemo = true; setTimeout(hojaBienvenidaDemo, 450); }
 }
 
@@ -950,7 +951,7 @@ function hojaQuienEres() {
   const v = E.vista;
   abrirHoja(`<div class="demo-hola">${ic.llama("#FF6A00", 40)}<h3>${t("¿Quién eres?")}</h3>
       <p>${t("Elige tu perfil. Se queda guardado en este móvil y ya no se cambia solo.")}</p></div>
-    <div class="lista-personas">${v.personas.map((p) => `<button class="persona" data-yo="${esc(p.id)}">
+    <div class="lista-personas">${v.personas.filter((p) => !(v.diego_aparte && p.id === "Yo")).map((p) => `<button class="persona" data-yo="${esc(p.id)}">
       <span class="avatar">${esc(inicial(p.nombre))}</span>${esc(p.nombre)}</button>`).join("")}</div>`, (h) => {
     h.querySelectorAll("[data-yo]").forEach((b) => b.onclick = async () => {
       const quien = b.dataset.yo;
