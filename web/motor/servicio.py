@@ -323,7 +323,7 @@ def _igual(a: str, b: str) -> bool:
     return bool(a) and bool(b) and hmac.compare_digest(a.encode(), b.encode())
 
 
-VERSION = "5.3"
+VERSION = "5.4"
 CLAVES_NECESARIAS = ["SUPABASE_URL", "SUPABASE_KEY", "APP_PASSWORD", "CONTRASENA_ARCHCHANA", "CONTRASENA_INVITADOS", "COACH_PIN",
                      "APP_ANTIGUA_URL", "CONTRASENA_DEMO"]
 
@@ -537,6 +537,11 @@ def crear_perfil(sesion: dict, c: dict) -> dict:
     return r
 
 
+ABONO_DEFECTO = {"url": "https://buy.stripe.com/8x2dRadT91922iqgZz7ok03", "texto": "29 €/mes"}  # se cambia con ABONO_URL / ABONO_TEXTO
+def _abono_url() -> str:
+    return env("ABONO_URL") or ABONO_DEFECTO["url"]
+
+
 CONTACTO_DEFECTO = {"whatsapp": "+33675987599", "email": "djimenezpenapro@gmail.com"}  # se cambia con las variables CONTACTO_*
 
 
@@ -564,7 +569,7 @@ def contactar(sesion: dict, c: dict) -> dict:
 
 def abonarse(sesion: dict, c: dict) -> dict:
     """Apunta que alguien pulsa «Abonarse» y devuelve el enlace de pago (Stripe), con su nombre para reconocerle."""
-    url = env("ABONO_URL")
+    url = _abono_url()
     if not url:
         raise Error("El pago todavía no está activado. Escríbele a Diego.", 404)
     quien = "Demo" if es_demo(sesion) else (sesion.get("u") or (c.get("atleta") if c.get("atleta") in todas_las_personas() else "Yo"))
@@ -740,7 +745,7 @@ def actividad(sesion: dict) -> dict:
             "total_llegadas": sum(x.get("n", 0) for x in lleg.values()),
             "abonos": [{"nombre": x.get("nombre", k), "n": x.get("n", 0), "hace": _hace(x.get("ultimo"), ahora)}
                        for k, x in sorted(todo.get("abonos", {}).items(), key=lambda kv: kv[1].get("ultimo", ""), reverse=True)],
-            "abono_activo": bool(env("ABONO_URL")),
+            "abono_activo": bool(_abono_url()),
             "likes": sorted([{"nombre": x.get("nombre") or k, "texto": x.get("texto", ""), "n": len(x.get("por", [])),
                               "quien": [nv(q) if not q.startswith("Demo") else "Demo" for q in x.get("por", [])][-8:]}
                              for k, x in todo.get("likes", {}).items() if x.get("por")], key=lambda y: -y["n"])[:15],
@@ -1023,8 +1028,8 @@ def vista(sesion: dict, atleta: str | None, semana: int | None, dia_id: str | No
             "personas": [{"id": p, "nombre": nombre_de(p)} for p in personas], "lang": IDIOMA_DEFECTO.get(atleta, "es"),
             "app_antigua": env("APP_ANTIGUA_URL"), "tipos": {k: v[0] for k, v in TIPOS.items()},
             "unidades": UNIDADES, "con_prs": atleta not in SIN_PRS, "coach": coach, "demo": es_demo(sesion),
-            "abono": {"texto": env("ABONO_TEXTO")} if env("ABONO_URL") else None,
-            "contacto": _contacto() if not env("ABONO_URL") else None,
+            "abono": {"texto": (env("ABONO_TEXTO") or ABONO_DEFECTO["texto"])} if _abono_url() else None,
+            "contacto": _contacto() if not _abono_url() else None,
             "puede_pesos": coach or bool((rut or {}).get("permiso_pesos")),
             "permiso_pesos": bool((rut or {}).get("permiso_pesos")),
             "solicitudes": [x for x in todas_sol if coach and (not sesion.get("u") or x["atleta"] == sesion["u"])],
