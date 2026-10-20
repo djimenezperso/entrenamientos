@@ -329,7 +329,7 @@ def _igual(a: str, b: str) -> bool:
     return bool(a) and bool(b) and hmac.compare_digest(a.encode(), b.encode())
 
 
-VERSION = "7.3"
+VERSION = "7.4"
 CLAVES_NECESARIAS = ["CONTRASENA_DIEGO", "SUPABASE_URL", "SUPABASE_KEY", "APP_PASSWORD", "CONTRASENA_ARCHCHANA", "CONTRASENA_INVITADOS", "COACH_PIN",
                      "APP_ANTIGUA_URL", "CONTRASENA_DEMO"]
 
@@ -1273,34 +1273,39 @@ def _parte(rut, dia, parte, lineas, semana, partes_semana, nivel, alumno, sugs, 
 
 
 def _rellenar_demo(partes: list[dict], dia_id: str, semana: int, nivel: str) -> None:
-    """En la demo no puede salir nada «por definir»: cada parte vacía lleva un entreno de verdad que encaja con ella
-    (EMOM en la parte EMOM, conditioning en Conditioning…), distinto en cada parte, con sus niveles y su cronómetro."""
+    """En la demo no puede salir nada «por definir»: la B vacía lleva siempre un WOD y la C un conditioning
+    (de verdad, distintos, con sus niveles y su cronómetro). Otras partes vacías, lo que encaje con su nombre."""
     semilla = int(hashlib.sha256(f"{dia_id}|{semana}".encode()).hexdigest(), 16)
-    ya = set()
+    wods = [w for w in REPERTORIO["wod"] if "(Diego)" not in w[0]
+            and (crono_de(w[1], "B) WOD", "WOD") or {}).get("modo") not in (None, "libre")] \
+        or [w for w in REPERTORIO["wod"] if "(Diego)" not in w[0]]
+    cond = [w for w in REPERTORIO["conditioning"]
+            if (crono_de(w[1], "B) Conditioning", "Conditioning") or {}).get("modo") not in (None, "libre")] \
+        or REPERTORIO["conditioning"]
     for i, p in enumerate(partes):
+        vacias = [l for l in p["lineas"] if l.get("kind") == "texto" and not (l.get("texto") or "").strip()]
+        if not vacias:
+            continue
+        letra = (p.get("letra") or "").upper()
         etq = norm_busqueda(p.get("etiqueta") or "")
-        for l in p["lineas"]:
-            if l.get("kind") != "texto" or (l.get("texto") or "").strip():
-                continue
-            pista = norm_busqueda(f"{etq} {l.get('ejercicio', '')}")
-            lista = REPERTORIO["conditioning"] if "conditioning" in pista else \
-                [w for w in REPERTORIO["wod"] if "(Diego)" not in w[0]]
-            for fmt, clave in (("emom", "emom"), ("amrap", "amrap"), ("for time", "for time")):
-                if fmt in pista:
-                    afines = [w for w in REPERTORIO["wod"] + REPERTORIO["conditioning"]
-                              if clave in norm_busqueda(w[1]) and "(Diego)" not in w[0]]
-                    lista = afines or lista
-            libres = [w for w in lista if w[1] not in ya] or lista
-            nombre, txt = libres[(semilla + i * 7) % len(libres)]
-            ya.add(txt)
+        if letra == "B" or (letra != "C" and "conditioning" not in etq):
+            lista, titulo = wods, "WOD"
+        else:
+            lista, titulo = cond, "Conditioning"
+        if letra in ("B", "C"):
+            p["etiqueta"] = titulo
+            p["tipo"] = "wod" if titulo == "WOD" else "conditioning"
+        for j, l in enumerate(vacias):
+            nombre, txt = lista[(semilla + i * 7 + j * 3) % len(lista)]
             nv_ = l.get("nivel") or nivel
             l["texto"] = txt
             l["visto"] = escalar(txt, nv_) if nv_ != "RX" else txt
             l["versiones_nivel"] = {n: escalar(txt, n) for n in NIVELES}
-            l["crono"] = crono_de(txt, p.get("parte", ""), l.get("ejercicio", ""))
+            l["crono"] = crono_de(txt, f"{letra}) {titulo}", titulo)
             l["texto_sig"] = None
-            if len(p["lineas"]) == 1 and norm_busqueda(l.get("ejercicio", "")) in ("wod", "conditioning", "emom", "amrap", "for time", "gym / wod", "metcon"):
+            if len(p["lineas"]) == 1:
                 l["ejercicio"] = nombre
+                l["solo_bloque"] = False
 
 
 def vista(sesion: dict, atleta: str | None, semana: int | None, dia_id: str | None) -> dict:
