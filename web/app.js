@@ -397,7 +397,7 @@ function hojaPago(cs) {
       <label class="paso-etq" for="pg-nombre" style="margin:0 4px">${t("Tu nombre")}</label>
       <input class="campo" id="pg-nombre" autocomplete="name" style="background:#fff" value="${esc(v.demo ? "" : (v.nombre || ""))}" required>
       <label class="paso-etq" for="pg-tel" style="margin:0 4px">${t("Teléfono")}</label>
-      <input class="campo" id="pg-tel" type="tel" autocomplete="tel" inputmode="tel" placeholder="+34 600 000 000" style="background:#fff" required>
+      <input class="campo" id="pg-tel" type="tel" autocomplete="tel" inputmode="tel" value="${E.lang === "fr" ? "+33 " : "+34 "}" placeholder="${E.lang === "fr" ? "+33 6 12 34 56 78" : "+34 600 000 000"}" style="background:#fff" required>
       <label class="paso-etq" for="pg-email" style="margin:0 4px">Email</label>
       <input class="campo" id="pg-email" type="email" autocomplete="email" inputmode="email" placeholder="tu@email.com" style="background:#fff" required>
       ${v.solo && !v.demo ? "" : `<label class="paso-etq" for="pg-pin" style="margin:0 4px">${t("Elige un PIN (4 cifras o más)")}</label>

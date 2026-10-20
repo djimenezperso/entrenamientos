@@ -607,6 +607,9 @@ def datos_pago(sesion: dict | None, c: dict) -> dict:
     import uuid
     nombre = " ".join(str(c.get("nombre") or "").split())[:60]
     tel = "".join(ch for ch in str(c.get("telefono") or "") if ch.isdigit() or ch in "+ ").strip()[:20]
+    digitos = "".join(ch for ch in tel if ch.isdigit())
+    if tel.startswith("+33") and digitos.startswith("330") and len(digitos) == 12:
+        tel = "+33 " + digitos[3:]  # «+33 06…» → «+33 6…»
     email = str(c.get("email") or "").strip()[:120]
     cs = re.sub(r"[^A-Za-z0-9_]", "", str(c.get("cs") or ""))[:120]
     if not nombre:
