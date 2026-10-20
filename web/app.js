@@ -280,7 +280,8 @@ const MESES_ES = ["ene", "feb", "mar", "abr", "may", "jun", "jul", "ago", "sep",
 const MESES_FR = ["janv.", "févr.", "mars", "avr.", "mai", "juin", "juil.", "août", "sept.", "oct.", "nov.", "déc."];
 const DIAS_SEM = { lun: "lun.", mar: "mar.", "mié": "mer.", jue: "jeu.", vie: "ven.", "sáb": "sam.", dom: "dim." };
 const trDia = (x) => E.lang !== "fr" || !x ? x : String(x).replace(/\bD[ií]a\b/g, "Jour").replace(/\bSemana\b/g, "Semaine")
-  .replace(/\bDescanso\b/gi, "Repos");
+  .replace(/\bDescanso\b/gi, "Repos").replace(/\b(Lunes|Martes|Mi[eé]rcoles|Jueves|Viernes|S[aá]bado|Domingo)\b/g, (d) =>
+    ({ lunes: "Lundi", martes: "Mardi", miercoles: "Mercredi", jueves: "Jeudi", viernes: "Vendredi", sabado: "Samedi", domingo: "Dimanche" })[d.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "")] || d);
 const trFecha = (x) => {
   if (E.lang !== "fr" || !x) return x;
   const mes = (m) => { const i = MESES_ES.indexOf(m); return i < 0 ? m : MESES_FR[i]; };
@@ -439,7 +440,10 @@ async function cargar(opc = {}) {
   }
 }
 
+// «Cliente 1» de la demo → «Client 1» en francés
+const trCliente = (n) => E.lang === "fr" ? String(n || "").replace(/^Cliente(\s+\d+)$/, "Client$1") : n;
 function poner(v) {
+  if (v.demo) { v.nombre = trCliente(v.nombre); (v.personas || []).forEach((p) => { p.nombre = trCliente(p.nombre); }); }
   E.vista = v; E.atleta = v.atleta; mem.set("atleta", v.atleta);
   E.semana = v.semana; E.dia = v.dia && v.dia.id;
   if (v.solo && v.lang && !mem.get("lang_elegido")) E.lang = v.lang;
