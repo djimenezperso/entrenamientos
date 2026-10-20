@@ -18,6 +18,12 @@ const E = { token: mem.get("token"), atleta: mem.get("atleta"), lang: mem.get("l
 
 // ---------- textos ----------
 const FR = {
+  "Con tu nombre y este PIN entrarás en tu perfil.": "Avec ton nom et ce code tu entreras dans ton profil.",
+  "¡Ya eres de Djimenez Prog!": "Bienvenue chez Djimenez Prog !", "Tu semana gratis empieza hoy. Así funciona:": "Ta semaine gratuite commence aujourd'hui. Voici comment ça marche :",
+  "Tu rutina de inicio ya está aquí.": "Ton programme de départ est déjà là.", "Diego la revisa y te la ajusta a ti en 24–48 h.": "Diego le revoit et l'adapte à toi sous 24–48 h.",
+  "Cada día:": "Chaque jour :", "haz las partes en orden, marca el ✓ y registra tus resultados.": "fais les parties dans l'ordre, coche ✓ et enregistre tes résultats.",
+  "¿Algo no te encaja?": "Quelque chose ne te convient pas ?", "Pídeselo a Diego desde los ⋯ de cada parte.": "Demande-le à Diego depuis les ⋯ de chaque partie.",
+  "arriba a la derecha, con EMOM, AMRAP, Tabata…": "en haut à droite, avec EMOM, AMRAP, Tabata…", "¡Vamos!": "C'est parti !",
   "¿Quién eres?": "Qui es-tu ?", "Elige tu perfil. Se queda guardado en este móvil y ya no se cambia solo.": "Choisis ton profil. Il reste enregistré sur ce téléphone et ne change plus tout seul.",
   "Perfil guardado en este móvil ✅": "Profil enregistré sur ce téléphone ✅",
   "Código FUNDADOR: 19 €/mes para siempre · solo 20 plazas": "Code FUNDADOR : 19 €/mois à vie · seulement 20 places",
@@ -394,6 +400,9 @@ function hojaPago(cs) {
       <input class="campo" id="pg-tel" type="tel" autocomplete="tel" inputmode="tel" placeholder="+34 600 000 000" style="background:#fff" required>
       <label class="paso-etq" for="pg-email" style="margin:0 4px">Email</label>
       <input class="campo" id="pg-email" type="email" autocomplete="email" inputmode="email" placeholder="tu@email.com" style="background:#fff" required>
+      ${v.solo && !v.demo ? "" : `<label class="paso-etq" for="pg-pin" style="margin:0 4px">${t("Elige un PIN (4 cifras o más)")}</label>
+      <input class="campo" id="pg-pin" type="password" inputmode="numeric" autocomplete="new-password" style="background:#fff" required>
+      <p class="mini" style="margin:0 4px">${t("Con tu nombre y este PIN entrarás en tu perfil.")}</p>`}
       <p class="error" id="pg-error" hidden></p>
       <button class="btn btn-abono" type="submit" style="height:54px">${t("Enviar")}</button>
     </form>`, (h) => {
@@ -403,9 +412,15 @@ function hojaPago(cs) {
       const err = h.querySelector("#pg-error"); const boton = f.querySelector("button");
       boton.disabled = true; err.hidden = true;
       try {
-        await api("datos_pago", { metodo: "POST", cuerpo: { cs, nombre: h.querySelector("#pg-nombre").value,
-          telefono: h.querySelector("#pg-tel").value, email: h.querySelector("#pg-email").value } });
+        const pinEl = h.querySelector("#pg-pin");
+        const r = await api("datos_pago", { metodo: "POST", cuerpo: { cs, nombre: h.querySelector("#pg-nombre").value,
+          telefono: h.querySelector("#pg-tel").value, email: h.querySelector("#pg-email").value, pin: pinEl ? pinEl.value : undefined } });
         mem.set("pago_pendiente", null);
+        if (r.token) {  // abonado nuevo: entra ya en su perfil
+          E.token = r.token; mem.set("token", r.token); E.atleta = r.solo; mem.set("atleta", r.solo); mem.set("perfil_fijo", r.solo);
+          E.semana = null; E.dia = null; E.bienvenidaDemo = true;
+          cerrarHoja(); confeti(); await cargar(); return hojaNuevoAbonado();
+        }
         h.innerHTML = `<div class="asa"></div><div class="demo-hola"><div class="pago-ok">✓</div><h3>${t("¡Recibido!")}</h3>
           <p>${t("En cuanto Diego compruebe el pago te escribirá para empezar. ¡Nos vemos entrenando! 🔥")}</p></div>
           <button class="btn btn-fuego" data-cerrar>${t("Vale")}</button>`;
@@ -419,6 +434,19 @@ function hojaPago(cs) {
 const urlCreador = () => E.lang === "fr" ? "https://conoce-al-creador.vercel.app/?lang=fr#profesor"
   : "https://conoce-al-creador.vercel.app/?lang=es#traductor";
 const botonCreador = (extra = "") => `<a class="btn btn-creador" href="${urlCreador()}" target="_blank" rel="noopener" ${extra}>👤 ${t("Conoce al creador")}</a>`;
+
+function hojaNuevoAbonado() {
+  abrirHoja(`<div class="demo-hola"><div class="pago-ok">🔥</div>
+      <h3>${t("¡Ya eres de Djimenez Prog!")}</h3>
+      <p>${t("Tu semana gratis empieza hoy. Así funciona:")}</p></div>
+    <ol class="pasos-abonado">
+      <li><b>${t("Tu rutina de inicio ya está aquí.")}</b> ${t("Diego la revisa y te la ajusta a ti en 24–48 h.")}</li>
+      <li><b>${t("Cada día:")}</b> ${t("haz las partes en orden, marca el ✓ y registra tus resultados.")}</li>
+      <li><b>${t("¿Algo no te encaja?")}</b> ${t("Pídeselo a Diego desde los ⋯ de cada parte.")}</li>
+      <li><b>${t("Cronómetro")}</b> ${t("arriba a la derecha, con EMOM, AMRAP, Tabata…")}</li>
+    </ol>
+    <button class="btn btn-fuego" data-cerrar style="height:54px">${t("¡Vamos!")} 💪</button>`);
+}
 
 function hojaBienvenidaDemo() {
   if (!$hoja.hidden) return;

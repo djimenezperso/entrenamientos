@@ -327,7 +327,7 @@ def _igual(a: str, b: str) -> bool:
     return bool(a) and bool(b) and hmac.compare_digest(a.encode(), b.encode())
 
 
-VERSION = "6.3"
+VERSION = "6.4"
 CLAVES_NECESARIAS = ["CONTRASENA_DIEGO", "SUPABASE_URL", "SUPABASE_KEY", "APP_PASSWORD", "CONTRASENA_ARCHCHANA", "CONTRASENA_INVITADOS", "COACH_PIN",
                      "APP_ANTIGUA_URL", "CONTRASENA_DEMO"]
 
@@ -618,6 +618,20 @@ def datos_pago(sesion: dict | None, c: dict) -> dict:
     quien = None
     if sesion and not es_demo(sesion):
         quien = sesion.get("u") or None
+    respuesta = {"ok": True}
+    pin = str(c.get("pin") or "").strip()
+    if not quien and pin:  # abonado nuevo: se le crea su perfil al momento con una rutina de inicio
+        if len(pin) < 4:
+            raise Error("El PIN tiene que tener al menos 4 cifras")
+        r_alta = _login_invitado({"nombre": nombre, "pin": pin, "plantilla": c.get("plantilla") or next(iter(PLANTILLAS))})
+        if not r_alta.get("token"):
+            raise Error("No se ha podido crear tu perfil")
+        quien = r_alta["solo"]
+        reg_inv = dict(invitados())
+        if quien in reg_inv:
+            reg_inv[quien] = {**reg_inv[quien], "abonado": dt.date.today().isoformat(), "telefono": tel, "email": email}
+            datos().guardar(CLAVE_INVITADOS, reg_inv)
+        respuesta = {"ok": True, **r_alta, "nuevo_abonado": True}
 
     def cambio(act):
         pagos = act.setdefault("pagos", [])
@@ -630,8 +644,10 @@ def datos_pago(sesion: dict | None, c: dict) -> dict:
                          "telefono": tel, "email": email, "cs": cs, "perfil": quien, "visto": False})
         del pagos[300:]
     _apuntar_actividad(cambio)
-    notificar(f"💳 Pago nuevo por comprobar\n{nombre} · {tel} · {email}" + (f"\nStripe: {cs}" if cs else ""))
-    return {"ok": True}
+    notificar(f"💳 {'Nuevo abonado (semana gratis)' if respuesta.get('nuevo_abonado') else 'Pago nuevo por comprobar'}\n"
+              f"{nombre} · {tel} · {email}" + (f"\n👤 Perfil creado: {quien} · rutina de inicio, ajústasela" if respuesta.get("nuevo_abonado") else "")
+              + (f"\nStripe: {cs}" if cs else ""))
+    return respuesta
 
 
 def me_gusta(sesion: dict, c: dict) -> dict:
