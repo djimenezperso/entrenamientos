@@ -324,7 +324,7 @@ def _igual(a: str, b: str) -> bool:
     return bool(a) and bool(b) and hmac.compare_digest(a.encode(), b.encode())
 
 
-VERSION = "5.7"
+VERSION = "5.8"
 CLAVES_NECESARIAS = ["SUPABASE_URL", "SUPABASE_KEY", "APP_PASSWORD", "CONTRASENA_ARCHCHANA", "CONTRASENA_INVITADOS", "COACH_PIN",
                      "APP_ANTIGUA_URL", "CONTRASENA_DEMO"]
 
@@ -515,6 +515,16 @@ def _login_perfil(cuerpo: dict) -> dict:
 
 
 PLANTILLAS_DEMO = {"Salatti": "Rutina 1 · fuerza + WOD", "Dario": "Rutina 2 · fuerza + WOD"}
+
+
+def fijar_perfil(sesion: dict, c: dict) -> dict:
+    """Con la contraseña general: «soy Salatti» → la sesión queda solo para Salatti (no puede saltar a otros)."""
+    if es_demo(sesion) or sesion.get("u"):
+        raise Error("Esta sesión ya tiene perfil", 403)
+    atleta = c.get("atleta")
+    if atleta not in todas_las_personas():
+        raise Error("Persona desconocida")
+    return _sesion_para(atleta)
 
 
 def crear_perfil(sesion: dict, c: dict) -> dict:

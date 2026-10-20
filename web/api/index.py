@@ -59,6 +59,8 @@ class handler(BaseHTTPRequestHandler):
             if ruta == "ideas" and metodo == "GET":
                 self._sesion()
                 return self._responder(200, servicio.ideas())
+            if ruta == "fijar_perfil" and metodo == "POST":
+                return self._responder(200, servicio.fijar_perfil(self._sesion(), self._cuerpo()))
             if ruta == "crear_perfil" and metodo == "POST":
                 return self._responder(200, servicio.crear_perfil(self._sesion(), self._cuerpo()))
             if ruta == "datos_pago" and metodo == "POST":

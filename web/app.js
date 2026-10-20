@@ -18,6 +18,8 @@ const E = { token: mem.get("token"), atleta: mem.get("atleta"), lang: mem.get("l
 
 // ---------- textos ----------
 const FR = {
+  "¿Quién eres?": "Qui es-tu ?", "Elige tu perfil. Se queda guardado en este móvil y ya no se cambia solo.": "Choisis ton profil. Il reste enregistré sur ce téléphone et ne change plus tout seul.",
+  "Perfil guardado en este móvil ✅": "Profil enregistré sur ce téléphone ✅",
   "Código FUNDADOR: 19 €/mes para siempre · solo 20 plazas": "Code FUNDADOR : 19 €/mois à vie · seulement 20 places",
   "7 días gratis · luego 29 €/mes": "7 jours gratuits · puis 29 €/mois",
   "Sin conexión o el servidor ha tardado. Vuelve a intentarlo en unos segundos.": "Pas de connexion ou le serveur a tardé. Réessaie dans quelques secondes.",
@@ -261,7 +263,7 @@ async function api(ruta, { metodo = "GET", cuerpo, q } = {}) {
 }
 
 function salir() {
-  E.token = null; E.vista = null; mem.set("token", null); mem.set("atleta", null);
+  E.token = null; E.vista = null; mem.set("token", null); mem.set("atleta", null); mem.set("perfil_fijo", null);
   cerrarHoja(); pintarEntrar();
 }
 
@@ -346,6 +348,7 @@ function poner(v) {
   pintar();
   if (v.pr) { aviso("🎉 " + v.pr); confeti(); } else if (v.aviso) aviso(v.aviso);
   if (E.pagoCs !== undefined && !E.pagoMostrado) { E.pagoMostrado = true; E.bienvenidaDemo = true; setTimeout(() => hojaPago(E.pagoCs), 300); }
+  if (!v.solo && !v.demo && !v.coach && !mem.get("perfil_fijo") && !E.quienMostrado && $hoja.hidden) { E.quienMostrado = true; setTimeout(hojaQuienEres, 300); }
   if (v.demo && !E.bienvenidaDemo && E.pantalla !== "registrar") { E.bienvenidaDemo = true; setTimeout(hojaBienvenidaDemo, 450); }
 }
 
@@ -939,6 +942,26 @@ function hojaPeso(k, foco) {
         propagar: h.querySelector("#c-prop").checked, solo_semana: h.querySelector("#c-solo").checked,
         mensaje: libre ? undefined : msg });
     };
+  });
+}
+
+// Con la contraseña general, cada móvil dice quién es una vez; si es un alumno, la sesión queda fijada a su perfil
+function hojaQuienEres() {
+  const v = E.vista;
+  abrirHoja(`<div class="demo-hola">${ic.llama("#FF6A00", 40)}<h3>${t("¿Quién eres?")}</h3>
+      <p>${t("Elige tu perfil. Se queda guardado en este móvil y ya no se cambia solo.")}</p></div>
+    <div class="lista-personas">${v.personas.map((p) => `<button class="persona" data-yo="${esc(p.id)}">
+      <span class="avatar">${esc(inicial(p.nombre))}</span>${esc(p.nombre)}</button>`).join("")}</div>`, (h) => {
+    h.querySelectorAll("[data-yo]").forEach((b) => b.onclick = async () => {
+      const quien = b.dataset.yo;
+      mem.set("perfil_fijo", quien);
+      if (quien === "Yo") { cerrarHoja(); return cargar({ atleta: "Yo" }); }  // Diego sigue viendo a todos
+      try {
+        const r = await api("fijar_perfil", { metodo: "POST", cuerpo: { atleta: quien } });
+        E.token = r.token; mem.set("token", r.token); E.atleta = quien; mem.set("atleta", quien);
+        E.semana = null; E.dia = null; cerrarHoja(); aviso(t("Perfil guardado en este móvil ✅")); cargar({ atleta: quien });
+      } catch (e) { aviso(e.message, true); }
+    });
   });
 }
 
