@@ -18,7 +18,7 @@ const E = { token: mem.get("token"), atleta: mem.get("atleta"), lang: mem.get("l
 
 // ---------- textos ----------
 const FR = {
-  "Código FUNDADOR: 19 €/mes para siempre · solo 20 plazas": "Code FONDATEUR : 19 €/mois à vie · seulement 20 places",
+  "Código FUNDADOR: 19 €/mes para siempre · solo 20 plazas": "Code FUNDADOR : 19 €/mois à vie · seulement 20 places",
   "7 días gratis · luego 29 €/mes": "7 jours gratuits · puis 29 €/mois",
   "Sin conexión o el servidor ha tardado. Vuelve a intentarlo en unos segundos.": "Pas de connexion ou le serveur a tardé. Réessaie dans quelques secondes.",
   "Avisos por Telegram": "Alertes Telegram", "Enviar prueba": "Envoyer un test", "Conectar": "Connecter",
