@@ -819,7 +819,7 @@ function cabecera(v) {
     <div class="fila-cab">
       <button class="quien" id="b-persona" ${varias ? "" : "disabled"} aria-label="${t("Personas")}">
         <span class="avatar">${v.icono ? v.icono : esc(inicial(v.nombre))}</span>
-        <span><small>${v.demo && varias ? "👆 " + t("Toca para ver otros programas") : t("Hola,")}</small><strong>${esc(v.nombre)} ${varias ? `<span style="color:#fff">${ic.abajo}</span>` : ""}</strong></span>
+        <span>${v.demo ? "" : `<small>${t("Hola,")}</small>`}<strong class="${v.demo && v.nombre.length > 18 ? "nombre-largo" : ""}">${esc(v.nombre)} ${varias ? `<span style="color:#fff">${ic.abajo}</span>` : ""}</strong></span>
       </button>
       <div style="display:flex;gap:8px">
         ${v.coach && v.solicitudes && v.solicitudes.length ? `<button class="redondo campana" id="b-solicitudes" aria-label="${t("Solicitudes")}">${ic.campana}<i>${v.solicitudes.length}</i></button>` : ""}

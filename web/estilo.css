@@ -593,3 +593,5 @@ main { padding: 4px 16px 0; display: flex; flex-direction: column; gap: 12px; }
 @keyframes late-ciclo { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.07); } }
 .etq-ciclo { margin-left: auto; white-space: nowrap; flex: none; font-size: 12px; font-weight: 800; color: #fff; background: var(--fuego); padding: 3px 9px; border-radius: 999px; }
 .lista-personas .persona .avatar { font-size: 20px; }
+.cabecera .quien strong.nombre-largo { display: block; font-size: 18px !important; line-height: 1.2; }
+.cabecera .quien strong.nombre-largo svg { display: inline; vertical-align: -3px; }
