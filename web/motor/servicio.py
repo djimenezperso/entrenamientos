@@ -329,7 +329,7 @@ def _igual(a: str, b: str) -> bool:
     return bool(a) and bool(b) and hmac.compare_digest(a.encode(), b.encode())
 
 
-VERSION = "8.6"
+VERSION = "8.7"
 CLAVES_NECESARIAS = ["CONTRASENA_DIEGO", "SUPABASE_URL", "SUPABASE_KEY", "APP_PASSWORD", "CONTRASENA_ARCHCHANA", "CONTRASENA_INVITADOS", "COACH_PIN",
                      "APP_ANTIGUA_URL", "CONTRASENA_DEMO"]
 
@@ -449,7 +449,16 @@ def _rutina_inicio(nombre: str, plantilla: str | None) -> dict | None:
 
 def _info_abono(sesion: dict, atleta: str, inv: dict) -> dict:
     """Para el propio abonado: estado de su abono y si puede gestionarlo (portal de Stripe)."""
-    if es_demo(sesion) or sesion.get("u") != atleta or atleta not in inv or not inv[atleta].get("stripe_sub"):
+    if es_demo(sesion) or sesion.get("u") != atleta or atleta not in inv:
+        return {}
+    if not inv[atleta].get("stripe_sub") and inv[atleta].get("email") and inv[atleta].get("abonado") and env("STRIPE_SECRET_KEY") \
+            and time.time() - float(inv[atleta].get("stripe_buscado") or 0) > 6 * 3600:
+        try:
+            _vincular_por_email(atleta, inv[atleta]["email"])
+            inv = invitados()
+        except Exception:  # noqa: BLE001
+            pass
+    if not inv[atleta].get("stripe_sub"):
         return {}
     try:
         estado = _estado_abono(atleta, inv)
@@ -744,6 +753,24 @@ def _estado_abono(nombre: str, reg: dict | None = None, forzar: bool = False) ->
         icono = "⚠️" if nuevo in ABONO_PROBLEMA else "✅"
         notificar(f"{icono} Abono de {nombre}: {ESTADOS_ABONO.get(antes, antes)} → {ESTADOS_ABONO.get(nuevo, nuevo)}")
     return nuevo
+
+
+def _vincular_por_email(nombre: str, email: str) -> None:
+    """Abonados de antes de conectar Stripe: se busca su cliente y su abono por el email que dejaron."""
+    reg = dict(invitados())
+    x = dict(reg.get(nombre) or {})
+    x["stripe_buscado"] = time.time()
+    cli = _stripe("GET", "customers", {"email": email, "limit": 3}) or {}
+    for c in cli.get("data") or []:
+        subs = _stripe("GET", "subscriptions", {"customer": c["id"], "status": "all", "limit": 3}) or {}
+        sub = next(iter(subs.get("data") or []), None)
+        x["stripe_customer"] = c["id"]
+        if sub:
+            x.update(stripe_sub=sub["id"], stripe_estado=sub["status"], stripe_mirado=time.time(),
+                     stripe_fin_prueba=sub.get("trial_end"), stripe_cancela=bool(sub.get("cancel_at_period_end")))
+            break
+    reg[nombre] = x
+    datos().guardar(CLAVE_INVITADOS, reg)
 
 
 def portal_abono(sesion: dict) -> dict:
@@ -1070,6 +1097,14 @@ def _lista_abonados() -> list[dict]:
     for n, x in sorted(reg.items(), key=lambda kv: kv[1].get("abonado", ""), reverse=True):
         if not x.get("abonado"):
             continue
+        if not x.get("stripe_sub") and x.get("email") and env("STRIPE_SECRET_KEY") and mirados < 8 \
+                and time.time() - float(x.get("stripe_buscado") or 0) > 6 * 3600:
+            mirados += 1
+            try:
+                _vincular_por_email(n, x["email"])
+                x = dict(invitados()).get(n, x)
+            except Exception:  # noqa: BLE001
+                pass
         estado = x.get("stripe_estado")
         if x.get("stripe_sub") and mirados < 8 and time.time() - float(x.get("stripe_mirado") or 0) > 6 * 3600:
             mirados += 1
