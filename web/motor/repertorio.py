@@ -34,7 +34,7 @@ CONDITIONING = [
     ("Z2 30'", "30' zona 2: 10' bike, 10' row, 10' ski"),
     ("Tabata x4", "Tabata row, bike, ski y burpees (4' cada uno, 1' entre bloques)"),
     ("3 x 8' AMRAP", "3 x AMRAP 8': 400 m run, 15 cal row, 10 burpees · 2' descanso"),
-    ("E2MOM row + burpees", "E2MOM x10: 250 m row + 8 burpees"),
+    ("E2MOM row + burpees", "E2MOM 20': 250 m row + 8 burpees"),
     ("Remo 4x1000", "4 x 1000 m row · descanso 3'"),
     ("Intervalos assault", "10 x 30\"/30\" assault bike"),
     ("21-15-9 cal", "21-15-9: cal echo bike + burpees over bar"),
