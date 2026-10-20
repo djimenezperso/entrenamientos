@@ -329,7 +329,7 @@ def _igual(a: str, b: str) -> bool:
     return bool(a) and bool(b) and hmac.compare_digest(a.encode(), b.encode())
 
 
-VERSION = "7.7"
+VERSION = "7.8"
 CLAVES_NECESARIAS = ["CONTRASENA_DIEGO", "SUPABASE_URL", "SUPABASE_KEY", "APP_PASSWORD", "CONTRASENA_ARCHCHANA", "CONTRASENA_INVITADOS", "COACH_PIN",
                      "APP_ANTIGUA_URL", "CONTRASENA_DEMO"]
 
@@ -578,6 +578,8 @@ def _login_perfil(cuerpo: dict) -> dict:
     return _sesion_para(existente)
 
 
+DEMO_ACCESSORY = [("GHD lateral crunch", "3x10 por lado"), ("GHD hip extension", "3x15 lento, 2\" arriba"),
+                  ("Superman hold", "3x30\"")]  # refuerzo de espalda y core del día 2 de la demo
 DEMO_DIAS_CERRADOS = {3, 4, 5, 6}  # en la demo, solo se pueden abrir los días 1 y 2
 PLANTILLAS_DEMO = {"Salatti": "Rutina 1 · fuerza + WOD", "Dario": "Rutina 2 · fuerza + WOD"}
 
@@ -1278,14 +1280,14 @@ def _demo_accessory(partes: list[dict], semilla: int) -> None:
     molde = next((p for p in partes if p["lineas"]), None)
     if not molde:
         return
-    acc = REPERTORIO["accessory"]
+    acc = DEMO_ACCESSORY
     p = copy.deepcopy(molde)
     p.update(parte="C) Accessory", letra="C", etiqueta="Accessory", tipo="accessory", historial=[], ciclo=None,
              no_hechas=0, es_cambio=False)
     base_l = copy.deepcopy(next((l for l in molde["lineas"] if l.get("kind") == "texto"), molde["lineas"][0]))
     lineas = []
     for j in range(3):
-        nombre, txt = acc[(semilla // 7 + j * 5) % len(acc)]
+        nombre, txt = acc[j % len(acc)]
         l = {k: v for k, v in base_l.items() if k not in ("pesos", "esquema", "no_hecha", "crono", "elite", "tabla", "versiones_nivel", "sugerencia")}
         l.update(id=f"demo-acc-{j}", ejercicio=nombre, texto=txt, visto=txt, kind="texto", tipo="accessory", nivel="RX",
                  nota="", extra=None, texto_sig=None, solo_bloque=False, ciclo=False)

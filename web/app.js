@@ -18,6 +18,10 @@ const E = { token: mem.get("token"), atleta: mem.get("atleta"), lang: mem.get("l
 
 // ---------- textos ----------
 const FR = {
+  "Ver clientes": "Voir les clients",
+  "Toca para ver otros clientes": "Touche pour voir d'autres clients",
+  "Rutinas de ejemplo": "Programmes d'exemple",
+  "Cada cliente tiene su propia rutina, hecha para él. Mira cómo cambian.": "Chaque client a son propre programme, fait pour lui. Regarde comme ils changent.",
   "Ver la app gratis": "Voir l'appli gratuitement",
   "desde Instagram": "depuis Instagram",
   "semana": "semaine",
@@ -777,7 +781,7 @@ function cabecera(v) {
     <div class="fila-cab">
       <button class="quien" id="b-persona" ${varias ? "" : "disabled"} aria-label="${t("Personas")}">
         <span class="avatar">${esc(inicial(v.nombre))}</span>
-        <span><small>${t("Hola,")}</small><strong>${esc(v.nombre)} ${varias ? `<span style="color:#fff">${ic.abajo}</span>` : ""}</strong></span>
+        <span><small>${v.demo && varias ? "👆 " + t("Toca para ver otros clientes") : t("Hola,")}</small><strong>${esc(v.nombre)} ${varias ? `<span style="color:#fff">${ic.abajo}</span>` : ""}</strong></span>
       </button>
       <div style="display:flex;gap:8px">
         ${v.coach && v.solicitudes && v.solicitudes.length ? `<button class="redondo campana" id="b-solicitudes" aria-label="${t("Solicitudes")}">${ic.campana}<i>${v.solicitudes.length}</i></button>` : ""}
@@ -785,7 +789,7 @@ function cabecera(v) {
         <button class="redondo" id="b-ajustes" aria-label="${t("Ajustes")}">${ic.ajustes}</button>
       </div>
     </div>
-    ${v.demo ? `<div class="banda-demo">👀 ${t("Modo demo · solo para mirar")} <button id="b-crear-demo">✨ ${t("Crear mi perfil")}</button>${v.abono ? `<button id="b-abono-demo">💳 ${t("Abonarse")}</button>` : v.contacto ? `<button id="b-abono-demo">💬 ${t("Contacto")}</button>` : ""}<button id="b-compartir-demo">${ic.compartir} ${t("Compartir")}</button></div>` : ""}
+    ${v.demo ? `<div class="banda-demo">👀 ${t("Modo demo · solo para mirar")} <button id="b-crear-demo">✨ ${t("Crear mi perfil")}</button>${v.abono ? `<button id="b-abono-demo">💳 ${t("Abonarse")}</button>` : v.contacto ? `<button id="b-abono-demo">💬 ${t("Contacto")}</button>` : ""}<button id="b-compartir-demo">${ic.compartir} ${t("Compartir")}</button>${varias ? `<button id="b-clientes-demo" class="clientes-demo">👥 ${t("Ver clientes")}</button>` : ""}</div>` : ""}
     ${v.semana && v.demo ? `<div class="pildora-semana"><span>${t("Semana")} ${v.semana} · <em>${t("de muestra")}</em></span></div>` : v.semana ? `<div class="pildora-semana">
       <button id="b-sem-menos" aria-label="Semana anterior" ${v.semana <= 1 ? "disabled style='opacity:.3'" : ""}>${ic.izq}</button>
       <span>${t("Semana")} ${v.semana}${v.semana === v.actual ? ` · <em>${t("de fuego")}</em>` : ""}</span>
@@ -994,6 +998,7 @@ function enlazar() {
   if (bad) bad.onclick = abonarse;
   const bcp = document.getElementById("b-crear-demo");
   if (bcp) bcp.onclick = () => hojaCrearPerfil({});
+  const bcl = document.getElementById("b-clientes-demo"); if (bcl) bcl.onclick = hojaPersonas;
   const bcd = document.getElementById("b-compartir-demo");
   if (bcd) bcd.onclick = () => compartir("app", t("💪 Mira la app de entrenamiento de Diego (Djimenez Prog)"), "app");
   on("b-anadir-parte", () => hojaParte(null));
@@ -1198,7 +1203,8 @@ function hojaQuienEres() {
 
 function hojaPersonas() {
   const v = E.vista;
-  abrirHoja(`${cabHoja("Djimenez Prog", t("Personas"))}
+  abrirHoja(`${cabHoja("Djimenez Prog", v.demo ? t("Rutinas de ejemplo") : t("Personas"))}
+    ${v.demo ? `<p class="mini" style="margin:0 4px">${t("Cada cliente tiene su propia rutina, hecha para él. Mira cómo cambian.")}</p>` : ""}
     <div class="lista-personas">${v.personas.map((p) => `<button class="persona ${p.id === v.atleta ? "on" : ""}" data-p="${esc(p.id)}">
       <span class="avatar">${esc(inicial(p.nombre))}</span>${esc(p.nombre)}</button>`).join("")}</div>`, (h) => {
     h.querySelectorAll("[data-p]").forEach((b) => b.onclick = () => {

@@ -49,6 +49,7 @@ ACCESSORIES = [
     ("DB bench press", "3x12"),
     ("DB row", "3x12 por brazo"),
     ("GHD hip extension", "3x15"),
+    ("GHD lateral crunch", "3x10 por lado"),
     ("Good morning", "3x10"),
     ("Front rack lunges", "3x8 por pierna"),
     ("Hollow hold", "3x30\""),
