@@ -337,7 +337,7 @@ def _igual(a: str, b: str) -> bool:
     return bool(a) and bool(b) and hmac.compare_digest(a.encode(), b.encode())
 
 
-VERSION = "9.8"
+VERSION = "9.9"
 CLAVES_NECESARIAS = ["CONTRASENA_DIEGO", "SUPABASE_URL", "SUPABASE_KEY", "APP_PASSWORD", "CONTRASENA_ARCHCHANA", "CONTRASENA_INVITADOS", "COACH_PIN",
                      "APP_ANTIGUA_URL", "CONTRASENA_DEMO"]
 
@@ -723,8 +723,7 @@ def _login_perfil(cuerpo: dict) -> dict:
     return _sesion_para(existente)
 
 
-DEMO_ACCESSORY = [("GHD lateral crunch", "3x10 por lado"), ("GHD hip extension", "3x15 lento, 2\" arriba"),
-                  ("Superman hold", "3x30\"")]  # refuerzo de espalda y core del día 2 de la demo
+DEMO_ACCESSORY = [("GHD lateral crunch", "4x10 por lado")]  # C del día 2 de la demo: un solo ejercicio, 4 series
 # nombre e icono de cada rutina en la demo (el francés lo pone la app)
 CUESTIONARIO_DESDE = "2026-10-15"  # perfiles nuevos desde esta fecha: les sale el cuestionario de objetivos (pagando o no)
 NOMBRES_DEMO = {"Yo": ("Prog Competidor · Diego", "🏆"), "Archchana": ("Prog Casa y Movilidad", "🏠"),
