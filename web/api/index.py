@@ -36,7 +36,7 @@ class handler(BaseHTTPRequestHandler):
         q = {k: v[0] for k, v in parse_qs(url.query).items()}
         ruta = q.get("r") or url.path.rstrip("/").split("/")[-1]
         try:
-            if metodo == "POST" and ruta not in ("login", "compartir", "crear_perfil", "abonarse", "datos_pago", "contactar", "me_gusta"):
+            if metodo == "POST" and ruta not in ("login", "compartir", "crear_perfil", "abonarse", "datos_pago", "contactar", "me_gusta", "chat", "tg_webhook"):
                 servicio.solo_lectura(self._sesion())  # la demo no puede guardar nada
             if ruta == "estado" and metodo == "GET":
                 return self._responder(200, servicio.estado())
@@ -69,6 +69,12 @@ class handler(BaseHTTPRequestHandler):
                 except servicio.Error:
                     ses = None  # vuelve de Stripe sin sesión: vale con el id del pago
                 return self._responder(200, servicio.datos_pago(ses, self._cuerpo()))
+            if ruta == "chat":
+                if metodo == "POST":
+                    return self._responder(200, servicio.chat(self._sesion(), self._cuerpo(), "POST"))
+                return self._responder(200, servicio.chat(self._sesion(), q, "GET"))
+            if ruta == "tg_webhook" and metodo == "POST":
+                return self._responder(200, servicio.tg_webhook(self.headers.get("X-Telegram-Bot-Api-Secret-Token", ""), self._cuerpo()))
             if ruta == "portal_abono" and metodo == "POST":
                 return self._responder(200, servicio.portal_abono(self._sesion()))
             if ruta == "objetivos" and metodo == "POST":

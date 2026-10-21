@@ -18,6 +18,14 @@ const E = { token: mem.get("token"), atleta: mem.get("atleta"), lang: mem.get("l
 
 // ---------- textos ----------
 const FR = {
+  "Chat con Diego": "Chat avec Diego",
+  "Chat": "Chat",
+  "Aún no hay mensajes con esta persona.": "Pas encore de messages avec cette personne.",
+  "Escríbele lo que quieras: dudas del entreno, molestias, cambios… Diego te contesta aquí.": "Écris-lui ce que tu veux : questions sur l'entraînement, douleurs, changements… Diego te répond ici.",
+  "Tu email (para que Diego te pueda contestar)": "Ton e-mail (pour que Diego puisse te répondre)",
+  "Escribe un mensaje…": "Écris un message…",
+  "Lo que escribas aquí le sale en su app.": "Ce que tu écris ici apparaît dans son appli.",
+  "Le llega a Diego al móvil al momento.": "Diego le reçoit tout de suite sur son téléphone.",
   "Tu abono está": "Ton abonnement est",
   "Volver a abonarme": "Me réabonner",
   "Actualizar mi tarjeta": "Mettre à jour ma carte",
@@ -452,7 +460,7 @@ function pintarEntrar(paso = {}) {
     const err = document.getElementById("e-entrar");
     const boton = f.querySelector("button[type=submit]");
     const cuerpo = paso.conPin ? { perfil: true, nombre: f.querySelector("#i-nombre").value, pin: f.querySelector("#i-pin").value }
-      : inv ? { password: paso.password, nombre: f.querySelector("#i-nombre").value, pin: f.querySelector("#i-pin").value,
+      : inv ? { lang: E.lang, password: paso.password, nombre: f.querySelector("#i-nombre").value, pin: f.querySelector("#i-pin").value,
       plantilla: (f.querySelector("input[name=plantilla]:checked") || {}).value } : { password: f.querySelector("#i-pass").value };
     boton.disabled = true; err.hidden = true;
     try {
@@ -719,6 +727,39 @@ function hojaObjetivos(despues, previo) {
   pinta();
 }
 
+// ---------- chat con Diego (le llega por Telegram y contesta desde ahí) ----------
+const idMovil = () => { let d = mem.get("disp"); if (!d) { d = Math.random().toString(36).slice(2, 12) + Date.now().toString(36).slice(-4); mem.set("disp", d); } return d; };
+function hojaChat() {
+  const v = E.vista;
+  const coach = v.coach && v.atleta !== "Yo";
+  const q = { atleta: E.atleta, disp: v.demo ? idMovil() : undefined };
+  const burbujas = (ms) => ms.length ? ms.map((m) => `<div class="msg ${m.mio ? "mio" : "suyo"}"><span>${esc(m.texto)}</span><small>${esc(m.cuando.slice(11, 16))} · ${esc(fechaCorta(m.cuando.slice(0, 10)))}</small></div>`).join("")
+    : `<p class="mini" style="text-align:center;margin:18px 6px">${coach ? t("Aún no hay mensajes con esta persona.") : t("Escríbele lo que quieras: dudas del entreno, molestias, cambios… Diego te contesta aquí.")}</p>`;
+  abrirHoja(`${cabHoja(coach ? v.nombre : "Djimenez Prog", coach ? t("Chat") : t("Chat con Diego"))}
+    <div class="chat" id="ch-lista"><p class="mini" style="text-align:center">…</p></div>
+    ${v.demo ? `<input class="campo" id="ch-email" type="email" placeholder="${t("Tu email (para que Diego te pueda contestar)")}" value="${esc(mem.get("chat_email") || "")}" style="background:#fff;height:46px">` : ""}
+    <form id="ch-form" class="chat-form"><textarea class="campo" id="ch-texto" rows="2" placeholder="${t("Escribe un mensaje…")}"></textarea>
+      <button class="btn btn-fuego" type="submit" aria-label="${t("Enviar")}">➤</button></form>
+    <p class="mini" id="ch-nota" style="margin:0 4px">${coach ? t("Lo que escribas aquí le sale en su app.") : t("Le llega a Diego al móvil al momento.")}</p>`, (h) => {
+    const lista = h.querySelector("#ch-lista");
+    const pinta = (ms) => { const abajo = lista.scrollTop + lista.clientHeight >= lista.scrollHeight - 30; lista.innerHTML = burbujas(ms); if (abajo || !pinta.ya) lista.scrollTop = lista.scrollHeight; pinta.ya = true; };
+    const leer = async () => { try { const r = await api("chat", { q }); pinta(r.mensajes); if (E.vista.chat_no_leidos) { E.vista.chat_no_leidos = 0; const b = document.querySelector("#b-chat i"); if (b) b.remove(); } } catch (e) { lista.innerHTML = `<p class="error">${esc(e.message)}</p>`; } };
+    leer();
+    const reloj = setInterval(() => { if ($hoja.hidden || !document.body.contains(lista)) return clearInterval(reloj); if (!document.hidden) leer(); }, 12000);
+    const f = h.querySelector("#ch-form"); const ta = h.querySelector("#ch-texto");
+    ta.addEventListener("keydown", (ev) => { if (ev.key === "Enter" && !ev.shiftKey && window.matchMedia("(pointer:fine)").matches) { ev.preventDefault(); f.requestSubmit(); } });
+    f.onsubmit = async (ev) => {
+      ev.preventDefault();
+      const texto = ta.value.trim(); if (!texto) return;
+      const em = h.querySelector("#ch-email"); if (em) mem.set("chat_email", em.value.trim());
+      const b = f.querySelector("button"); b.disabled = true;
+      try { const r = await api("chat", { metodo: "POST", cuerpo: { ...q, texto, email: em ? em.value.trim() : undefined } }); ta.value = ""; pinta.ya = false; pinta(r.mensajes); }
+      catch (e) { aviso(e.message, true); }
+      b.disabled = false; ta.focus();
+    };
+  });
+}
+
 function hojaBienvenidaDemo() {
   if (!$hoja.hidden) return;
   abrirHoja(`<div class="demo-hola">${ic.llama("#FF6A00", 44)}
@@ -754,7 +795,7 @@ function hojaCrearPerfil(paso) {
     f.onsubmit = async (ev) => {
       ev.preventDefault();
       const err = h.querySelector("#cp-error"); const boton = f.querySelector("button[type=submit]");
-      const cuerpo = { nombre: h.querySelector("#cp-nombre").value, pin: h.querySelector("#cp-pin").value,
+      const cuerpo = { lang: E.lang, nombre: h.querySelector("#cp-nombre").value, pin: h.querySelector("#cp-pin").value,
         plantilla: (h.querySelector("input[name=cp-plantilla]:checked") || {}).value };
       boton.disabled = true; err.hidden = true;
       try {
@@ -850,6 +891,7 @@ function cabecera(v) {
       </button>
       <div style="display:flex;gap:8px">
         ${v.coach && v.solicitudes && v.solicitudes.length ? `<button class="redondo campana" id="b-solicitudes" aria-label="${t("Solicitudes")}">${ic.campana}<i>${v.solicitudes.length}</i></button>` : ""}
+        ${v.chat_activo && !(v.coach && v.atleta === "Yo") ? `<button class="redondo campana" id="b-chat" aria-label="${t("Chat con Diego")}">💬${v.chat_no_leidos ? `<i>${v.chat_no_leidos}</i>` : ""}</button>` : ""}
         <button class="redondo" id="b-reloj" aria-label="${t("Reloj")}">${ic.reloj.replace("currentColor", "#1F1208")}</button>
         <button class="redondo" id="b-ajustes" aria-label="${t("Ajustes")}">${ic.ajustes}</button>
       </div>
@@ -1015,6 +1057,7 @@ function enlazar() {
   const on = (id, f) => { const el = document.getElementById(id); if (el) el.onclick = f; };
   on("b-persona", hojaPersonas);
   on("b-ajustes", hojaAjustes);
+  on("b-chat", hojaChat);
   on("b-reloj", () => abrirCrono(null, null));
   on("b-solicitudes", hojaSolicitudes);
   on("b-sem-menos", () => cargar({ semana: v.semana - 1, dia: null }).then(() => window.scrollTo(0, 0)));

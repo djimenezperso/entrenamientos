@@ -280,8 +280,14 @@ def _sesion_para(solo: str | None, coach: bool = False, demo: bool = False, dieg
         datos_s["c"] = 1
     if demo:
         datos_s["d"] = 1
-    return {"token": firmar(datos_s), "solo": solo, "lang": IDIOMA_DEFECTO.get(solo or "", "es"), "coach": coach,
-            "demo": demo}
+    lang = IDIOMA_DEFECTO.get(solo or "")
+    if not lang and solo:
+        try:
+            lang = (invitados().get(solo) or {}).get("lang")
+        except Exception:  # noqa: BLE001
+            lang = None
+    # sin idioma guardado → None: la app se queda en el idioma del móvil (antes forzaba español)
+    return {"token": firmar(datos_s), "solo": solo, "lang": lang, "coach": coach, "demo": demo}
 
 
 MENSAJE_DEMO = "👀 Esto es una demo: aquí solo se puede mirar. Si te gusta, ¡díselo a Diego!"
@@ -329,7 +335,7 @@ def _igual(a: str, b: str) -> bool:
     return bool(a) and bool(b) and hmac.compare_digest(a.encode(), b.encode())
 
 
-VERSION = "8.9"
+VERSION = "9.1"
 CLAVES_NECESARIAS = ["CONTRASENA_DIEGO", "SUPABASE_URL", "SUPABASE_KEY", "APP_PASSWORD", "CONTRASENA_ARCHCHANA", "CONTRASENA_INVITADOS", "COACH_PIN",
                      "APP_ANTIGUA_URL", "CONTRASENA_DEMO"]
 
@@ -420,7 +426,8 @@ def _login_invitado(cuerpo: dict) -> dict:
     plantilla = cuerpo.get("plantilla")
     if plantilla not in PLANTILLAS:
         return {"invitado": True, "nuevo": True, "plantillas": PLANTILLAS}
-    registro[nombre] = {"pin": _hash(nombre, pin), "alta": dt.date.today().isoformat(), "plantilla": plantilla}
+    registro[nombre] = {"pin": _hash(nombre, pin), "alta": dt.date.today().isoformat(), "plantilla": plantilla,
+                        **({"lang": cuerpo["lang"]} if cuerpo.get("lang") in ("es", "fr") else {})}
     datos().guardar(CLAVE_INVITADOS, registro)
     _rutina_inicio(nombre, plantilla)
     return _sesion_para(nombre)
@@ -1017,7 +1024,11 @@ def telegram(sesion: dict, c: dict) -> dict:
         cfg = _telegram()
         if not cfg.get("chat_id"):
             raise Error("Telegram no está conectado")
-        r = _tg(cfg["token"], "sendMessage", {"chat_id": cfg["chat_id"], "text": "🔥 Djimenez Prog: los avisos funcionan. Aquí te llegarán las solicitudes, los pagos y los perfiles nuevos."})
+        r = _tg(cfg["token"], "sendMessage", {"chat_id": cfg["chat_id"], "text": "🔥 Djimenez Prog: los avisos funcionan. Aquí te llegarán las solicitudes, los pagos, los perfiles nuevos y los mensajes del chat (respóndelos aquí mismo)."})
+        try:
+            _asegurar_webhook(cfg)
+        except Exception:  # noqa: BLE001
+            pass
         if not r.get("ok"):
             raise Error("Telegram no ha aceptado el mensaje: " + str(r.get("description", ""))[:120])
         return {"ok": True, "aviso": "Mensaje de prueba enviado 📲"}
@@ -1027,6 +1038,7 @@ def telegram(sesion: dict, c: dict) -> dict:
     yo = _tg(token, "getMe")
     if not yo.get("ok"):
         raise Error("Telegram no reconoce ese token")
+    _tg(token, "deleteWebhook")  # si ya tenía webhook, getUpdates no funciona
     ups = _tg(token, "getUpdates", {"limit": 50, "timeout": 0}).get("result") or []
     chat = next((u["message"]["chat"]["id"] for u in reversed(ups) if (u.get("message") or {}).get("chat", {}).get("type") == "private"), None)
     if not chat:
@@ -1034,7 +1046,139 @@ def telegram(sesion: dict, c: dict) -> dict:
     reg["telegram"] = {"token": token, "chat_id": chat, "bot": yo["result"].get("username")}
     datos().guardar(CLAVE_CONFIG, reg)
     _tg(token, "sendMessage", {"chat_id": chat, "text": "✅ Conectado con Djimenez Prog. Te avisaré aquí de solicitudes, pagos y perfiles nuevos."})
+    try:
+        _asegurar_webhook({"token": token, "chat_id": chat})
+    except Exception:  # noqa: BLE001
+        pass
     return {"ok": True, "aviso": f"Telegram conectado (@{yo['result'].get('username')}) ✅"}
+
+
+# ===== chat con Diego (llega por Telegram; si Diego responde al mensaje, le sale al alumno en la app) =====
+CLAVE_CHAT = "__chat__"
+URL_APP = "https://entrenamientos-web-two.vercel.app"
+
+
+def _secreto_tg() -> str:
+    return hmac.new(_secreto(), b"telegram-webhook", hashlib.sha256).hexdigest()[:48]
+
+
+def _asegurar_webhook(cfg: dict | None = None) -> bool:
+    """Que Telegram mande a la app lo que Diego escribe al bot (para las respuestas del chat)."""
+    cfg = cfg or _telegram()
+    if not cfg.get("token"):
+        return False
+    reg = dict(datos().rutinas([CLAVE_CONFIG]).get(CLAVE_CONFIG) or {})
+    tg = dict(reg.get("telegram") or {})
+    url = (env("APP_URL") or URL_APP).rstrip("/") + "/api/tg_webhook"
+    if tg.get("webhook") == url:
+        return True
+    r = _tg(cfg["token"], "setWebhook", {"url": url, "secret_token": _secreto_tg(), "allowed_updates": ["message"]}, timeout=4)
+    if r.get("ok") and tg:
+        tg["webhook"] = url
+        reg["telegram"] = tg
+        datos().guardar(CLAVE_CONFIG, reg)
+    return bool(r.get("ok"))
+
+
+def _clave_chat(sesion: dict, c: dict) -> tuple[str, str]:
+    """(clave de la conversación, nombre para Diego). En la demo, cada móvil tiene su propia conversación."""
+    if es_demo(sesion):
+        disp = re.sub(r"[^A-Za-z0-9]", "", str(c.get("disp") or ""))[:16]
+        if len(disp) < 6:
+            raise Error("Falta el identificador del móvil")
+        return f"Demo·{disp}", f"Visitante de la demo ({disp[:4]})"
+    atleta = c.get("atleta") or sesion.get("u") or "Yo"
+    puede_ver(sesion, atleta)
+    return atleta, nv(atleta)
+
+
+def chat(sesion: dict, c: dict, metodo: str = "GET") -> dict:
+    clave, nombre = _clave_chat(sesion, c)
+    coach_contesta = es_coach(sesion) and clave != "Yo" and not es_demo(sesion)
+    todo = dict(datos().rutinas([CLAVE_CHAT]).get(CLAVE_CHAT) or {})
+    hilo = list(todo.get(clave) or [])
+    if metodo == "POST":
+        import uuid
+        texto = " ".join(str(c.get("texto") or "").split(" ")).strip()[:1500]
+        if not texto:
+            raise Error("Escribe un mensaje")
+        msg = {"id": uuid.uuid4().hex[:10], "de": "diego" if coach_contesta else "alumno", "texto": texto,
+               "cuando": _ahora().isoformat(timespec="minutes"), "leido": False}
+        if not coach_contesta:
+            cfg = _telegram()
+            if cfg.get("token") and cfg.get("chat_id"):
+                try:
+                    _asegurar_webhook(cfg)
+                except Exception:  # noqa: BLE001
+                    pass
+                extra = f"\nEmail: {c.get('email')}" if es_demo(sesion) and c.get("email") else ""
+                r = _tg(cfg["token"], "sendMessage", {
+                    "chat_id": cfg["chat_id"], "text": f"💬 {nombre}:\n{texto}{extra}\n\n↩️ Responde a este mensaje para contestarle en la app"[:3500]},
+                    timeout=3)
+                if r.get("ok"):
+                    msg["tg"] = r["result"]["message_id"]
+                    mapa = dict(todo.get("_tg") or {})
+                    mapa[str(msg["tg"])] = clave
+                    if len(mapa) > 2000:
+                        mapa = dict(list(mapa.items())[-1500:])
+                    todo["_tg"] = mapa
+        hilo.append(msg)
+        todo[clave] = hilo[-200:]
+        datos().guardar(CLAVE_CHAT, todo)
+        return {"mensajes": _vista_hilo(todo[clave], coach_contesta), "telegram": bool(msg.get("tg")) or coach_contesta}
+    # leer: lo que ha contestado la otra parte queda como leído
+    otro = "alumno" if coach_contesta else "diego"
+    if any(m.get("de") == otro and not m.get("leido") for m in hilo):
+        for m in hilo:
+            if m.get("de") == otro:
+                m["leido"] = True
+        todo[clave] = hilo
+        datos().guardar(CLAVE_CHAT, todo)
+    return {"mensajes": _vista_hilo(hilo, coach_contesta)}
+
+
+def _vista_hilo(hilo: list[dict], coach: bool) -> list[dict]:
+    return [{"id": m["id"], "mio": (m["de"] == "diego") == coach, "de": m["de"], "texto": m["texto"], "cuando": m["cuando"]}
+            for m in hilo[-100:]]
+
+
+def chat_no_leidos(clave: str, guardadas: dict | None = None) -> int:
+    try:
+        todo = (guardadas or {}).get(CLAVE_CHAT) if guardadas and CLAVE_CHAT in guardadas else \
+            datos().rutinas([CLAVE_CHAT]).get(CLAVE_CHAT)
+        return sum(1 for m in (todo or {}).get(clave) or [] if m.get("de") == "diego" and not m.get("leido"))
+    except Exception:  # noqa: BLE001
+        return 0
+
+
+def tg_webhook(secreto: str, update: dict) -> dict:
+    """Telegram nos manda lo que Diego escribe al bot. Si responde a un mensaje del chat, se lo pasamos al alumno."""
+    if not hmac.compare_digest(secreto or "", _secreto_tg()):
+        raise Error("No autorizado", 401)
+    m = update.get("message") or {}
+    cfg = _telegram()
+    if not m or str((m.get("chat") or {}).get("id")) != str(cfg.get("chat_id")):
+        return {"ok": True}
+    texto = (m.get("text") or m.get("caption") or "").strip()
+    resp = (m.get("reply_to_message") or {}).get("message_id")
+    todo = dict(datos().rutinas([CLAVE_CHAT]).get(CLAVE_CHAT) or {})
+    clave = (todo.get("_tg") or {}).get(str(resp)) if resp else None
+    if not clave:
+        if texto and not texto.startswith("/"):
+            _tg(cfg["token"], "sendMessage", {"chat_id": cfg["chat_id"], "reply_to_message_id": m.get("message_id"),
+                                              "text": "Para contestar a alguien, mantén pulsado su mensaje 💬 → Responder."}, timeout=3)
+        return {"ok": True}
+    if not texto:
+        return {"ok": True}
+    import uuid
+    hilo = list(todo.get(clave) or [])
+    hilo.append({"id": uuid.uuid4().hex[:10], "de": "diego", "texto": texto[:1500],
+                 "cuando": _ahora().isoformat(timespec="minutes"), "leido": False})
+    todo[clave] = hilo[-200:]
+    datos().guardar(CLAVE_CHAT, todo)
+    _tg(cfg["token"], "setMessageReaction", {"chat_id": cfg["chat_id"], "message_id": m.get("message_id"),
+                                             "reaction": [{"type": "emoji", "emoji": "👍"}]}, timeout=3)
+    return {"ok": True}
 
 
 # ===== actividad: quién entra y cuándo =====
@@ -1577,6 +1721,8 @@ def vista(sesion: dict, atleta: str | None, semana: int | None, dia_id: str | No
                                          and not (inv.get(atleta) or {}).get("cuestionario")),
             "objetivos": (inv.get(atleta) or {}).get("cuestionario") if sesion.get("u") == atleta else None,
             **_info_abono(sesion, atleta, inv),
+            "chat_no_leidos": chat_no_leidos(atleta) if not es_demo(sesion) and (sesion.get("u") == atleta or not sesion.get("u")) and not es_coach(sesion) else 0,
+            "chat_activo": bool(_telegram().get("chat_id")) or es_coach(sesion),
             "abonado_nuevo": bool(sesion.get("u") == atleta and (inv.get(atleta) or {}).get("abonado", "") >=
                                   (dt.date.today() - dt.timedelta(days=3)).isoformat()),
             "telegram": (bool(env("TELEGRAM_CHAT_ID")) or bool(((guardadas.get(CLAVE_CONFIG) or {}).get("telegram") or {}).get("chat_id")))
