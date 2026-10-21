@@ -18,6 +18,8 @@ const E = { token: mem.get("token"), atleta: mem.get("atleta"), lang: mem.get("l
 
 // ---------- textos ----------
 const FR = {
+  "Rutinas preparadas por aplicar": "Programmes préparés à appliquer",
+  "Ver": "Voir",
   "Rutina nueva preparada para": "Nouveau programme préparé pour",
   "Ver la rutina": "Voir le programme",
   "Aplicar": "Appliquer",
@@ -1675,6 +1677,8 @@ async function hojaActividad() {
     <div class="act-totales"><div><b>${d.total_compartidos || 0}</b><span>${t("veces compartido")}</span></div>
       <div><b>${d.total_llegadas || 0}</b><span>${t("han entrado por un enlace")}</span></div>
       <div><b>${d.llegadas_instagram || 0}</b><span>📸 ${t("desde Instagram")}</span></div></div>
+    ${d.propuestas && d.propuestas.length ? `<div class="act-pagos"><b>📋 ${t("Rutinas preparadas por aplicar")}</b>
+      ${d.propuestas.map((x) => `<div class="pago"><div><b>${esc(x.nombre)}</b><br><small>${esc(x.titulo)}</small></div><button class="mini-btn" data-ir="${esc(x.atleta)}">${t("Ver")}</button></div>`).join("")}</div>` : ""}
     ${d.abonados && d.abonados.length ? `<div class="act-pagos"><b>💳 ${t("Abonados")} (${d.abonados.filter((x) => !x.problema && x.estado).length} ${t("activos")})</b>${d.stripe ? "" : ` <small>${t("· conecta Stripe para ver su estado")}</small>`}
       ${d.abonados.map((x) => `<div class="pago ${x.problema ? "" : "visto"}"><div><b>${esc(x.nombre)}</b> <span class="etq ${x.problema ? "aviso" : x.estado === "trialing" ? "gris" : "bien"}">${esc(t(x.estado_txt))}</span>
         <small>${t("desde")} ${esc(x.desde ? fechaCorta(x.desde) : "")}</small>${x.telefono ? `<br><a href="tel:${esc(x.telefono)}">📞 ${esc(x.telefono)}</a>` : ""}</div>
@@ -1700,6 +1704,7 @@ async function hojaActividad() {
     try { await api("pago_visto", { metodo: "POST", cuerpo: { id: b.dataset.pago, deshacer: b.dataset.visto === "1" } }); hojaActividad(); }
     catch (e) { aviso(e.message, true); b.disabled = false; }
   });
+  $hoja.querySelectorAll("[data-ir]").forEach((b) => b.onclick = () => { cerrarHoja(); E.semana = null; E.dia = null; cargar({ atleta: b.dataset.ir, semana: null, dia: null }).then(() => window.scrollTo(0, 0)); });
   $hoja.querySelectorAll("[data-exento]").forEach((b) => b.onclick = async () => {
     b.disabled = true;
     try { const r = await api("exento", { metodo: "POST", cuerpo: { nombre: b.dataset.exento, on: !!b.dataset.on } }); aviso(r.aviso); hojaActividad(); }

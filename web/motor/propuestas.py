@@ -44,6 +44,10 @@ def _ruchama():
 PROPUESTAS = {"ruchama": _ruchama}
 
 
+def claves() -> list[str]:
+    return list(PROPUESTAS)
+
+
 def propuesta_para(nombre: str) -> dict | None:
     n = (nombre or "").strip().lower()
     for clave, f in PROPUESTAS.items():

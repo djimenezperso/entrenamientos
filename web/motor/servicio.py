@@ -48,6 +48,7 @@ from repertorio import ELITE, REPERTORIO
 from rutinas_iniciales import migrar, rutinas_iniciales
 import cuestionario
 from propuestas import propuesta_para
+import propuestas as _propuestas
 from ciclos import CICLOS
 
 # ===== personas (igual que en app.py) =====
@@ -336,7 +337,7 @@ def _igual(a: str, b: str) -> bool:
     return bool(a) and bool(b) and hmac.compare_digest(a.encode(), b.encode())
 
 
-VERSION = "9.5"
+VERSION = "9.6"
 CLAVES_NECESARIAS = ["CONTRASENA_DIEGO", "SUPABASE_URL", "SUPABASE_KEY", "APP_PASSWORD", "CONTRASENA_ARCHCHANA", "CONTRASENA_INVITADOS", "COACH_PIN",
                      "APP_ANTIGUA_URL", "CONTRASENA_DEMO"]
 
@@ -462,6 +463,39 @@ def _propuesta_pendiente(atleta: str, rut: dict | None) -> dict | None:
     return {"id": p["id"], "titulo": p["titulo"],
             "dias": [{"nombre": d["nombre"], "partes": list(dict.fromkeys(l["parte"] for l in d["lineas"])),
                       "lineas": [f"{l['ejercicio']}: {l['prescripcion']}" for l in d["lineas"]]} for d in p["dias"]]}
+
+
+def propuestas_pendientes(inv: dict | None = None) -> list[dict]:
+    """Rutinas preparadas que Diego aún no ha aplicado ni descartado (para la lista del coach y el aviso)."""
+    inv = invitados() if inv is None else inv
+    gente = [p for p in todas_las_personas(inv) if propuesta_para(p)]
+    if not gente:
+        return []
+    ruts = datos().rutinas(gente)
+    out = []
+    for n in gente:
+        x = _propuesta_pendiente(n, completar(ruts.get(n), n) if ruts.get(n) else None)
+        if x:
+            out.append({"atleta": n, "nombre": nv(n), "titulo": x["titulo"], "id": x["id"]})
+    return out
+
+
+def _avisar_propuestas(guardadas: dict) -> None:
+    """Una vez por rutina preparada: «Diego, tienes una rutina lista para X»."""
+    try:
+        cfg = dict(guardadas.get(CLAVE_CONFIG) or {})
+        hechas = set(cfg.get("propuestas_avisadas") or [])
+        nuevas = [x for x in propuestas_pendientes() if f"{x['atleta']}:{x['id']}" not in hechas]
+        if not nuevas:
+            return
+        for x in nuevas:
+            notificar(f"📋 Rutina nueva preparada para {x['nombre']}: {x['titulo']}\n"
+                      "Ábrela en la app (modo coach → su rutina) y dale a ✅ Aplicar si te convence.")
+        reg = dict(datos().rutinas([CLAVE_CONFIG]).get(CLAVE_CONFIG) or {})
+        reg["propuestas_avisadas"] = sorted(hechas | {f"{x['atleta']}:{x['id']}" for x in nuevas})
+        datos().guardar(CLAVE_CONFIG, reg)
+    except Exception:  # noqa: BLE001
+        pass
 
 
 def aplicar_propuesta(rut: dict | None, atleta: str, descartar: bool = False) -> tuple[dict, str]:
@@ -1415,6 +1449,7 @@ def actividad(sesion: dict) -> dict:
                           for k, x in sorted(todo.get("contactos", {}).items(), key=lambda kv: kv[1].get("ultimo", ""), reverse=True)],
             "pagos": [dict(x, hace=_hace(x.get("cuando"), ahora)) for x in todo.get("pagos", [])][:50],
             "abonados": _lista_abonados(),
+            "propuestas": propuestas_pendientes(),
             "stripe": bool(env("STRIPE_SECRET_KEY")),
             "altas": [{"nombre": a["nombre"], "hace": _hace(a.get("cuando"), ahora)} for a in todo.get("altas", [])][:20]}
 
@@ -1805,6 +1840,8 @@ def vista(sesion: dict, atleta: str | None, semana: int | None, dia_id: str | No
     guardadas = datos().rutinas(list({atleta, "Yo", CLAVE_SOLICITUDES, CLAVE_NOVEDADES, CLAVE_ACTIVIDAD, CLAVE_VIDEOS, CLAVE_CONFIG}))
     rut = rutina(atleta, guardadas)
     _apuntar(guardadas, sesion, atleta)
+    if _propuestas.claves() and not es_demo(sesion):
+        _avisar_propuestas(guardadas)
     coach = es_coach(sesion)
     todas_sol = (guardadas.get(CLAVE_SOLICITUDES) or {}).get("lista") or []
     nombre_de = nombre_demo if es_demo(sesion) else nv  # en la demo, los alumnos salen como «Cliente 1, 2…»
