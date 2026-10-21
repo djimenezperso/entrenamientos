@@ -329,7 +329,7 @@ def _igual(a: str, b: str) -> bool:
     return bool(a) and bool(b) and hmac.compare_digest(a.encode(), b.encode())
 
 
-VERSION = "8.7"
+VERSION = "8.8"
 CLAVES_NECESARIAS = ["CONTRASENA_DIEGO", "SUPABASE_URL", "SUPABASE_KEY", "APP_PASSWORD", "CONTRASENA_ARCHCHANA", "CONTRASENA_INVITADOS", "COACH_PIN",
                      "APP_ANTIGUA_URL", "CONTRASENA_DEMO"]
 
@@ -1615,9 +1615,10 @@ def vista(sesion: dict, atleta: str | None, semana: int | None, dia_id: str | No
         dias.append({"id": d["id"], "nombre": d["nombre"], "estado": resumen_dia(rut, semana, d),
                      "pendientes": bool(pendientes_para(rut, semana, d["id"]))})
     ids = [d["id"] for d in rut["dias"]]
-    por_hacer = ids[0]
-    if atleta in ABRE_DIA_PENDIENTE:
-        por_hacer = next((d["id"] for d in dias if d["estado"] != "hecho" or d["pendientes"]), ids[0])
+    # al abrir, el primer día que aún tenga alguna parte sin marcar (hecha, no hecha o movida cuenta como marcada)
+    def _sin_marcar(d):
+        return any(estado_parte(rut, semana, d["id"], p)["estado"] == "pendiente" for p, _ in agrupar_por_parte(d, semana))
+    por_hacer = next((d["id"] for d, x in zip(rut["dias"], dias) if _sin_marcar(d) or x["pendientes"]), ids[-1])
     dia_id = dia_id if dia_id in ids else por_hacer
     if demo:  # en la demo solo se abren los días completos; el resto lleva candado
         for d in dias:
