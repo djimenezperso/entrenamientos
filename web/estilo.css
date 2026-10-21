@@ -613,3 +613,10 @@ main { padding: 4px 16px 0; display: flex; flex-direction: column; gap: 12px; }
 .chat-form textarea { height: auto; min-height: 52px; padding: 12px 14px; background: #fff; resize: none; font: inherit; }
 .chat-form .btn { width: 52px; height: 52px; padding: 0; font-size: 20px; }
 #b-chat { font-size: 20px; }
+/* semana gratis */
+.banda-prueba { background: #E9F8F0; }
+.banda-prueba button { background: #1baf7a; color: #fff; }
+.muro-pago { margin: 24px 0; background: #fff; border-radius: 28px; padding: 28px 20px; display: flex; flex-direction: column; gap: 12px; text-align: center; box-shadow: var(--sombra); }
+.muro-pago h2 { margin: 0; font-family: var(--titulo); font-size: 30px; text-transform: uppercase; }
+.muro-pago p { margin: 0; color: var(--medio); }
+.muro-pago .pago-ok { align-self: center; }

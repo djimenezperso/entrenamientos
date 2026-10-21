@@ -18,6 +18,17 @@ const E = { token: mem.get("token"), atleta: mem.get("atleta"), lang: mem.get("l
 
 // ---------- textos ----------
 const FR = {
+  "Tu semana gratis ha terminado": "Ta semaine gratuite est terminée",
+  "Tu rutina sigue aquí, hecha para ti. Abónate para seguir entrenando con Diego.": "Ton programme est toujours là, fait pour toi. Abonne-toi pour continuer à t'entraîner avec Diego.",
+  "Abonarme y seguir": "M'abonner et continuer",
+  "Escribir a Diego": "Écrire à Diego",
+  "Te queda 1 día de prueba gratis": "Il te reste 1 jour d'essai gratuit",
+  "Te quedan {n} días de prueba gratis": "Il te reste {n} jours d'essai gratuit",
+  "Abonarme": "M'abonner",
+  "Quitar gratis": "Retirer la gratuité",
+  "Dejar gratis": "Laisser gratuit",
+  "gratis (lo decides tú)": "gratuit (c'est toi qui décides)",
+  "prueba terminada · sin pagar": "essai terminé · non payé",
   "Chat con Diego": "Chat avec Diego",
   "Chat": "Chat",
   "Aún no hay mensajes con esta persona.": "Pas encore de messages avec cette personne.",
@@ -839,6 +850,21 @@ function pintar() {
   desbloquearScroll();
   if (E.pantalla === "registrar") return pintarRegistrar();
   if (E.pantalla === "progreso" || E.pantalla === "prs") return pintarPantalla();
+  if (v.pago_requerido) {  // semana gratis terminada: o se abona o no hay rutina
+    $app.innerHTML = cabecera(v) + `<main><div class="muro-pago">
+      <div class="pago-ok">🔒</div>
+      <h2>${t("Tu semana gratis ha terminado")}</h2>
+      <p>${t("Tu rutina sigue aquí, hecha para ti. Abónate para seguir entrenando con Diego.")}</p>
+      ${v.abono ? `<button class="btn btn-abono" id="mp-abono" style="height:58px">💳 ${t("Abonarme y seguir")}</button>
+        <p class="promo-fundador">🎟️ ${t("Código FUNDADOR: 19 €/mes para siempre · solo 20 plazas")}</p>` : ""}
+      ${v.chat_activo ? `<button class="btn" id="mp-chat">💬 ${t("Escribir a Diego")}</button>` : ""}
+      <button class="btn" id="mp-salir">${t("Salir")}</button></div></main>`;
+    enlazar();
+    const a = document.getElementById("mp-abono"); if (a) a.onclick = abonarse;
+    const c = document.getElementById("mp-chat"); if (c) c.onclick = hojaChat;
+    document.getElementById("mp-salir").onclick = salir;
+    return;
+  }
   if (v.sin_rutina) {
     $app.innerHTML = cabecera(v) + `<main><div class="vacio"><p><b>${esc(v.nombre)}</b> ${t("todavía no tiene rutina.")}</p>
       <p class="mini">${t("Diego te la prepara en breve. Recarga en un rato.")}</p></div></main>` + nav();
@@ -896,6 +922,8 @@ function cabecera(v) {
         <button class="redondo" id="b-ajustes" aria-label="${t("Ajustes")}">${ic.ajustes}</button>
       </div>
     </div>
+    ${v.prueba && v.prueba.en_prueba ? `<div class="banda-abono banda-prueba"><span>🎁 ${v.prueba.dias === 1 ? t("Te queda 1 día de prueba gratis") : t("Te quedan {n} días de prueba gratis").replace("{n}", v.prueba.dias)}</span>
+      ${v.abono ? `<button id="b-prueba-abono">💳 ${t("Abonarme")}</button>` : ""}</div>` : ""}
     ${v.abono_problema ? `<div class="banda-abono"><span>⚠️ ${t("Tu abono está")} <b>${esc(t(v.abono_estado_txt || ""))}</b>.</span>
       ${v.abono_gestion ? `<button id="b-abono-arreglar">${t(v.abono_estado === "canceled" || v.abono_estado === "incomplete_expired" ? "Volver a abonarme" : "Actualizar mi tarjeta")}</button>` : ""}</div>` : ""}
     ${v.demo ? `<div class="banda-demo">👀 ${t("Modo demo · solo para mirar")} <button id="b-crear-demo">✨ ${t("Crear mi perfil")}</button>${v.abono ? `<button id="b-abono-demo">💳 ${t("Abonarse")}</button>` : v.contacto ? `<button id="b-abono-demo">💬 ${t("Contacto")}</button>` : ""}<button id="b-compartir-demo">${ic.compartir} ${t("Compartir")}</button>${varias ? `<button id="b-clientes-demo" class="clientes-demo">👥 ${t("Ver programas")}</button>` : ""}</div>` : ""}
@@ -1110,6 +1138,7 @@ function enlazar() {
   const bcp = document.getElementById("b-crear-demo");
   if (bcp) bcp.onclick = () => hojaCrearPerfil({});
   const bcl = document.getElementById("b-clientes-demo"); if (bcl) bcl.onclick = hojaPersonas;
+  const bpa = document.getElementById("b-prueba-abono"); if (bpa) bpa.onclick = abonarse;
   const baa = document.getElementById("b-abono-arreglar");
   if (baa) baa.onclick = () => (E.vista.abono_estado === "canceled" || E.vista.abono_estado === "incomplete_expired") ? abonarse() : abrirPortal(baa);
   const bcd = document.getElementById("b-compartir-demo");
@@ -1638,7 +1667,8 @@ async function hojaActividad() {
       <div><b>${d.llegadas_instagram || 0}</b><span>📸 ${t("desde Instagram")}</span></div></div>
     ${d.abonados && d.abonados.length ? `<div class="act-pagos"><b>💳 ${t("Abonados")} (${d.abonados.filter((x) => !x.problema && x.estado).length} ${t("activos")})</b>${d.stripe ? "" : ` <small>${t("· conecta Stripe para ver su estado")}</small>`}
       ${d.abonados.map((x) => `<div class="pago ${x.problema ? "" : "visto"}"><div><b>${esc(x.nombre)}</b> <span class="etq ${x.problema ? "aviso" : x.estado === "trialing" ? "gris" : "bien"}">${esc(t(x.estado_txt))}</span>
-        <small>${t("desde")} ${esc(x.desde ? fechaCorta(x.desde) : "")}</small>${x.telefono ? `<br><a href="tel:${esc(x.telefono)}">📞 ${esc(x.telefono)}</a>` : ""}</div></div>`).join("")}</div>` : ""}
+        <small>${t("desde")} ${esc(x.desde ? fechaCorta(x.desde) : "")}</small>${x.telefono ? `<br><a href="tel:${esc(x.telefono)}">📞 ${esc(x.telefono)}</a>` : ""}</div>
+        ${x.de_demo || x.exento ? `<button class="mini-btn" data-exento="${esc(x.nombre)}" data-on="${x.exento ? "" : "1"}">${x.exento ? t("Quitar gratis") : t("Dejar gratis")}</button>` : ""}</div>`).join("")}</div>` : ""}
     ${d.pagos && d.pagos.length ? `<div class="act-pagos"><b>🧾 ${t("Pagos por comprobar")} (${d.pagos.filter((x) => !x.visto).length})</b>
       ${d.pagos.map((x) => `<div class="pago ${x.visto ? "visto" : ""}"><div><b>${esc(x.nombre)}</b> <small>${esc(x.hace)}${x.perfil ? " · " + t("perfil") + ": " + esc(x.perfil) : ""}</small><br>
         <a href="tel:${esc(x.telefono)}">📞 ${esc(x.telefono)}</a> · <a href="mailto:${esc(x.email)}">${esc(x.email)}</a>
@@ -1658,6 +1688,11 @@ async function hojaActividad() {
   $hoja.querySelectorAll("[data-pago]").forEach((b) => b.onclick = async () => {
     b.disabled = true;
     try { await api("pago_visto", { metodo: "POST", cuerpo: { id: b.dataset.pago, deshacer: b.dataset.visto === "1" } }); hojaActividad(); }
+    catch (e) { aviso(e.message, true); b.disabled = false; }
+  });
+  $hoja.querySelectorAll("[data-exento]").forEach((b) => b.onclick = async () => {
+    b.disabled = true;
+    try { const r = await api("exento", { metodo: "POST", cuerpo: { nombre: b.dataset.exento, on: !!b.dataset.on } }); aviso(r.aviso); hojaActividad(); }
     catch (e) { aviso(e.message, true); b.disabled = false; }
   });
 }

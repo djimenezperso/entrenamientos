@@ -335,7 +335,7 @@ def _igual(a: str, b: str) -> bool:
     return bool(a) and bool(b) and hmac.compare_digest(a.encode(), b.encode())
 
 
-VERSION = "9.3"
+VERSION = "9.4"
 CLAVES_NECESARIAS = ["CONTRASENA_DIEGO", "SUPABASE_URL", "SUPABASE_KEY", "APP_PASSWORD", "CONTRASENA_ARCHCHANA", "CONTRASENA_INVITADOS", "COACH_PIN",
                      "APP_ANTIGUA_URL", "CONTRASENA_DEMO"]
 
@@ -527,6 +527,49 @@ def nombre_demo(p: str) -> str:
     return f"Cliente {otros.index(p) + 1}" if p in otros else "Cliente"
 
 
+DIAS_PRUEBA = 7  # perfiles creados desde la demo: 7 días gratis y luego tienen que abonarse
+ESTADOS_PAGANDO = ("trialing", "active", "past_due")
+
+
+def _altas_demo() -> set[str]:
+    try:
+        act = datos().rutinas([CLAVE_ACTIVIDAD]).get(CLAVE_ACTIVIDAD) or {}
+        return {a.get("nombre") for a in act.get("altas", [])}
+    except Exception:  # noqa: BLE001
+        return set()
+
+
+def estado_prueba(nombre: str, inv: dict | None = None, altas: set | None = None) -> dict | None:
+    """Para perfiles que se crearon solos desde la demo: si están en su semana gratis, si ya pagan o si toca pagar.
+    None = no aplica (alumnos de Diego, entran con su código)."""
+    inv = invitados() if inv is None else inv
+    x = inv.get(nombre)
+    if not x:
+        return None
+    desde_demo = x.get("origen") == "demo" or nombre in (altas if altas is not None else _altas_demo())
+    if not desde_demo or x.get("exento"):
+        return None
+    est = x.get("stripe_estado")
+    pagando = est in ESTADOS_PAGANDO or (bool(x.get("abonado")) and est is None)
+    try:
+        fin = dt.date.fromisoformat(x.get("alta", "")[:10]) + dt.timedelta(days=DIAS_PRUEBA)
+    except ValueError:
+        fin = dt.date.today()
+    quedan = (fin - dt.date.today()).days
+    return {"pagando": pagando, "fin": fin.isoformat(), "dias": max(0, quedan),
+            "bloqueado": not pagando and quedan <= 0, "en_prueba": not pagando and quedan > 0,
+            "cancelado": est in ABONO_PROBLEMA}
+
+
+def exigir_pago(sesion: dict, atleta: str) -> None:
+    """Se acabó la semana gratis y no se ha abonado: no puede usar la app (sí puede pagar o escribir a Diego)."""
+    if es_coach(sesion) or es_demo(sesion) or sesion.get("u") != atleta:
+        return
+    p = estado_prueba(atleta)
+    if p and p["bloqueado"]:
+        raise Error("Tu semana gratis ha terminado. Abónate para seguir con tu rutina 💪", 402)
+
+
 def puede_ver(sesion: dict, atleta: str) -> None:
     if es_demo(sesion):
         if atleta not in demo_personas():
@@ -643,6 +686,10 @@ def crear_perfil(sesion: dict, c: dict) -> dict:
         r["plantillas"] = {k: PLANTILLAS_DEMO.get(k, f"Rutina {i + 1}") for i, k in enumerate(r["plantillas"])}
     if r.get("token"):
         nombre = " ".join(str(c.get("nombre") or "").split()).title()
+        reg = dict(invitados())
+        if r.get("solo") in reg and not reg[r["solo"]].get("origen"):
+            reg[r["solo"]] = {**reg[r["solo"]], "origen": "demo"}
+            datos().guardar(CLAVE_INVITADOS, reg)
 
         def cambio(act):
             altas = act.setdefault("altas", [])
@@ -650,7 +697,7 @@ def crear_perfil(sesion: dict, c: dict) -> dict:
                 altas.insert(0, {"nombre": nombre, "cuando": _ahora().isoformat(timespec="minutes")})
                 del altas[50:]
         _apuntar_actividad(cambio)
-        notificar(f"✨ Perfil nuevo desde la demo: {nombre}")
+        notificar(f"✨ Perfil nuevo desde la demo: {nombre}\n🎁 Tiene {DIAS_PRUEBA} días gratis; después la app le pedirá abonarse.")
     return r
 
 
@@ -887,6 +934,19 @@ def me_gusta(sesion: dict, c: dict) -> dict:
         x["ultimo"] = _ahora().isoformat(timespec="minutes")
     _apuntar_actividad(cambio)
     return {"ok": True}
+
+
+def exento(sesion: dict, c: dict) -> dict:
+    """El coach deja entrar gratis a alguien (p. ej. paga en mano) o se lo quita."""
+    if not es_coach(sesion):
+        raise Error("Solo el coach", 403)
+    reg = dict(invitados())
+    n = c.get("nombre")
+    if n not in reg:
+        raise Error("No encuentro ese perfil")
+    reg[n] = {**reg[n], "exento": bool(c.get("on"))}
+    datos().guardar(CLAVE_INVITADOS, reg)
+    return {"ok": True, "aviso": f"{n}: entra gratis ✅" if c.get("on") else f"{n}: tendrá que abonarse"}
 
 
 def pago_visto(sesion: dict, c: dict) -> dict:
@@ -1239,8 +1299,10 @@ def _lista_abonados() -> list[dict]:
     """Abonados con su estado en Stripe (refresca hasta 8 por visita para no tardar)."""
     reg = dict(invitados())
     out, mirados = [], 0
-    for n, x in sorted(reg.items(), key=lambda kv: kv[1].get("abonado", ""), reverse=True):
-        if not x.get("abonado"):
+    altas = _altas_demo()
+    for n, x in sorted(reg.items(), key=lambda kv: kv[1].get("abonado") or kv[1].get("alta", ""), reverse=True):
+        prueba = estado_prueba(n, reg, altas)
+        if not x.get("abonado") and not prueba and not x.get("exento"):
             continue
         if not x.get("stripe_sub") and x.get("email") and env("STRIPE_SECRET_KEY") and mirados < 8 \
                 and time.time() - float(x.get("stripe_buscado") or 0) > 6 * 3600:
@@ -1257,9 +1319,18 @@ def _lista_abonados() -> list[dict]:
                 estado = _estado_abono(n, forzar=True)
             except Exception:  # noqa: BLE001
                 pass
-        out.append({"nombre": n, "desde": x.get("abonado"), "estado": estado,
-                    "estado_txt": ESTADOS_ABONO.get(estado, estado) if estado else "sin comprobar",
-                    "problema": estado in ABONO_PROBLEMA, "telefono": x.get("telefono"), "email": x.get("email")})
+        prueba = estado_prueba(n, dict(invitados()), altas) if prueba else None
+        txt = ESTADOS_ABONO.get(estado, estado) if estado else "sin comprobar"
+        if x.get("exento"):
+            txt = "gratis (lo decides tú)"
+        elif prueba and prueba["en_prueba"]:
+            txt = f"prueba en la app · {prueba['dias']} días"
+        elif prueba and prueba["bloqueado"]:
+            txt = "prueba terminada · sin pagar"
+        out.append({"nombre": n, "desde": x.get("abonado") or x.get("alta"), "estado": estado, "estado_txt": txt,
+                    "problema": estado in ABONO_PROBLEMA or bool(prueba and prueba["bloqueado"]),
+                    "exento": bool(x.get("exento")), "de_demo": bool(prueba) or x.get("origen") == "demo",
+                    "telefono": x.get("telefono"), "email": x.get("email")})
     return out[:60]
 
 
@@ -1731,6 +1802,13 @@ def vista(sesion: dict, atleta: str | None, semana: int | None, dia_id: str | No
             "permiso_pesos": bool((rut or {}).get("permiso_pesos")),
             "solicitudes": [x for x in todas_sol if coach and (not sesion.get("u") or x["atleta"] == sesion["u"])],
             "mis_solicitudes": {x["linea"]: x for x in todas_sol if x["atleta"] == atleta}}
+    if sesion.get("u") == atleta and not coach and not es_demo(sesion):
+        altas = {a.get("nombre") for a in ((guardadas.get(CLAVE_ACTIVIDAD) or {}).get("altas") or [])}
+        prueba = estado_prueba(atleta, inv, altas)
+        if prueba:
+            base["prueba"] = prueba
+            if prueba["bloqueado"]:
+                return {**base, "pago_requerido": True}
     if (not rut or not rut.get("dias")) and atleta in inv and not es_demo(sesion):
         try:  # perfil nuevo al que no se le llegó a guardar la rutina de inicio (p. ej. se cortó la conexión)
             rut = completar(_rutina_inicio(atleta, inv[atleta].get("plantilla")), atleta)
@@ -2159,6 +2237,7 @@ def _resumen_cambio(tipo: str, c: dict, rut: dict) -> str:
 def accion(sesion: dict, c: dict) -> dict:
     atleta = c.get("atleta")
     puede_ver(sesion, atleta)
+    exigir_pago(sesion, atleta)
     if atleta not in todas_las_personas():
         raise Error("Persona desconocida")
     rut = rutina(atleta)
@@ -2334,6 +2413,7 @@ def registrar(sesion: dict, c: dict) -> dict:
     import uuid
     atleta = c.get("atleta")
     puede_ver(sesion, atleta)
+    exigir_pago(sesion, atleta)
     if atleta not in todas_las_personas():
         raise Error("Persona desconocida")
     tipo = c.get("tipo") if c.get("tipo") in TIPOS else "otro"

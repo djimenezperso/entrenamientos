@@ -79,6 +79,8 @@ class handler(BaseHTTPRequestHandler):
                 return self._responder(200, servicio.portal_abono(self._sesion()))
             if ruta == "objetivos" and metodo == "POST":
                 return self._responder(200, servicio.objetivos(self._sesion(), self._cuerpo()))
+            if ruta == "exento" and metodo == "POST":
+                return self._responder(200, servicio.exento(self._sesion(), self._cuerpo()))
             if ruta == "pago_visto" and metodo == "POST":
                 return self._responder(200, servicio.pago_visto(self._sesion(), self._cuerpo()))
             if ruta == "telegram" and metodo == "POST":
