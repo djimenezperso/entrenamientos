@@ -345,7 +345,7 @@ def _igual(a: str, b: str) -> bool:
     return bool(a) and bool(b) and hmac.compare_digest(a.encode(), b.encode())
 
 
-VERSION = "11.2"
+VERSION = "11.3"
 CLAVES_NECESARIAS = ["CONTRASENA_DIEGO", "SUPABASE_URL", "SUPABASE_KEY", "APP_PASSWORD", "CONTRASENA_ARCHCHANA", "CONTRASENA_INVITADOS", "COACH_PIN",
                      "APP_ANTIGUA_URL", "CONTRASENA_DEMO"]
 
@@ -845,6 +845,7 @@ DEMO_CASA = ("Archchana",)
 DEMO_PRINCIPIANTE = ("Manu Anel",)
 DEMO_WOD_PRINCIPIANTE = ("21-15-9", "For time 21-15-9: thrusters 30/20 kg + burpees over the bar")  # B fijo del Prog Débutant  # en la demo, el Prog Débutant lleva siempre WOD de principiante  # en la demo, este programa usa WOD de casa (mancuernas, gomas, elíptica)
 DEMO_DIAS_CERRADOS_YO = {1, 3, 4, 5, 6}  # Prog Competidor: en la demo solo se abre el día 2
+DEMO_DIAS_CERRADOS_POR = {"Yo": DEMO_DIAS_CERRADOS_YO, "Manu Anel": {2, 3, 4, 5, 6}}  # Débutant: solo el día 1
 DEMO_C_YO = "4x: 10 T2B direct into 1' L-sit on bar · 1' rest"
 DEMO_CICLO_EN = "Salatti"  # en la demo, este cliente enseña el ciclo de handstand push ups
 DEMO_DIAS_CERRADOS = {3, 4, 5, 6}  # en la demo, solo se pueden abrir los días 1 y 2
@@ -2096,7 +2097,7 @@ def vista(sesion: dict, atleta: str | None, semana: int | None, dia_id: str | No
             return [d["id"] for d in rut["dias"] if resumen_dia(rut, sem, d) == "hecho"]
         semana = actual if (_completos(actual) or actual == 1) else actual - 1
         abiertos = _completos(semana) or [rut["dias"][0]["id"]]
-        cerrados = {d["id"] for i, d in enumerate(rut["dias"]) if i + 1 in (DEMO_DIAS_CERRADOS_YO if atleta == "Yo" else DEMO_DIAS_CERRADOS)}
+        cerrados = {d["id"] for i, d in enumerate(rut["dias"]) if i + 1 in DEMO_DIAS_CERRADOS_POR.get(atleta, DEMO_DIAS_CERRADOS)}
         abiertos = [x for x in abiertos if x not in cerrados] or [d["id"] for d in rut["dias"] if d["id"] not in cerrados][:1] or abiertos
     nivel = rut.get("nivel") or NIVEL_DEFECTO.get(atleta, "Inter")
     if demo:
