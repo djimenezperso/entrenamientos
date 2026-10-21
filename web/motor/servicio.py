@@ -345,7 +345,7 @@ def _igual(a: str, b: str) -> bool:
     return bool(a) and bool(b) and hmac.compare_digest(a.encode(), b.encode())
 
 
-VERSION = "10.6"
+VERSION = "10.7"
 CLAVES_NECESARIAS = ["CONTRASENA_DIEGO", "SUPABASE_URL", "SUPABASE_KEY", "APP_PASSWORD", "CONTRASENA_ARCHCHANA", "CONTRASENA_INVITADOS", "COACH_PIN",
                      "APP_ANTIGUA_URL", "CONTRASENA_DEMO"]
 
@@ -840,6 +840,7 @@ CUESTIONARIO_DESDE = "2026-10-15"  # perfiles nuevos desde esta fecha: les sale 
 NOMBRES_DEMO = {"Yo": ("Prog Competidor · Diego", "🏆"), "Archchana": ("Prog Casa y Movilidad", "🏠"),
                 "Manu Anel": ("Prog Principiante", "🌱"), "Salatti": ("Prog Fuerza + WOD", "💪")}
 DEMO_PESOS_YO = [(r"pull", 150), (r"clean", 110), (r"^power snatch$", 80), (r"^snatch$", 85)]  # demo · Prog Competidor: pesos de muestra
+DEMO_DIAS_CERRADOS_YO = {1, 3, 4, 5, 6}  # Prog Competidor: en la demo solo se abre el día 2
 DEMO_C_YO = "4x: 10 T2B direct into 1' L-sit on bar · 1' rest"
 DEMO_CICLO_EN = "Salatti"  # en la demo, este cliente enseña el ciclo de handstand push ups
 DEMO_DIAS_CERRADOS = {3, 4, 5, 6}  # en la demo, solo se pueden abrir los días 1 y 2
@@ -1918,7 +1919,7 @@ def _rellenar_demo(partes: list[dict], dia_id: str, semana: int, nivel: str, num
         or REPERTORIO["conditioning"]
     gym_mov = ("pull up", "toes to bar", "t2b", "hspu", "muscle up", "double unders", "chest to bar", "pistols", "ring dips", "handstand")
     gym = [w for w in wods if any(m in norm_busqueda(w[1]) for m in gym_mov)] or wods
-    if numero == 2 and partes and not any((p.get("letra") or "").upper() == "C" for p in partes):
+    if numero == 2 and partes and atleta != "Yo" and not any((p.get("letra") or "").upper() == "C" for p in partes):
         _demo_accessory(partes, semilla)
     if atleta == DEMO_CICLO_EN and numero == 1 and partes:  # un cliente con el ciclo de HSPU en marcha
         c = next(x for x in CICLOS if x["id"] == "hspu")
@@ -1938,16 +1939,8 @@ def _rellenar_demo(partes: list[dict], dia_id: str, semana: int, nivel: str, num
                 l["texto"] = re.sub(r"@\s*\d+(?:[.,]\d+)?", f"@{fmt_num(kg)}", l.get("texto") or "") or f"@{fmt_num(kg)}"
                 if l.get("texto_sig"):
                     l["texto_sig"] = re.sub(r"@\s*\d+(?:[.,]\d+)?", f"@{fmt_num(kg + 2.5)}", l["texto_sig"])
-        if numero == 1:  # C del día 1: gimnásticos
-            c = next((p for p in partes if (p.get("letra") or "").upper() == "C"), None)
-            if c and c["lineas"]:
-                l = c["lineas"][0]
-                c["etiqueta"], c["tipo"] = "Accessory", "accessory"
-                l.update(ejercicio="T2B + L-sit", texto=DEMO_C_YO, visto=DEMO_C_YO, kind="texto", tipo="accessory",
-                         nota="", extra=None, texto_sig=None, crono=None, versiones_nivel=None, solo_bloque=False)
-                for k in ("ultimo", "elite", "tabla", "pesos", "esquema"):
-                    l.pop(k, None)
-                c["lineas"] = [l]
+        if numero == 2 and not any((p.get("letra") or "").upper() == "C" for p in partes):  # C del día 2: gimnásticos
+            _demo_accessory(partes, semilla, [("T2B + L-sit", DEMO_C_YO)])
     for p in partes:  # fuerza sin peso puesto → uno ligero de ejemplo (mancuerna 8 kg, lo demás 10 kg)
         for l in p["lineas"]:
             if l.get("kind") == "peso" and not l.get("pesos"):
@@ -2081,7 +2074,7 @@ def vista(sesion: dict, atleta: str | None, semana: int | None, dia_id: str | No
             return [d["id"] for d in rut["dias"] if resumen_dia(rut, sem, d) == "hecho"]
         semana = actual if (_completos(actual) or actual == 1) else actual - 1
         abiertos = _completos(semana) or [rut["dias"][0]["id"]]
-        cerrados = {d["id"] for i, d in enumerate(rut["dias"]) if i + 1 in DEMO_DIAS_CERRADOS}
+        cerrados = {d["id"] for i, d in enumerate(rut["dias"]) if i + 1 in (DEMO_DIAS_CERRADOS_YO if atleta == "Yo" else DEMO_DIAS_CERRADOS)}
         abiertos = [x for x in abiertos if x not in cerrados] or [d["id"] for d in rut["dias"] if d["id"] not in cerrados][:1] or abiertos
     nivel = rut.get("nivel") or NIVEL_DEFECTO.get(atleta, "Inter")
     sugs = sugerencias(rut, semana, wods_de_diego(rutina("Yo", guardadas))) if alumno else {}
