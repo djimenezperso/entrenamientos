@@ -329,7 +329,7 @@ def _igual(a: str, b: str) -> bool:
     return bool(a) and bool(b) and hmac.compare_digest(a.encode(), b.encode())
 
 
-VERSION = "8.8"
+VERSION = "8.9"
 CLAVES_NECESARIAS = ["CONTRASENA_DIEGO", "SUPABASE_URL", "SUPABASE_KEY", "APP_PASSWORD", "CONTRASENA_ARCHCHANA", "CONTRASENA_INVITADOS", "COACH_PIN",
                      "APP_ANTIGUA_URL", "CONTRASENA_DEMO"]
 
@@ -605,6 +605,7 @@ def _login_perfil(cuerpo: dict) -> dict:
 DEMO_ACCESSORY = [("GHD lateral crunch", "3x10 por lado"), ("GHD hip extension", "3x15 lento, 2\" arriba"),
                   ("Superman hold", "3x30\"")]  # refuerzo de espalda y core del día 2 de la demo
 # nombre e icono de cada rutina en la demo (el francés lo pone la app)
+CUESTIONARIO_DESDE = "2026-10-15"  # perfiles nuevos desde esta fecha: les sale el cuestionario de objetivos (pagando o no)
 NOMBRES_DEMO = {"Yo": ("Prog Competidor · Diego", "🏆"), "Archchana": ("Prog Casa y Movilidad", "🏠"),
                 "Manu Anel": ("Prog Principiante", "🌱"), "Salatti": ("Prog Fuerza + WOD", "💪")}
 DEMO_CICLO_EN = "Salatti"  # en la demo, este cliente enseña el ciclo de handstand push ups
@@ -1572,7 +1573,8 @@ def vista(sesion: dict, atleta: str | None, semana: int | None, dia_id: str | No
             "es_diego": bool(sesion.get("y")), "diego_aparte": bool(env("CONTRASENA_DIEGO")),
             "invitado": bool(sesion.get("u") == atleta and atleta in inv and not es_demo(sesion)),
             "objetivos_pendientes": bool(sesion.get("u") == atleta and atleta in inv and not es_demo(sesion)
-                                         and (inv.get(atleta) or {}).get("abonado") and not (inv.get(atleta) or {}).get("cuestionario")),
+                                         and ((inv.get(atleta) or {}).get("abonado") or (inv.get(atleta) or {}).get("alta", "") >= CUESTIONARIO_DESDE)
+                                         and not (inv.get(atleta) or {}).get("cuestionario")),
             "objetivos": (inv.get(atleta) or {}).get("cuestionario") if sesion.get("u") == atleta else None,
             **_info_abono(sesion, atleta, inv),
             "abonado_nuevo": bool(sesion.get("u") == atleta and (inv.get(atleta) or {}).get("abonado", "") >=

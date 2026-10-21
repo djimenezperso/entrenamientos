@@ -505,7 +505,7 @@ function poner(v) {
   pintar();
   if (v.pr) { aviso("🎉 " + v.pr); confeti(); } else if (v.aviso) aviso(v.aviso);
   if (E.pagoCs !== undefined && !E.pagoMostrado) { E.pagoMostrado = true; E.bienvenidaDemo = true; setTimeout(() => hojaPago(E.pagoCs), 300); }
-  if (v.objetivos_pendientes && !E.objMostrado && !mem.get("objetivos_luego") && $hoja.hidden && E.pagoCs === undefined) {
+  if (v.objetivos_pendientes && !E.objMostrado && !(Date.now() - (+mem.get("objetivos_luego") || 0) < 2 * 86400000) && $hoja.hidden && E.pagoCs === undefined) {
     E.objMostrado = true; const ya = mem.get("bienvenida_" + v.atleta); mem.set("bienvenida_" + v.atleta, "1");
     setTimeout(() => hojaObjetivos(ya ? null : hojaNuevoAbonado), 300);
   } else if (v.abonado_nuevo && !mem.get("bienvenida_" + v.atleta) && $hoja.hidden) { mem.set("bienvenida_" + v.atleta, "1"); setTimeout(hojaNuevoAbonado, 300); }
@@ -694,7 +694,7 @@ function hojaObjetivos(despues, previo) {
         const les = h.querySelector("#ob-les"); if (les) { o.lesiones = les.value; o.comentario = h.querySelector("#ob-com").value; }
       };
       const at = h.querySelector("#ob-atras"); if (at) at.onclick = () => { guarda(); i--; pinta(); };
-      const lu = h.querySelector("#ob-luego"); if (lu) lu.onclick = () => { mem.set("objetivos_luego", "1"); fin(); };
+      const lu = h.querySelector("#ob-luego"); if (lu) lu.onclick = () => { mem.set("objetivos_luego", String(Date.now())); fin(); };  // vuelve a salir en 2 días
       h.querySelector("#ob-sig").onclick = async (ev) => {
         guarda();
         const err = h.querySelector("#ob-error");
