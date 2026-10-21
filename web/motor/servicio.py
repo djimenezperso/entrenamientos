@@ -345,7 +345,7 @@ def _igual(a: str, b: str) -> bool:
     return bool(a) and bool(b) and hmac.compare_digest(a.encode(), b.encode())
 
 
-VERSION = "11.3"
+VERSION = "11.4"
 CLAVES_NECESARIAS = ["CONTRASENA_DIEGO", "SUPABASE_URL", "SUPABASE_KEY", "APP_PASSWORD", "CONTRASENA_ARCHCHANA", "CONTRASENA_INVITADOS", "COACH_PIN",
                      "APP_ANTIGUA_URL", "CONTRASENA_DEMO"]
 
@@ -846,6 +846,7 @@ DEMO_PRINCIPIANTE = ("Manu Anel",)
 DEMO_WOD_PRINCIPIANTE = ("21-15-9", "For time 21-15-9: thrusters 30/20 kg + burpees over the bar")  # B fijo del Prog Débutant  # en la demo, el Prog Débutant lleva siempre WOD de principiante  # en la demo, este programa usa WOD de casa (mancuernas, gomas, elíptica)
 DEMO_DIAS_CERRADOS_YO = {1, 3, 4, 5, 6}  # Prog Competidor: en la demo solo se abre el día 2
 DEMO_DIAS_CERRADOS_POR = {"Yo": DEMO_DIAS_CERRADOS_YO, "Manu Anel": {2, 3, 4, 5, 6}}  # Débutant: solo el día 1
+DEMO_PESOS = {"Yo": DEMO_PESOS_YO, "Manu Anel": [(r"^bench press", 30)]}
 DEMO_C_YO = "4x: 10 T2B direct into 1' L-sit on bar · 1' rest"
 DEMO_CICLO_EN = "Salatti"  # en la demo, este cliente enseña el ciclo de handstand push ups
 DEMO_DIAS_CERRADOS = {3, 4, 5, 6}  # en la demo, solo se pueden abrir los días 1 y 2
@@ -1937,20 +1938,20 @@ def _rellenar_demo(partes: list[dict], dia_id: str, semana: int, nivel: str, num
         w = min(2, len(c["semanas"]))
         lineas = [(x["ejercicio"], x["prescripcion"]) for x in c["semanas"][w - 1]["sesiones"][0]]
         _demo_accessory(partes, semilla, lineas, {"semana": w, "total": len(c["semanas"]), "nombre": c["nombre"]})
-    if atleta == "Yo":  # el «Prog Competidor» de la demo enseña pesos de competidor
+    if atleta in DEMO_PESOS:  # pesos de muestra fijos (Competidor: pesos de competidor; Débutant: bench 30…)
         for p in partes:
             for l in p["lineas"]:
                 if l.get("kind") != "peso":
                     continue
                 n = norm_busqueda(l.get("ejercicio", ""))
-                kg = next((v for patron, v in DEMO_PESOS_YO if re.search(patron, n)), None)
+                kg = next((v for patron, v in DEMO_PESOS[atleta] if re.search(patron, n)), None)
                 if kg is None:
                     continue
                 l["pesos"] = [float(kg)] * max(1, len(l.get("pesos") or [1]))
                 l["texto"] = re.sub(r"@\s*\d+(?:[.,]\d+)?", f"@{fmt_num(kg)}", l.get("texto") or "") or f"@{fmt_num(kg)}"
                 if l.get("texto_sig"):
                     l["texto_sig"] = re.sub(r"@\s*\d+(?:[.,]\d+)?", f"@{fmt_num(kg + 2.5)}", l["texto_sig"])
-        if numero == 2 and not any((p.get("letra") or "").upper() == "C" for p in partes):  # C del día 2: gimnásticos
+        if atleta == "Yo" and numero == 2 and not any((p.get("letra") or "").upper() == "C" for p in partes):  # C del día 2
             _demo_accessory(partes, semilla, [("T2B + L-sit", DEMO_C_YO)])
     for p in partes:  # fuerza sin peso puesto → uno ligero de ejemplo (mancuerna 8 kg, lo demás 10 kg)
         for l in p["lineas"]:
