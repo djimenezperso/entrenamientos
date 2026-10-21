@@ -18,6 +18,28 @@ const E = { token: mem.get("token"), atleta: mem.get("atleta"), lang: mem.get("l
 
 // ---------- textos ----------
 const FR = {
+  "He leído y acepto la": "J'ai lu et j'accepte la",
+  "política de privacidad": "politique de confidentialité",
+  "y las": "et les",
+  "condiciones": "conditions",
+  "Acepto que Diego use mis datos de salud (lesiones, molestias) solo para adaptar mi programa. (Opcional)": "J'accepte que Diego utilise mes données de santé (blessures, douleurs) uniquement pour adapter mon programme. (Facultatif)",
+  "Marca la casilla para continuar": "Coche la case pour continuer",
+  "Privacidad": "Confidentialité",
+  "Aviso legal": "Mentions légales",
+  "Condiciones": "CGV",
+  "Mis datos": "Mes données",
+  "Usar mis datos de salud (lesiones, molestias) para adaptar mi programa": "Utiliser mes données de santé (blessures, douleurs) pour adapter mon programme",
+  "Descargar mis datos": "Télécharger mes données",
+  "Borrar mi cuenta": "Supprimer mon compte",
+  "Guardado ✅": "Enregistré ✅",
+  "Retirado: hemos borrado tus lesiones/molestias": "Retiré : on a supprimé tes blessures/douleurs",
+  "Se borrarán tu perfil, tu programa, tus entrenos, tus marcas y el chat. No se puede deshacer.": "Ton profil, ton programme, tes séances, tes records et le chat seront supprimés. C'est définitif.",
+  "Primero cancela tu abono en «Gestionar mi abono» para que no se te cobre.": "Annule d'abord ton abonnement dans « Gérer mon abonnement » pour ne plus être prélevé.",
+  "Para confirmar, escribe tu nombre:": "Pour confirmer, écris ton nom :",
+  "Borrar todo para siempre": "Tout supprimer définitivement",
+  "Cancelar": "Annuler",
+  "Cuenta borrada. ¡Gracias por entrenar con nosotros!": "Compte supprimé. Merci de t'être entraîné(e) avec nous !",
+  "Para contar lesiones o molestias, activa «datos de salud» en Ajustes → Mis datos. También puedes decírselo a Diego por el chat.": "Pour signaler des blessures ou douleurs, active « données de santé » dans Réglages → Mes données. Tu peux aussi l'écrire à Diego dans le chat.",
   "Lo ha preparado para ti, a tu medida. Míralo y acéptalo para empezar.": "Il l'a préparé pour toi, sur mesure. Regarde-le et accepte-le pour commencer.",
   "Lo ha preparado para ti. Míralo y dime si lo quieres.": "Il l'a préparé pour toi. Regarde-le et dis-nous si tu le veux.",
   "Diego te sugiere este cambio en tu programa": "Diego te suggère ce changement dans ton programme",
@@ -464,7 +486,8 @@ function pintarEntrar(paso = {}) {
         <input class="campo" id="i-pin" type="password" inputmode="numeric" autocomplete="off" value="${esc(paso.pin || "")}" required>
         ${paso.nuevo ? `<span style="font-weight:600;font-size:14px">${t("¿Con qué rutina empiezas?")}</span>
           <div class="opciones-radio">${Object.entries(paso.plantillas || {}).map(([k, v], i) =>
-            `<label class="interruptor"><span>${esc(v)}</span><input type="radio" name="plantilla" value="${esc(k)}" ${i === 0 ? "checked" : ""}></label>`).join("")}</div>` : ""}
+            `<label class="interruptor"><span>${esc(v)}</span><input type="radio" name="plantilla" value="${esc(k)}" ${i === 0 ? "checked" : ""}></label>`).join("")}</div>
+          ${casillasLegales("il", paso)}` : ""}
       ` : `
         <label for="i-pass">${E.lang === "fr" ? "Mot de passe" : "Contraseña · Mot de passe"}</label>
         <input class="campo" id="i-pass" type="password" autocomplete="current-password" required>
@@ -479,6 +502,7 @@ function pintarEntrar(paso = {}) {
       <button class="chip ${E.lang === "es" ? "on" : ""}" data-lang="es">ES</button>
       <button class="chip ${E.lang === "fr" ? "on" : ""}" data-lang="fr">FR</button>
     </div>
+    ${pieLegal()}
   </section>`;
   $app.querySelectorAll("[data-lang]").forEach((b) => b.onclick = () => { E.lang = b.dataset.lang; mem.set("lang", E.lang); mem.set("lang_elegido", "1"); pintarEntrar(paso); });
   const bvd = document.getElementById("b-ver-demo");
@@ -498,8 +522,9 @@ function pintarEntrar(paso = {}) {
     ev.preventDefault();
     const err = document.getElementById("e-entrar");
     const boton = f.querySelector("button[type=submit]");
+    if (inv && paso.nuevo && !leerLegal(f, "il").ok) return;
     const cuerpo = paso.conPin ? { perfil: true, nombre: f.querySelector("#i-nombre").value, pin: f.querySelector("#i-pin").value }
-      : inv ? { lang: E.lang, password: paso.password, nombre: f.querySelector("#i-nombre").value, pin: f.querySelector("#i-pin").value,
+      : inv ? { ...leerLegal(f, "il").datos, lang: E.lang, password: paso.password, nombre: f.querySelector("#i-nombre").value, pin: f.querySelector("#i-pin").value,
       plantilla: (f.querySelector("input[name=plantilla]:checked") || {}).value } : { password: f.querySelector("#i-pass").value };
     boton.disabled = true; err.hidden = true;
     try {
@@ -614,7 +639,8 @@ function hojaPago(cs) {
       ${v.solo && !v.demo ? "" : `<label class="paso-etq" for="pg-pin" style="margin:0 4px">${t("Elige un PIN (4 cifras o más)")}</label>
       <input class="campo" id="pg-pin" type="password" inputmode="numeric" autocomplete="new-password" style="background:#fff" required>
       <p class="error-campo" id="pg-pin-e" hidden></p>
-      <p class="mini" style="margin:0 4px">${t("Con tu nombre y este PIN entrarás en tu perfil.")}</p>`}
+      <p class="mini" style="margin:0 4px">${t("Con tu nombre y este PIN entrarás en tu perfil.")}</p>
+      ${casillasLegales("pg")}`}
       <p class="error" id="pg-error" hidden></p>
       <button class="btn btn-abono" type="submit" style="height:54px">${t("Enviar")}</button>
     </form>`, (h) => {
@@ -636,12 +662,13 @@ function hojaPago(cs) {
       ok = marca("pg-email", /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(h.querySelector("#pg-email").value.trim()) ? "" : t("Revisa el email (ejemplo: nombre@gmail.com)")) && ok;
       const pinEl0 = h.querySelector("#pg-pin");
       if (pinEl0) ok = marca("pg-pin", pinEl0.value.trim().length < 4 ? t("El PIN tiene que tener al menos 4 cifras") : "") && ok;
+      const legal = leerLegal(h, "pg"); ok = legal.ok && ok;
       if (!ok) return;
       boton.disabled = true; err.hidden = true;
       try {
         const pinEl = h.querySelector("#pg-pin");
         const r = await api("datos_pago", { metodo: "POST", cuerpo: { cs, nombre: h.querySelector("#pg-nombre").value,
-          telefono: h.querySelector("#pg-tel").value, email: h.querySelector("#pg-email").value, pin: pinEl ? pinEl.value : undefined, lang: E.lang } });
+          telefono: h.querySelector("#pg-tel").value, email: h.querySelector("#pg-email").value, pin: pinEl ? pinEl.value : undefined, lang: E.lang, ...legal.datos } });
         mem.set("pago_pendiente", null);
         if (r.token) {  // abonado nuevo: entra ya en su perfil
           E.token = r.token; mem.set("token", r.token); E.atleta = r.solo; mem.set("atleta", r.solo); mem.set("perfil_fijo", r.solo);
@@ -718,8 +745,9 @@ function hojaObjetivos(despues, previo) {
   const pinta = () => {
     const paso = OBJ_PASOS[i];
     const cuerpo = paso.libre
-      ? `<label class="paso-etq" for="ob-les">${t("Lesiones o molestias")}</label>
-         <textarea class="campo obj-area" id="ob-les" placeholder="${t("Ej.: hombro derecho, lumbar…")}">${esc(o.lesiones)}</textarea>
+      ? `${(E.vista && E.vista.consentimiento && E.vista.consentimiento.salud) ? `<label class="paso-etq" for="ob-les">${t("Lesiones o molestias")}</label>
+         <textarea class="campo obj-area" id="ob-les" placeholder="${t("Ej.: hombro derecho, lumbar…")}">${esc(o.lesiones)}</textarea>`
+         : `<p class="mini" style="margin:0 4px">🔒 ${t("Para contar lesiones o molestias, activa «datos de salud» en Ajustes → Mis datos. También puedes decírselo a Diego por el chat.")}</p>`}
          <label class="paso-etq" for="ob-com">${t("Comentarios")}</label>
          <textarea class="campo obj-area" id="ob-com" placeholder="${t("Horarios, competiciones, lo que quieras…")}">${esc(o.comentario)}</textarea>`
       : `${paso.sub ? `<p class="mini" style="margin:-4px 2px 4px">${t(paso.sub)}</p>` : ""}
@@ -745,7 +773,8 @@ function hojaObjetivos(despues, previo) {
       const box = h.querySelector("#ob-box"); if (box) box.onclick = () => { o.material = [...paso.todo]; pinta(); };
       const guarda = () => {
         const otro = h.querySelector("#ob-otro"); if (otro) o.aprender_otro = otro.value;
-        const les = h.querySelector("#ob-les"); if (les) { o.lesiones = les.value; o.comentario = h.querySelector("#ob-com").value; }
+        const les = h.querySelector("#ob-les"); if (les) o.lesiones = les.value;
+        const com = h.querySelector("#ob-com"); if (com) o.comentario = com.value;
       };
       const at = h.querySelector("#ob-atras"); if (at) at.onclick = () => { guarda(); i--; pinta(); };
       const lu = h.querySelector("#ob-luego"); if (lu) lu.onclick = () => { mem.set("objetivos_luego", String(Date.now())); fin(); };  // vuelve a salir en 2 días
@@ -771,6 +800,38 @@ function hojaObjetivos(despues, previo) {
     pinta.ultimo = i;
   };
   pinta();
+}
+
+// ---------- RGPD: casillas al crear perfil y enlaces a las páginas legales ----------
+const urlLegal = (ancla = "") => `/legal.html?lang=${E.lang}${ancla ? "#" + ancla : ""}`;
+const casillasLegales = (id, pre = {}) => `<div class="legal-casillas">
+  <label class="casilla"><input type="checkbox" id="${id}-acepta" ${pre.acepta ? "checked" : ""} required><span>${t("He leído y acepto la")} <a href="${urlLegal("privacidad")}" target="_blank" rel="noopener">${t("política de privacidad")}</a> ${t("y las")} <a href="${urlLegal("cgv")}" target="_blank" rel="noopener">${t("condiciones")}</a>.</span></label>
+  <label class="casilla"><input type="checkbox" id="${id}-salud" ${pre.salud ? "checked" : ""}><span>${t("Acepto que Diego use mis datos de salud (lesiones, molestias) solo para adaptar mi programa. (Opcional)")}</span></label>
+  <p class="error-campo" id="${id}-acepta-e" hidden></p></div>`;
+const leerLegal = (h, id) => {
+  const a = h.querySelector("#" + id + "-acepta"), s = h.querySelector("#" + id + "-salud"), e = h.querySelector("#" + id + "-acepta-e");
+  if (!a) return { ok: true, datos: {} };
+  if (e) { e.hidden = a.checked; e.textContent = a.checked ? "" : t("Marca la casilla para continuar"); }
+  return { ok: a.checked, datos: { acepta: a.checked, salud: !!(s && s.checked) } };
+};
+const pieLegal = () => `<p class="pie-legal"><a href="${urlLegal("privacidad")}" target="_blank" rel="noopener">${t("Privacidad")}</a> · <a href="${urlLegal("mentions")}" target="_blank" rel="noopener">${t("Aviso legal")}</a> · <a href="${urlLegal("cgv")}" target="_blank" rel="noopener">${t("Condiciones")}</a></p>`;
+
+function hojaBorrarCuenta() {
+  const v = E.vista;
+  abrirHoja(`${cabHoja(v.nombre, t("Borrar mi cuenta"))}
+    <p style="margin:0 4px">${t("Se borrarán tu perfil, tu programa, tus entrenos, tus marcas y el chat. No se puede deshacer.")}</p>
+    ${v.abono_gestion && !v.abono_problema ? `<p class="mini" style="margin:0 4px">⚠️ ${t("Primero cancela tu abono en «Gestionar mi abono» para que no se te cobre.")}</p>` : ""}
+    <label class="paso-etq" for="bc-nombre" style="margin:4px 4px 0">${t("Para confirmar, escribe tu nombre:")} <b>${esc(v.nombre)}</b></label>
+    <input class="campo" id="bc-nombre" autocomplete="off" style="background:#fff">
+    <p class="error" id="bc-error" hidden></p>
+    <button class="btn" id="bc-si" style="background:#C0392B;color:#fff;height:54px">🗑️ ${t("Borrar todo para siempre")}</button>
+    <button class="btn" data-cerrar>${t("Cancelar")}</button>`, (h) => {
+    h.querySelector("#bc-si").onclick = async (ev) => {
+      ev.target.disabled = true;
+      try { await api("borrar_cuenta", { metodo: "POST", cuerpo: { confirmar: h.querySelector("#bc-nombre").value } }); aviso(t("Cuenta borrada. ¡Gracias por entrenar con nosotros!")); salir(); }
+      catch (e) { const er = h.querySelector("#bc-error"); er.textContent = e.message; er.hidden = false; ev.target.disabled = false; }
+    };
+  });
 }
 
 // ---------- chat con Diego (le llega por Telegram y contesta desde ahí) ----------
@@ -823,7 +884,7 @@ function hojaBienvenidaDemo() {
 }
 function hojaCrearPerfil(paso) {
   abrirHoja(`${cabHoja("Djimenez Prog", t("Crear mi perfil"))}
-    <form id="f-perfil" style="display:flex;flex-direction:column;gap:10px">
+    <form id="f-perfil" novalidate style="display:flex;flex-direction:column;gap:10px">
       <label class="paso-etq" for="cp-nombre" style="margin:0 4px">${t("Tu nombre")}</label>
       <input class="campo" id="cp-nombre" autocomplete="given-name" style="background:#fff" value="${esc(paso.nombre || "")}" required>
       <label class="paso-etq" for="cp-pin" style="margin:0 4px">${t("Elige un PIN (4 cifras o más)")}</label>
@@ -832,6 +893,7 @@ function hojaCrearPerfil(paso) {
       ${paso.plantillas ? `<span class="paso-etq" style="margin:4px 4px 0">${t("¿Con qué rutina empiezas?")}</span>
         <div class="opciones-radio">${Object.entries(paso.plantillas).map(([k, v], i) =>
           `<label class="interruptor"><span>${esc(v)}</span><input type="radio" name="cp-plantilla" value="${esc(k)}" ${i === 0 ? "checked" : ""}></label>`).join("")}</div>` : ""}
+      ${casillasLegales("cp", paso)}
       <p class="error" id="cp-error" hidden></p>
       <button class="btn btn-fuego" type="submit" style="height:54px">${paso.plantillas ? t("Empezar") : t("Seguir")}</button>
     </form>
@@ -841,7 +903,8 @@ function hojaCrearPerfil(paso) {
     f.onsubmit = async (ev) => {
       ev.preventDefault();
       const err = h.querySelector("#cp-error"); const boton = f.querySelector("button[type=submit]");
-      const cuerpo = { lang: E.lang, nombre: h.querySelector("#cp-nombre").value, pin: h.querySelector("#cp-pin").value,
+      const legal = leerLegal(h, "cp"); if (!legal.ok) return;
+      const cuerpo = { ...legal.datos, lang: E.lang, nombre: h.querySelector("#cp-nombre").value, pin: h.querySelector("#cp-pin").value,
         plantilla: (h.querySelector("input[name=cp-plantilla]:checked") || {}).value };
       boton.disabled = true; err.hidden = true;
       try {
@@ -1472,9 +1535,34 @@ function hojaAjustes() {
       <button class="btn btn-negro" id="b-qr" style="padding:0 18px">${ic.qr} QR</button></div>
     ${botonCreador()}
     ${v.app_antigua ? `<a class="btn" href="${esc(v.app_antigua)}" target="_blank" rel="noopener">${t("Abrir la app de siempre")}</a>` : ""}
-    <button class="btn btn-negro" id="b-salir">${t("Salir")}</button>`, (h) => {
+    ${v.invitado ? `<div class="caja-abono caja-datos"><b>🔒 ${t("Mis datos")}</b>
+      <label class="interruptor" style="margin-top:8px"><span>${t("Usar mis datos de salud (lesiones, molestias) para adaptar mi programa")}</span><input type="checkbox" id="c-salud" ${(v.consentimiento || {}).salud ? "checked" : ""}></label>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px">
+        <button class="btn" id="b-mis-datos">⬇️ ${t("Descargar mis datos")}</button>
+        <button class="btn" id="b-borrar-cuenta" style="color:#C0392B">🗑️ ${t("Borrar mi cuenta")}</button></div></div>` : ""}
+    <button class="btn btn-negro" id="b-salir">${t("Salir")}</button>
+    ${pieLegal()}`, (h) => {
     const bo = h.querySelector("#b-objetivos"); if (bo) bo.onclick = () => hojaObjetivos(null, v.objetivos);
     const bp = h.querySelector("#b-portal"); if (bp) bp.onclick = () => abrirPortal(bp);
+    const cs = h.querySelector("#c-salud");
+    if (cs) cs.onchange = async () => {
+      try { await api("consentimiento", { metodo: "POST", cuerpo: { salud: cs.checked } }); E.vista.consentimiento = { ...(E.vista.consentimiento || {}), salud: cs.checked };
+        aviso(cs.checked ? t("Guardado ✅") : t("Retirado: hemos borrado tus lesiones/molestias")); }
+      catch (e) { cs.checked = !cs.checked; aviso(e.message, true); }
+    };
+    const bmd = h.querySelector("#b-mis-datos");
+    if (bmd) bmd.onclick = async () => {
+      bmd.disabled = true;
+      try {
+        const d = await api("mis_datos");
+        const blob = new Blob([JSON.stringify(d, null, 2)], { type: "application/json" });
+        const u = URL.createObjectURL(blob); const el = document.createElement("a");
+        el.href = u; el.download = `djimenez-prog-${(d.nombre || "datos").replace(/\s+/g, "-").toLowerCase()}.json`; document.body.appendChild(el); el.click(); el.remove();
+        setTimeout(() => URL.revokeObjectURL(u), 4000);
+      } catch (e) { aviso(e.message, true); }
+      bmd.disabled = false;
+    };
+    const bbc = h.querySelector("#b-borrar-cuenta"); if (bbc) bbc.onclick = hojaBorrarCuenta;
     const bc = h.querySelector("#b-coach");
     if (bc) bc.onclick = async () => {
       bc.disabled = true;

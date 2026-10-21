@@ -159,6 +159,9 @@ class Supabase:
             raise Error(f"No se pudo subir la foto ({e.code}): {e.read().decode()[:200]}", 502)
         return ruta
 
+    def borrar_fila(self, atleta: str):
+        self._pedir("DELETE", "/rutinas?athlete=eq." + urllib.parse.quote(atleta), None, {"Prefer": "return=minimal"})
+
     def guardar(self, atleta: str, data: dict):
         self._pedir("POST", "/rutinas", {"athlete": atleta, "data": data,
                                          "updated_at": dt.datetime.now(dt.timezone.utc).isoformat()},
@@ -181,6 +184,11 @@ class Local:
     def guardar(self, atleta: str, data: dict):
         t = self._todo()
         t[atleta] = data
+        self.ruta.write_text(json.dumps(t, ensure_ascii=False))
+
+    def borrar_fila(self, atleta: str):
+        t = self._todo()
+        t.pop(atleta, None)
         self.ruta.write_text(json.dumps(t, ensure_ascii=False))
 
     def entrenos(self, atleta: str, limite: int = 400) -> list[dict]:
@@ -337,7 +345,7 @@ def _igual(a: str, b: str) -> bool:
     return bool(a) and bool(b) and hmac.compare_digest(a.encode(), b.encode())
 
 
-VERSION = "10.1"
+VERSION = "10.2"
 CLAVES_NECESARIAS = ["CONTRASENA_DIEGO", "SUPABASE_URL", "SUPABASE_KEY", "APP_PASSWORD", "CONTRASENA_ARCHCHANA", "CONTRASENA_INVITADOS", "COACH_PIN",
                      "APP_ANTIGUA_URL", "CONTRASENA_DEMO"]
 
@@ -428,8 +436,13 @@ def _login_invitado(cuerpo: dict) -> dict:
     plantilla = cuerpo.get("plantilla")
     if plantilla not in PLANTILLAS:
         return {"invitado": True, "nuevo": True, "plantillas": PLANTILLAS}
+    if not cuerpo.get("acepta"):
+        raise Error("Tienes que aceptar la política de privacidad y las condiciones para crear tu perfil · "
+                    "Accepte la politique de confidentialité et les conditions pour créer ton profil")
     registro[nombre] = {"pin": _hash(nombre, pin), "alta": dt.date.today().isoformat(), "plantilla": plantilla,
                         "revision": "pendiente",  # no ve su rutina hasta que Diego la aprueba
+                        "consentimiento": {"fecha": _ahora().isoformat(timespec="minutes"), "version": VERSION_LEGAL,
+                                           "salud": bool(cuerpo.get("salud"))},
                         **({"lang": cuerpo["lang"]} if cuerpo.get("lang") in ("es", "fr") else {})}
     datos().guardar(CLAVE_INVITADOS, registro)
     _rutina_inicio(nombre, plantilla)
@@ -579,6 +592,8 @@ def objetivos(sesion: dict, c: dict) -> dict:
     if es_demo(sesion) or not quien or quien not in reg:
         raise Error("Esto es para los perfiles de abonado", 403)
     r = cuestionario.limpiar(c)
+    if not (reg[quien].get("consentimiento") or {}).get("salud"):
+        r["lesiones"] = ""  # sin consentimiento expreso no se guardan datos de salud
     reg[quien] = {**reg[quien], "cuestionario": r, "cuestionario_fecha": dt.date.today().isoformat(), "lang": r["lang"]}
     datos().guardar(CLAVE_INVITADOS, reg)
     try:
@@ -606,6 +621,87 @@ def nombre_demo(p: str) -> str:
         return NOMBRES_DEMO[p][0]
     otros = [x for x in demo_personas() if x != "Yo"]
     return f"Cliente {otros.index(p) + 1}" if p in otros else "Cliente"
+
+
+VERSION_LEGAL = "2026-10-21"  # versión de la política de privacidad y las CGV aceptadas
+
+
+def consentimiento(sesion: dict, c: dict) -> dict:
+    """El alumno acepta (o cambia) la política, o da/retira el consentimiento de datos de salud."""
+    quien = sesion.get("u")
+    reg = dict(invitados())
+    if es_demo(sesion) or not quien or quien not in reg:
+        raise Error("Solo para perfiles", 403)
+    x = dict(reg[quien])
+    cons = dict(x.get("consentimiento") or {})
+    if c.get("acepta"):
+        cons.update(fecha=_ahora().isoformat(timespec="minutes"), version=VERSION_LEGAL)
+    if "salud" in c:
+        cons["salud"] = bool(c["salud"])
+        if not c["salud"]:  # retirada: se borran lesiones/molestias del cuestionario
+            if x.get("cuestionario"):
+                x["cuestionario"] = {**x["cuestionario"], "lesiones": ""}
+    x["consentimiento"] = cons
+    reg[quien] = x
+    datos().guardar(CLAVE_INVITADOS, reg)
+    return {"ok": True, "consentimiento": cons}
+
+
+def mis_datos(sesion: dict) -> dict:
+    """Portabilidad (RGPD): todo lo que la app guarda de esta persona, en un JSON."""
+    quien = sesion.get("u")
+    reg = invitados()
+    if es_demo(sesion) or not quien or quien not in reg:
+        raise Error("Solo para perfiles", 403)
+    perfil = {k: v for k, v in reg[quien].items() if k not in ("pin",)}
+    chat_ = [{k: m.get(k) for k in ("de", "texto", "cuando")} for m in
+             ((datos().rutinas([CLAVE_CHAT]).get(CLAVE_CHAT) or {}).get(quien) or [])]
+    try:
+        ents = datos().entrenos(quien, 2000)
+    except Exception:  # noqa: BLE001
+        ents = []
+    return {"app": "Djimenez Prog", "exportado": _ahora().isoformat(timespec="minutes"), "nombre": quien,
+            "perfil": perfil, "rutina": rutina(quien), "entrenos": ents, "chat": chat_}
+
+
+def borrar_cuenta(sesion: dict, c: dict) -> dict:
+    """Derecho de supresión (RGPD): borra perfil, rutina, entrenos, chat y actividad. El abono de Stripe se cancela aparte."""
+    quien = sesion.get("u")
+    reg = dict(invitados())
+    if es_demo(sesion) or not quien or quien not in reg:
+        raise Error("Solo para perfiles", 403)
+    if norm_busqueda(str(c.get("confirmar") or "")) != norm_busqueda(quien):
+        raise Error("Escribe tu nombre tal cual para confirmar · Écris ton nom pour confirmer")
+    x = reg[quien]
+    if x.get("stripe_estado") in ("trialing", "active", "past_due"):
+        raise Error("Primero cancela tu abono en «Gestionar mi abono» y luego borra la cuenta · "
+                    "Annule d'abord ton abonnement dans « Gérer mon abonnement »", 409)
+    try:
+        for w in datos().entrenos(quien, 5000):
+            datos().borrar_entreno(w)
+    except Exception:  # noqa: BLE001
+        pass
+    try:
+        datos().borrar_fila(quien)
+    except Exception:  # noqa: BLE001
+        datos().guardar(quien, {})
+    todo = dict(datos().rutinas([CLAVE_CHAT]).get(CLAVE_CHAT) or {})
+    if quien in todo:
+        todo.pop(quien, None)
+        todo["_tg"] = {k: v for k, v in (todo.get("_tg") or {}).items() if v != quien}
+        datos().guardar(CLAVE_CHAT, todo)
+
+    def cambio(act):
+        (act.get("personas") or {}).pop(quien, None)
+        act["altas"] = [a for a in act.get("altas", []) if a.get("nombre") != quien]
+        for p in act.get("pagos", []):
+            if p.get("perfil") == quien:
+                p.update(telefono="", email="", nombre="(cuenta borrada)", perfil=None)
+    _apuntar_actividad(cambio)
+    reg.pop(quien, None)
+    datos().guardar(CLAVE_INVITADOS, reg)
+    notificar(f"🗑️ {quien} ha borrado su cuenta y sus datos (RGPD).")
+    return {"ok": True}
 
 
 DIAS_PRUEBA = 7  # perfiles creados desde la demo: 7 días gratis y luego tienen que abonarse
@@ -958,7 +1054,8 @@ def datos_pago(sesion: dict | None, c: dict) -> dict:
     if not quien and pin:  # abonado nuevo: se le crea su perfil al momento con una rutina de inicio
         if len(pin) < 4:
             raise Error("El PIN tiene que tener al menos 4 cifras")
-        r_alta = _login_invitado({"nombre": nombre, "pin": pin, "plantilla": c.get("plantilla") or next(iter(PLANTILLAS))})
+        r_alta = _login_invitado({"nombre": nombre, "pin": pin, "plantilla": c.get("plantilla") or next(iter(PLANTILLAS)),
+                                  "acepta": c.get("acepta"), "salud": c.get("salud"), "lang": c.get("lang")})
         if not r_alta.get("token"):
             raise Error("No se ha podido crear tu perfil")
         quien = r_alta["solo"]
@@ -1887,6 +1984,7 @@ def vista(sesion: dict, atleta: str | None, semana: int | None, dia_id: str | No
             "contacto": _contacto() if not _abono_url() else None,
             "es_diego": bool(sesion.get("y")), "diego_aparte": bool(env("CONTRASENA_DIEGO")),
             "invitado": bool(sesion.get("u") == atleta and atleta in inv and not es_demo(sesion)),
+            "consentimiento": (inv.get(atleta) or {}).get("consentimiento") if sesion.get("u") == atleta and not es_demo(sesion) else None,
             "objetivos_pendientes": bool(sesion.get("u") == atleta and atleta in inv and not es_demo(sesion)
                                          and ((inv.get(atleta) or {}).get("abonado") or (inv.get(atleta) or {}).get("alta", "") >= CUESTIONARIO_DESDE)
                                          and not (inv.get(atleta) or {}).get("cuestionario")),

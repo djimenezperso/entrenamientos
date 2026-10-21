@@ -1,0 +1,202 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>Djimenez Prog · Legal</title>
+<style>
+  :root { --fuego: #FF6A00; --tinta: #1F1208; --medio: #6B4A33; --crema: #FFF4EA; --borde: #F0CDB0; }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--crema); color: var(--tinta); font: 16px/1.55 system-ui, -apple-system, "Segoe UI", sans-serif; }
+  header { position: sticky; top: 0; background: var(--tinta); color: #fff; padding: 12px 16px; display: flex; gap: 8px; align-items: center; flex-wrap: wrap; z-index: 2; }
+  header b { font-size: 17px; letter-spacing: .03em; margin-right: auto; }
+  header a, header button { color: #FFB400; background: none; border: 1px solid #5a3b25; border-radius: 999px; padding: 5px 11px; font: 600 13px system-ui; text-decoration: none; cursor: pointer; }
+  header button.on { background: #FFB400; color: var(--tinta); }
+  main { max-width: 760px; margin: 0 auto; padding: 18px 16px 60px; }
+  section { background: #fff; border-radius: 20px; padding: 18px 18px 8px; margin: 16px 0; scroll-margin-top: 70px; }
+  h1 { font-size: 24px; margin: 4px 0 10px; }
+  h2 { font-size: 17px; margin: 18px 0 6px; color: #B33A00; }
+  p, li { color: #3a2a1e; }
+  ul { padding-left: 20px; }
+  .falta { background: #FFF1C2; border-radius: 6px; padding: 0 4px; }
+  small { color: var(--medio); }
+  a { color: #B33A00; }
+</style>
+</head>
+<body>
+<header>
+  <b>DJIMENEZ PROG</b>
+  <a href="#privacidad" data-t="nav1"></a><a href="#mentions" data-t="nav2"></a><a href="#cgv" data-t="nav3"></a>
+  <button data-lang="fr">FR</button><button data-lang="es">ES</button>
+  <a href="/" data-t="volver"></a>
+</header>
+<main id="m"></main>
+<script>
+// Datos del responsable. Lo que falta sale resaltado en amarillo hasta que se rellene.
+const D = {
+  nombre: "Diego Jiménez Peña",
+  marca: "Djimenez Prog",
+  siret: "894 314 020 00013",
+  direccion: "49 rue Ramey, 75018 Paris, France",
+  email: "djimenezpenapro@gmail.com",
+  tel: "+33 6 75 98 75 99",
+  iva: "TVA non applicable, art. 293 B du CGI",
+  mediador: "",         // ← médiateur de la consommation (obligatorio en Francia)
+  precio: "29 €",
+  prueba: "7",
+  actualizado: "21/10/2026",
+};
+const falta = (v, txt) => v ? v : `<span class="falta">${txt}</span>`;
+
+const TXT = {
+fr: {
+  nav1: "Confidentialité", nav2: "Mentions légales", nav3: "CGV", volver: "← Appli",
+  html: () => `
+<section id="privacidad">
+<h1>Politique de confidentialité</h1>
+<p><small>Dernière mise à jour : ${D.actualizado}</small></p>
+<h2>Qui est responsable de vos données ?</h2>
+<p>${D.nombre} (« ${D.marca} »), entrepreneur individuel, ${falta(D.direccion, "adresse à compléter")} — <a href="mailto:${D.email}">${D.email}</a>.</p>
+<h2>Quelles données et pourquoi ?</h2>
+<ul>
+<li><b>Compte</b> : prénom/nom, code PIN (enregistré chiffré), langue. Pour créer et sécuriser votre profil.</li>
+<li><b>Contact</b> : téléphone et e-mail, si vous vous abonnez. Pour gérer votre abonnement et vous contacter.</li>
+<li><b>Entraînement</b> : votre programme, séances, résultats, records, photos et commentaires que vous enregistrez. Pour suivre vos progrès et adapter votre programme.</li>
+<li><b>Questionnaire</b> : objectifs, niveau, matériel, disponibilité. Pour créer votre programme sur mesure.</li>
+<li><b>Données de santé</b> (blessures, douleurs) : <b>uniquement si vous y consentez expressément</b>, pour adapter les exercices. Vous pouvez retirer ce consentement à tout moment.</li>
+<li><b>Chat</b> : les messages que vous envoyez à Diego et ses réponses.</li>
+<li><b>Paiement</b> : géré par Stripe. Nous ne voyons jamais votre numéro de carte ; nous recevons seulement l'état de votre abonnement.</li>
+<li><b>Utilisation</b> : jours où vous ouvrez l'appli et statistiques de visite anonymes (sans cookies publicitaires).</li>
+</ul>
+<h2>Base légale</h2>
+<p>L'exécution du contrat (votre programme et votre abonnement), votre consentement (données de santé), notre intérêt légitime (sécurité, amélioration du service) et nos obligations légales (comptabilité).</p>
+<h2>Qui reçoit vos données ?</h2>
+<p>Seulement Diego et les prestataires techniques nécessaires au service :</p>
+<ul>
+<li><b>Vercel Inc.</b> (hébergement de l'appli, États-Unis).</li>
+<li><b>Supabase Inc.</b> (base de données).</li>
+<li><b>Stripe Payments Europe Ltd.</b> (paiements, Irlande).</li>
+<li><b>Telegram</b> (Diego reçoit les notifications et les messages du chat sur Telegram).</li>
+<li><b>Google Fonts</b> (polices d'affichage).</li>
+</ul>
+<p>Certains de ces prestataires sont situés hors de l'Union européenne ; les transferts sont encadrés par les garanties prévues par le RGPD (clauses contractuelles types ou Data Privacy Framework). Vos données ne sont jamais vendues ni utilisées pour de la publicité.</p>
+<h2>Combien de temps ?</h2>
+<p>Tant que votre compte est actif, puis 3 ans après votre dernière activité, sauf si vous le supprimez avant. Les données de facturation sont conservées 10 ans (obligation légale). Le chat est supprimé avec votre compte.</p>
+<h2>Vos droits</h2>
+<p>Accès, rectification, effacement, portabilité, limitation, opposition et retrait du consentement. Dans l'appli : <b>Réglages → Télécharger mes données</b> et <b>Supprimer mon compte</b>. Pour toute autre demande : <a href="mailto:${D.email}">${D.email}</a> (réponse sous un mois). Vous pouvez aussi saisir la <a href="https://www.cnil.fr" target="_blank" rel="noopener">CNIL</a>.</p>
+<h2>Stockage sur votre téléphone</h2>
+<p>L'appli enregistre sur votre appareil votre session et quelques préférences (langue, réglages). Pas de cookies publicitaires ni de traceurs tiers.</p>
+</section>
+
+<section id="mentions">
+<h1>Mentions légales</h1>
+<p><b>Éditeur</b> : ${D.nombre}, entrepreneur individuel — SIRET ${falta(D.siret, "à compléter")} — ${falta(D.direccion, "adresse à compléter")} — <a href="mailto:${D.email}">${D.email}</a> — ${D.tel}.</p>
+<p><b>Directeur de la publication</b> : ${D.nombre}.</p>
+<p><b>Hébergeur</b> : Vercel Inc., 440 N Barranca Ave #4133, Covina, CA 91723, États-Unis — vercel.com.</p>
+<p>Les programmes, textes et contenus de l'appli sont la propriété de ${D.nombre}. Toute reproduction sans autorisation est interdite.</p>
+</section>
+
+<section id="cgv">
+<h1>Conditions générales de vente</h1>
+<h2>1. Service</h2>
+<p>${D.marca} propose une programmation sportive personnalisée (CrossFit, force, haltérophilie, conditioning) accessible dans l'appli, avec suivi et contact avec le coach.</p>
+<h2>2. Prix et paiement</h2>
+<p>Abonnement mensuel de <b>${D.precio} par mois</b>${D.iva ? ` (${D.iva})` : ` <span class="falta">mention TVA à compléter</span>`}. Les codes promotionnels éventuels s'appliquent selon leurs conditions. Paiement par carte via Stripe, prélevé automatiquement chaque mois.</p>
+<h2>3. Essai gratuit</h2>
+<p>Les ${D.prueba} premiers jours sont gratuits. Sans résiliation avant la fin de l'essai, l'abonnement payant démarre automatiquement.</p>
+<h2>4. Durée et résiliation</h2>
+<p>Abonnement sans engagement, renouvelé chaque mois. Résiliable à tout moment dans <b>Réglages → Gérer mon abonnement</b> ; la résiliation prend effet à la fin de la période payée.</p>
+<h2>5. Droit de rétractation</h2>
+<p>Vous disposez de 14 jours à compter de la souscription pour vous rétracter, sans justification, en écrivant à <a href="mailto:${D.email}">${D.email}</a>. En utilisant le service pendant ce délai, vous demandez expressément son exécution immédiate ; en cas de rétractation, seul le montant correspondant au service déjà fourni reste dû.</p>
+<h2>6. Santé et sécurité</h2>
+<p>Les entraînements sont proposés pour des personnes en bonne santé. Consultez un médecin avant de commencer en cas de doute, de blessure ou de problème de santé. Adaptez les charges à votre niveau et arrêtez en cas de douleur. Le coach n'est pas un professionnel de santé ; ses conseils ne remplacent pas un avis médical.</p>
+<h2>7. Responsabilité</h2>
+<p>${D.marca} s'engage à fournir le service avec soin mais ne peut garantir une disponibilité sans interruption de l'appli. Sa responsabilité ne saurait être engagée en cas de mauvaise exécution des exercices ou de non-respect des consignes.</p>
+<h2>8. Litiges</h2>
+<p>Droit français. En cas de litige, contactez d'abord ${D.email}. Vous pouvez recourir gratuitement au médiateur de la consommation : ${falta(D.mediador, "médiateur à désigner")}, ou à la plateforme européenne de règlement en ligne des litiges.</p>
+</section>`,
+},
+es: {
+  nav1: "Privacidad", nav2: "Aviso legal", nav3: "Condiciones", volver: "← App",
+  html: () => `
+<section id="privacidad">
+<h1>Política de privacidad</h1>
+<p><small>Última actualización: ${D.actualizado}</small></p>
+<h2>¿Quién es responsable de tus datos?</h2>
+<p>${D.nombre} («${D.marca}»), empresario individual, ${falta(D.direccion, "dirección por completar")} — <a href="mailto:${D.email}">${D.email}</a>.</p>
+<h2>¿Qué datos y para qué?</h2>
+<ul>
+<li><b>Cuenta</b>: nombre, PIN (guardado cifrado) e idioma. Para crear y proteger tu perfil.</li>
+<li><b>Contacto</b>: teléfono y email, si te abonas. Para gestionar tu abono y contactarte.</li>
+<li><b>Entrenamiento</b>: tu programa, sesiones, resultados, marcas, fotos y comentarios que registres. Para seguir tu progreso y adaptar tu programa.</li>
+<li><b>Cuestionario</b>: objetivos, nivel, material y disponibilidad. Para crear tu programa a medida.</li>
+<li><b>Datos de salud</b> (lesiones, molestias): <b>solo si das tu consentimiento expreso</b>, para adaptar los ejercicios. Puedes retirarlo cuando quieras.</li>
+<li><b>Chat</b>: los mensajes que mandas a Diego y sus respuestas.</li>
+<li><b>Pago</b>: lo gestiona Stripe. Nunca vemos tu tarjeta; solo recibimos el estado de tu abono.</li>
+<li><b>Uso</b>: los días que abres la app y estadísticas de visita anónimas (sin cookies publicitarias).</li>
+</ul>
+<h2>Base legal</h2>
+<p>La ejecución del contrato (tu programa y tu abono), tu consentimiento (datos de salud), nuestro interés legítimo (seguridad, mejora del servicio) y obligaciones legales (contabilidad).</p>
+<h2>¿Quién recibe tus datos?</h2>
+<p>Solo Diego y los proveedores técnicos necesarios:</p>
+<ul>
+<li><b>Vercel Inc.</b> (alojamiento de la app, EE. UU.).</li>
+<li><b>Supabase Inc.</b> (base de datos).</li>
+<li><b>Stripe Payments Europe Ltd.</b> (pagos, Irlanda).</li>
+<li><b>Telegram</b> (Diego recibe los avisos y los mensajes del chat en Telegram).</li>
+<li><b>Google Fonts</b> (tipografías).</li>
+</ul>
+<p>Algunos están fuera de la UE; las transferencias se hacen con las garantías del RGPD (cláusulas contractuales tipo o Data Privacy Framework). Tus datos nunca se venden ni se usan para publicidad.</p>
+<h2>¿Cuánto tiempo?</h2>
+<p>Mientras tu cuenta esté activa y hasta 3 años después de tu última actividad, salvo que la borres antes. Los datos de facturación se guardan 10 años (obligación legal). El chat se borra con tu cuenta.</p>
+<h2>Tus derechos</h2>
+<p>Acceso, rectificación, supresión, portabilidad, limitación, oposición y retirada del consentimiento. En la app: <b>Ajustes → Descargar mis datos</b> y <b>Borrar mi cuenta</b>. Para lo demás: <a href="mailto:${D.email}">${D.email}</a> (respuesta en menos de un mes). También puedes reclamar ante la <a href="https://www.cnil.fr" target="_blank" rel="noopener">CNIL</a> o la <a href="https://www.aepd.es" target="_blank" rel="noopener">AEPD</a>.</p>
+<h2>Almacenamiento en tu móvil</h2>
+<p>La app guarda en tu dispositivo tu sesión y algunas preferencias (idioma, ajustes). Sin cookies publicitarias ni rastreadores de terceros.</p>
+</section>
+
+<section id="mentions">
+<h1>Aviso legal</h1>
+<p><b>Titular</b>: ${D.nombre}, empresario individual — SIRET ${falta(D.siret, "por completar")} — ${falta(D.direccion, "dirección por completar")} — <a href="mailto:${D.email}">${D.email}</a> — ${D.tel}.</p>
+<p><b>Alojamiento</b>: Vercel Inc., 440 N Barranca Ave #4133, Covina, CA 91723, EE. UU. — vercel.com.</p>
+<p>Los programas, textos y contenidos de la app son propiedad de ${D.nombre}. Prohibida su reproducción sin permiso.</p>
+</section>
+
+<section id="cgv">
+<h1>Condiciones generales de venta</h1>
+<h2>1. Servicio</h2>
+<p>${D.marca} ofrece programación deportiva personalizada (CrossFit, fuerza, halterofilia, conditioning) dentro de la app, con seguimiento y contacto con el coach.</p>
+<h2>2. Precio y pago</h2>
+<p>Abono mensual de <b>${D.precio} al mes</b>${D.iva ? ` (${D.iva})` : ` <span class="falta">mención del IVA por completar</span>`}. Los códigos promocionales se aplican según sus condiciones. Pago con tarjeta mediante Stripe, cobrado automáticamente cada mes.</p>
+<h2>3. Prueba gratis</h2>
+<p>Los ${D.prueba} primeros días son gratis. Si no te das de baja antes de que acabe la prueba, empieza el abono de pago automáticamente.</p>
+<h2>4. Duración y baja</h2>
+<p>Sin permanencia, se renueva cada mes. Puedes darte de baja cuando quieras en <b>Ajustes → Gestionar mi abono</b>; la baja es efectiva al final del periodo pagado.</p>
+<h2>5. Desistimiento</h2>
+<p>Tienes 14 días desde la contratación para desistir sin dar motivos, escribiendo a <a href="mailto:${D.email}">${D.email}</a>. Si usas el servicio durante ese plazo, pides expresamente que empiece ya; si desistes, solo se paga la parte del servicio ya prestada.</p>
+<h2>6. Salud y seguridad</h2>
+<p>Los entrenamientos están pensados para personas sanas. Consulta a un médico antes de empezar si tienes dudas, lesiones o algún problema de salud. Adapta los pesos a tu nivel y para si sientes dolor. El coach no es un profesional sanitario; sus consejos no sustituyen a un médico.</p>
+<h2>7. Responsabilidad</h2>
+<p>${D.marca} presta el servicio con cuidado pero no puede garantizar que la app funcione siempre sin interrupciones. No responde de una mala ejecución de los ejercicios ni de no seguir las indicaciones.</p>
+<h2>8. Conflictos</h2>
+<p>Ley francesa. Ante cualquier problema, escribe primero a ${D.email}. Puedes acudir gratis al mediador de consumo: ${falta(D.mediador, "mediador por designar")}, o a la plataforma europea de resolución de litigios en línea.</p>
+</section>`,
+},
+};
+
+const q = new URLSearchParams(location.search);
+let lang = q.get("lang") || (localStorage.getItem("dj_lang") || "").replace(/"/g, "") || ((navigator.languages || [navigator.language]).some((l) => /^fr/i.test(l)) ? "fr" : "es");
+function pinta() {
+  const T = TXT[lang] || TXT.fr;
+  document.documentElement.lang = lang;
+  document.querySelectorAll("[data-t]").forEach((e) => { e.textContent = T[e.dataset.t]; });
+  document.querySelectorAll("[data-lang]").forEach((b) => b.classList.toggle("on", b.dataset.lang === lang));
+  document.getElementById("m").innerHTML = T.html();
+  if (location.hash) { const el = document.querySelector(location.hash); if (el) el.scrollIntoView(); }
+}
+document.querySelectorAll("[data-lang]").forEach((b) => b.onclick = () => { lang = b.dataset.lang; pinta(); });
+pinta();
+</script>
+</body>
+</html>

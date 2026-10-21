@@ -75,6 +75,12 @@ class handler(BaseHTTPRequestHandler):
                 return self._responder(200, servicio.chat(self._sesion(), q, "GET"))
             if ruta == "tg_webhook" and metodo == "POST":
                 return self._responder(200, servicio.tg_webhook(self.headers.get("X-Telegram-Bot-Api-Secret-Token", ""), self._cuerpo()))
+            if ruta == "consentimiento" and metodo == "POST":
+                return self._responder(200, servicio.consentimiento(self._sesion(), self._cuerpo()))
+            if ruta == "mis_datos" and metodo == "GET":
+                return self._responder(200, servicio.mis_datos(self._sesion()))
+            if ruta == "borrar_cuenta" and metodo == "POST":
+                return self._responder(200, servicio.borrar_cuenta(self._sesion(), self._cuerpo()))
             if ruta == "portal_abono" and metodo == "POST":
                 return self._responder(200, servicio.portal_abono(self._sesion()))
             if ruta == "objetivos" and metodo == "POST":
