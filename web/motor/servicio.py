@@ -337,7 +337,7 @@ def _igual(a: str, b: str) -> bool:
     return bool(a) and bool(b) and hmac.compare_digest(a.encode(), b.encode())
 
 
-VERSION = "9.6"
+VERSION = "9.7"
 CLAVES_NECESARIAS = ["CONTRASENA_DIEGO", "SUPABASE_URL", "SUPABASE_KEY", "APP_PASSWORD", "CONTRASENA_ARCHCHANA", "CONTRASENA_INVITADOS", "COACH_PIN",
                      "APP_ANTIGUA_URL", "CONTRASENA_DEMO"]
 
@@ -429,6 +429,7 @@ def _login_invitado(cuerpo: dict) -> dict:
     if plantilla not in PLANTILLAS:
         return {"invitado": True, "nuevo": True, "plantillas": PLANTILLAS}
     registro[nombre] = {"pin": _hash(nombre, pin), "alta": dt.date.today().isoformat(), "plantilla": plantilla,
+                        "revision": "pendiente",  # no ve su rutina hasta que Diego la aprueba
                         **({"lang": cuerpo["lang"]} if cuerpo.get("lang") in ("es", "fr") else {})}
     datos().guardar(CLAVE_INVITADOS, registro)
     _rutina_inicio(nombre, plantilla)
@@ -617,7 +618,10 @@ def estado_prueba(nombre: str, inv: dict | None = None, altas: set | None = None
     est = x.get("stripe_estado")
     pagando = est in ESTADOS_PAGANDO or (bool(x.get("abonado")) and est is None)
     try:
-        fin = dt.date.fromisoformat(x.get("alta", "")[:10]) + dt.timedelta(days=DIAS_PRUEBA)
+        if x.get("revision") == "pendiente":  # aún no la ha visto: la semana gratis no ha empezado
+            return {"pagando": False, "fin": None, "dias": DIAS_PRUEBA, "bloqueado": False, "en_prueba": False,
+                    "cancelado": False, "en_revision": True}
+        fin = dt.date.fromisoformat((x.get("aprobado") or x.get("alta", ""))[:10]) + dt.timedelta(days=DIAS_PRUEBA)
     except ValueError:
         fin = dt.date.today()
     quedan = (fin - dt.date.today()).days
@@ -630,6 +634,8 @@ def exigir_pago(sesion: dict, atleta: str) -> None:
     """Se acabó la semana gratis y no se ha abonado: no puede usar la app (sí puede pagar o escribir a Diego)."""
     if es_coach(sesion) or es_demo(sesion) or sesion.get("u") != atleta:
         return
+    if (invitados().get(atleta) or {}).get("revision") == "pendiente":
+        raise Error("Diego está revisando tu programa. En cuanto lo apruebe, podrás empezar 💪", 403)
     p = estado_prueba(atleta)
     if p and p["bloqueado"]:
         raise Error("Tu semana gratis ha terminado. Abónate para seguir con tu rutina 💪", 402)
@@ -762,7 +768,7 @@ def crear_perfil(sesion: dict, c: dict) -> dict:
                 altas.insert(0, {"nombre": nombre, "cuando": _ahora().isoformat(timespec="minutes")})
                 del altas[50:]
         _apuntar_actividad(cambio)
-        notificar(f"✨ Perfil nuevo desde la demo: {nombre}\n🎁 Tiene {DIAS_PRUEBA} días gratis; después la app le pedirá abonarse.")
+        notificar(f"✨ Perfil nuevo desde la demo: {nombre}\n🕐 Está esperando a que revises y apruebes su programa (modo coach → su rutina → ✅ Aprobar).\n🎁 Al aprobarlo empiezan sus {DIAS_PRUEBA} días gratis; después la app le pedirá abonarse.")
     return r
 
 
@@ -1450,6 +1456,8 @@ def actividad(sesion: dict) -> dict:
             "pagos": [dict(x, hace=_hace(x.get("cuando"), ahora)) for x in todo.get("pagos", [])][:50],
             "abonados": _lista_abonados(),
             "propuestas": propuestas_pendientes(),
+            "revisiones": [{"atleta": n, "nombre": nv(n), "desde": x.get("alta"), "cuestionario": bool(x.get("cuestionario"))}
+                           for n, x in invitados().items() if x.get("revision") == "pendiente"],
             "stripe": bool(env("STRIPE_SECRET_KEY")),
             "altas": [{"nombre": a["nombre"], "hace": _hace(a.get("cuando"), ahora)} for a in todo.get("altas", [])][:20]}
 
@@ -1871,6 +1879,13 @@ def vista(sesion: dict, atleta: str | None, semana: int | None, dia_id: str | No
             "permiso_pesos": bool((rut or {}).get("permiso_pesos")),
             "solicitudes": [x for x in todas_sol if coach and (not sesion.get("u") or x["atleta"] == sesion["u"])],
             "mis_solicitudes": {x["linea"]: x for x in todas_sol if x["atleta"] == atleta}}
+    en_revision = (inv.get(atleta) or {}).get("revision") == "pendiente"
+    if en_revision and coach:
+        base["revision_pendiente"] = True
+    if en_revision and sesion.get("u") == atleta and not coach and not es_demo(sesion):
+        return {**base, "en_revision": True}
+    if sesion.get("u") == atleta and not coach and not es_demo(sesion) and (inv.get(atleta) or {}).get("aprobado_visto") is False:
+        base["recien_aprobado"] = True
     if sesion.get("u") == atleta and not coach and not es_demo(sesion):
         altas = {a.get("nombre") for a in ((guardadas.get(CLAVE_ACTIVIDAD) or {}).get("altas") or [])}
         prueba = estado_prueba(atleta, inv, altas)
@@ -2415,6 +2430,20 @@ def accion(sesion: dict, c: dict) -> dict:
     elif tipo == "descartar_novedad":
         rut = dict(rut, novedades_vistas=(rut.get("novedades_vistas") or [])[-60:] + [str(c.get("id"))])
         aviso = "Vale, no te la pongo"
+    elif tipo == "aprobar_programa":
+        if not es_coach(sesion):
+            raise Error("Solo Diego puede aprobar el programa", 403)
+        reg = dict(invitados())
+        if atleta in reg:
+            reg[atleta] = {**reg[atleta], "revision": "ok", "aprobado": dt.date.today().isoformat(), "aprobado_visto": False}
+            datos().guardar(CLAVE_INVITADOS, reg)
+        aviso = f"Programa de {nv(atleta)} aprobado ✅ Ya lo puede ver"
+    elif tipo == "aprobado_visto":
+        reg = dict(invitados())
+        if atleta in reg:
+            reg[atleta] = {**reg[atleta], "aprobado_visto": True}
+            datos().guardar(CLAVE_INVITADOS, reg)
+        aviso = None
     elif tipo in ("aplicar_propuesta", "descartar_propuesta"):
         if not es_coach(sesion):
             raise Error("Solo Diego puede cambiar la rutina", 403)

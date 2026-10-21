@@ -18,6 +18,18 @@ const E = { token: mem.get("token"), atleta: mem.get("atleta"), lang: mem.get("l
 
 // ---------- textos ----------
 const FR = {
+  "Diego está revisando tu programa": "Diego vérifie ton programme",
+  "Primero cuéntanos tus objetivos: con tus respuestas preparamos tu rutina.": "Commence par nous dire tes objectifs : avec tes réponses, on prépare ton programme.",
+  "Con tus respuestas ya hemos preparado tu rutina. Diego la revisa, la ajusta a ti y te la activa. Vuelve más tarde: te avisaremos aquí.": "Avec tes réponses, ton programme est prêt. Diego le vérifie, l'adapte à toi et te l'active. Reviens plus tard : on te préviendra ici.",
+  "Responder el cuestionario": "Répondre au questionnaire",
+  "espera que apruebes su programa": "attend que tu valides son programme",
+  "Revísalo abajo y ajusta lo que quieras. Hasta que lo apruebes no lo ve.": "Vérifie-le ci-dessous et ajuste ce que tu veux. Tant que tu ne le valides pas, il ne le voit pas.",
+  "Aprobar y activárselo": "Valider et l'activer",
+  "¡Diego ha aprobado tu programa!": "Diego a validé ton programme !",
+  "Ya lo tienes listo. Tu semana gratis empieza hoy. ¡A entrenar! 🔥": "Il est prêt. Ta semaine gratuite commence aujourd'hui. À l'entraînement ! 🔥",
+  "Programas por aprobar": "Programmes à valider",
+  "cuestionario respondido": "questionnaire rempli",
+  "sin cuestionario todavía": "pas encore de questionnaire",
   "Rutinas preparadas por aplicar": "Programmes préparés à appliquer",
   "Ver": "Voir",
   "Rutina nueva preparada para": "Nouveau programme préparé pour",
@@ -530,7 +542,14 @@ function poner(v) {
   pintar();
   if (v.pr) { aviso("🎉 " + v.pr); confeti(); } else if (v.aviso) aviso(v.aviso);
   if (E.pagoCs !== undefined && !E.pagoMostrado) { E.pagoMostrado = true; E.bienvenidaDemo = true; setTimeout(() => hojaPago(E.pagoCs), 300); }
-  if (v.objetivos_pendientes && !E.objMostrado && !(Date.now() - (+mem.get("objetivos_luego") || 0) < 2 * 86400000) && $hoja.hidden && E.pagoCs === undefined) {
+  if (v.recien_aprobado && $hoja.hidden && !E.aprobadoMostrado) {
+    E.aprobadoMostrado = true;
+    api("accion", { metodo: "POST", cuerpo: { atleta: v.atleta, tipo: "aprobado_visto" } }).catch(() => { });
+    setTimeout(() => { confeti(); abrirHoja(`<div class="demo-hola"><div class="pago-ok">✅</div><h3>${t("¡Diego ha aprobado tu programa!")}</h3>
+      <p>${t("Ya lo tienes listo. Tu semana gratis empieza hoy. ¡A entrenar! 🔥")}</p></div>
+      <button class="btn btn-fuego" data-cerrar style="height:54px">${t("¡Vamos!")} 💪</button>`); }, 300);
+  }
+  if (!v.recien_aprobado && v.objetivos_pendientes && !E.objMostrado && !(Date.now() - (+mem.get("objetivos_luego") || 0) < 2 * 86400000) && $hoja.hidden && E.pagoCs === undefined) {
     E.objMostrado = true; const ya = mem.get("bienvenida_" + v.atleta); mem.set("bienvenida_" + v.atleta, "1");
     setTimeout(() => hojaObjetivos(ya ? null : hojaNuevoAbonado), 300);
   } else if (v.abonado_nuevo && !mem.get("bienvenida_" + v.atleta) && $hoja.hidden) { mem.set("bienvenida_" + v.atleta, "1"); setTimeout(hojaNuevoAbonado, 300); }
@@ -732,7 +751,7 @@ function hojaObjetivos(despues, previo) {
           mem.set("objetivos_luego", null);
           cerrarHoja(); E.semana = null; E.dia = null; await cargar();
           aviso(r.rehecha ? t("¡Tu rutina está lista! Diego la revisará 🔥") : t("¡Recibido! Diego ajustará tu rutina 🔥"));
-          if (despues) despues();
+          if (despues && !(E.vista && E.vista.en_revision)) despues();
         } catch (e) { err.textContent = e.message; err.hidden = false; ev.target.disabled = false; }
       };
     };
@@ -856,6 +875,21 @@ function pintar() {
   desbloquearScroll();
   if (E.pantalla === "registrar") return pintarRegistrar();
   if (E.pantalla === "progreso" || E.pantalla === "prs") return pintarPantalla();
+  if (v.en_revision) {  // perfil nuevo: Diego revisa y aprueba el programa antes de que lo vea
+    $app.innerHTML = cabecera(v) + `<main><div class="muro-pago">
+      <div class="pago-ok">🕐</div>
+      <h2>${t("Diego está revisando tu programa")}</h2>
+      <p>${v.objetivos_pendientes ? t("Primero cuéntanos tus objetivos: con tus respuestas preparamos tu rutina.") : t("Con tus respuestas ya hemos preparado tu rutina. Diego la revisa, la ajusta a ti y te la activa. Vuelve más tarde: te avisaremos aquí.")}</p>
+      ${v.objetivos_pendientes ? `<button class="btn btn-fuego" id="rv-obj" style="height:56px">🎯 ${t("Responder el cuestionario")}</button>` : ""}
+      ${v.chat_activo ? `<button class="btn" id="rv-chat">💬 ${t("Escribir a Diego")}</button>` : ""}
+      ${botonCreador()}
+      <button class="btn" id="rv-salir">${t("Salir")}</button></div></main>`;
+    enlazar();
+    const o = document.getElementById("rv-obj"); if (o) o.onclick = () => hojaObjetivos(null);
+    const c = document.getElementById("rv-chat"); if (c) c.onclick = hojaChat;
+    document.getElementById("rv-salir").onclick = salir;
+    return;
+  }
   if (v.pago_requerido) {  // semana gratis terminada: o se abona o no hay rutina
     $app.innerHTML = cabecera(v) + `<main><div class="muro-pago">
       <div class="pago-ok">🔒</div>
@@ -928,6 +962,9 @@ function cabecera(v) {
         <button class="redondo" id="b-ajustes" aria-label="${t("Ajustes")}">${ic.ajustes}</button>
       </div>
     </div>
+    ${v.revision_pendiente ? `<div class="propuesta"><b>🕐 ${esc(v.nombre)} ${t("espera que apruebes su programa")}</b>
+      <small>${t("Revísalo abajo y ajusta lo que quieras. Hasta que lo apruebes no lo ve.")}</small>
+      <div class="prop-bot"><button id="b-aprobar">✅ ${t("Aprobar y activárselo")}</button></div></div>` : ""}
     ${v.propuesta ? `<div class="propuesta"><b>📋 ${t("Rutina nueva preparada para")} ${esc(v.nombre)}</b>
       <small>${esc(v.propuesta.titulo)}</small>
       <details><summary>${t("Ver la rutina")}</summary>${v.propuesta.dias.map((d) => `<div class="prop-dia"><b>${esc(trDia(d.nombre))}</b>${d.lineas.map((x) => `<div>${esc(x)}</div>`).join("")}</div>`).join("")}</details>
@@ -1149,6 +1186,7 @@ function enlazar() {
   if (bcp) bcp.onclick = () => hojaCrearPerfil({});
   const bcl = document.getElementById("b-clientes-demo"); if (bcl) bcl.onclick = hojaPersonas;
   const bpa = document.getElementById("b-prueba-abono"); if (bpa) bpa.onclick = abonarse;
+  const bap = document.getElementById("b-aprobar"); if (bap) bap.onclick = () => hacer({ tipo: "aprobar_programa" }, bap);
   const bps = document.getElementById("b-prop-si"); if (bps) bps.onclick = () => { E.semana = null; E.dia = null; hacer({ tipo: "aplicar_propuesta" }, bps); };
   const bpn = document.getElementById("b-prop-no"); if (bpn) bpn.onclick = () => hacer({ tipo: "descartar_propuesta" }, bpn);
   const baa = document.getElementById("b-abono-arreglar");
@@ -1677,6 +1715,8 @@ async function hojaActividad() {
     <div class="act-totales"><div><b>${d.total_compartidos || 0}</b><span>${t("veces compartido")}</span></div>
       <div><b>${d.total_llegadas || 0}</b><span>${t("han entrado por un enlace")}</span></div>
       <div><b>${d.llegadas_instagram || 0}</b><span>📸 ${t("desde Instagram")}</span></div></div>
+    ${d.revisiones && d.revisiones.length ? `<div class="act-pagos"><b>🕐 ${t("Programas por aprobar")} (${d.revisiones.length})</b>
+      ${d.revisiones.map((x) => `<div class="pago"><div><b>${esc(x.nombre)}</b><br><small>${x.cuestionario ? t("cuestionario respondido") : t("sin cuestionario todavía")}</small></div><button class="mini-btn" data-ir="${esc(x.atleta)}">${t("Ver")}</button></div>`).join("")}</div>` : ""}
     ${d.propuestas && d.propuestas.length ? `<div class="act-pagos"><b>📋 ${t("Rutinas preparadas por aplicar")}</b>
       ${d.propuestas.map((x) => `<div class="pago"><div><b>${esc(x.nombre)}</b><br><small>${esc(x.titulo)}</small></div><button class="mini-btn" data-ir="${esc(x.atleta)}">${t("Ver")}</button></div>`).join("")}</div>` : ""}
     ${d.abonados && d.abonados.length ? `<div class="act-pagos"><b>💳 ${t("Abonados")} (${d.abonados.filter((x) => !x.problema && x.estado).length} ${t("activos")})</b>${d.stripe ? "" : ` <small>${t("· conecta Stripe para ver su estado")}</small>`}
