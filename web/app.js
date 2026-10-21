@@ -1537,7 +1537,7 @@ function hojaAjustes() {
       <button class="btn btn-fuego" id="b-compartir-app">${ic.compartir} ${t("Compartir la app")}</button>
       <button class="btn btn-negro" id="b-qr" style="padding:0 18px">${ic.qr} QR</button></div>
     ${botonCreador()}
-    ${v.app_antigua ? `<a class="btn" href="${esc(v.app_antigua)}" target="_blank" rel="noopener">${t("Abrir la app de siempre")}</a>` : ""}
+    ${v.app_antigua && v.coach ? `<a class="btn" href="${esc(v.app_antigua)}" target="_blank" rel="noopener">${t("Abrir la app de siempre")}</a>` : ""}
     ${v.invitado ? `<div class="caja-abono caja-datos"><b>🔒 ${t("Mis datos")}</b>
       <label class="interruptor" style="margin-top:8px"><span>${t("Usar mis datos de salud (lesiones, molestias) para adaptar mi programa")}</span><input type="checkbox" id="c-salud" ${(v.consentimiento || {}).salud ? "checked" : ""}></label>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px">

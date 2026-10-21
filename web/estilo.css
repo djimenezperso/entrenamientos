@@ -1,3 +1,6 @@
+/* que los móviles (Xiaomi, Chrome «modo oscuro para webs»…) no la pongan en oscuro a la fuerza */
+:root { color-scheme: only light; }
+html, body { forced-color-adjust: none; }
 /* Djimenez Prog — tema fuego */
 :root {
   --fuego: #FF6A00; --fuego-claro: #FF8A1F; --brasa: #D93A00; --brasa-osc: #B83200;
