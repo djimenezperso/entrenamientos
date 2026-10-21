@@ -11,7 +11,7 @@ def _ruchama():
     el día del medio, fuerza + conditioning largo. Sin snatch con barra: DB snatch ligero."""
     return {
         "id": "ruchama-v3",
-        "auto": True,  # Diego ya dijo «cámbiaselo»: se aplica sola la próxima vez que se abra su rutina
+        "sugerir": True,  # le sale a ella: «Diego te sugiere este cambio» → Aceptar / Ahora no
         "titulo": "3 días · WOD + accessory · día del medio fuerza + conditioning largo",
         "nivel": "Inter",
         "dias": [

@@ -337,7 +337,7 @@ def _igual(a: str, b: str) -> bool:
     return bool(a) and bool(b) and hmac.compare_digest(a.encode(), b.encode())
 
 
-VERSION = "10.0"
+VERSION = "10.1"
 CLAVES_NECESARIAS = ["CONTRASENA_DIEGO", "SUPABASE_URL", "SUPABASE_KEY", "APP_PASSWORD", "CONTRASENA_ARCHCHANA", "CONTRASENA_INVITADOS", "COACH_PIN",
                      "APP_ANTIGUA_URL", "CONTRASENA_DEMO"]
 
@@ -464,6 +464,21 @@ def _propuesta_pendiente(atleta: str, rut: dict | None) -> dict | None:
     return {"id": p["id"], "titulo": p["titulo"],
             "dias": [{"nombre": d["nombre"], "partes": list(dict.fromkeys(l["parte"] for l in d["lineas"])),
                       "lineas": [f"{l['ejercicio']}: {l['prescripcion']}" for l in d["lineas"]]} for d in p["dias"]]}
+
+
+def _sugerencia_alumno(sesion: dict, atleta: str, rut: dict | None) -> dict:
+    """Al propio alumno: «Diego te sugiere este cambio» (si la rutina preparada es para sugerírsela)."""
+    if es_demo(sesion) or es_coach(sesion) or sesion.get("u") != atleta:
+        return {}
+    p = propuesta_para(atleta)
+    if not p:
+        return {}
+    pend = _propuesta_pendiente(atleta, rut) if p.get("sugerir") else None
+    if pend:
+        return {"sugerencia_diego": pend}
+    if (rut or {}).get("propuesta_aplicada") == p["id"] and (rut or {}).get("propuesta_vista") != p["id"]:
+        return {"programa_actualizado": True}
+    return {}
 
 
 def propuestas_pendientes(inv: dict | None = None) -> list[dict]:
@@ -1878,6 +1893,7 @@ def vista(sesion: dict, atleta: str | None, semana: int | None, dia_id: str | No
             "objetivos": (inv.get(atleta) or {}).get("cuestionario") if sesion.get("u") == atleta else None,
             **_info_abono(sesion, atleta, inv),
             "propuesta": _propuesta_pendiente(atleta, rut) if es_coach(sesion) and not es_demo(sesion) else None,
+            **_sugerencia_alumno(sesion, atleta, rut),
             "chat_no_leidos": chat_no_leidos(atleta) if not es_demo(sesion) and (sesion.get("u") == atleta or not sesion.get("u")) and not es_coach(sesion) else 0,
             "chat_activo": bool(_telegram().get("chat_id")) or es_coach(sesion),
             "abonado_nuevo": bool(sesion.get("u") == atleta and (inv.get(atleta) or {}).get("abonado", "") >=
@@ -2452,6 +2468,22 @@ def accion(sesion: dict, c: dict) -> dict:
         if atleta in reg:
             reg[atleta] = {**reg[atleta], "aprobado_visto": True}
             datos().guardar(CLAVE_INVITADOS, reg)
+        aviso = None
+    elif tipo in ("aceptar_sugerencia", "rechazar_sugerencia"):
+        p = propuesta_para(atleta)
+        if not p or not p.get("sugerir"):
+            raise Error("No hay ninguna sugerencia de Diego")
+        rut, _ = aplicar_propuesta(rut, atleta, descartar=tipo == "rechazar_sugerencia")
+        if tipo == "aceptar_sugerencia":
+            rut["propuesta_vista"] = p["id"]
+            aviso = "¡Programa nuevo puesto! 💪"
+            notificar(f"✅ {nv(atleta)} ha aceptado tu programa nuevo: {p['titulo']}")
+        else:
+            aviso = "Vale, sigues con tu programa de ahora"
+            notificar(f"🙅 {nv(atleta)} prefiere seguir con su programa de ahora (no aceptó: {p['titulo']}). Escríbele por el chat si quieres.")
+    elif tipo == "programa_visto":
+        p = propuesta_para(atleta)
+        rut = dict(rut, propuesta_vista=(p or {}).get("id"))
         aviso = None
     elif tipo in ("aplicar_propuesta", "descartar_propuesta"):
         if not es_coach(sesion):

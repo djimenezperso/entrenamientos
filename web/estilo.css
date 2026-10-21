@@ -628,3 +628,6 @@ main { padding: 4px 16px 0; display: flex; flex-direction: column; gap: 12px; }
 .prop-bot { display: flex; gap: 8px; }
 .prop-bot button { flex: 1; border: 0; border-radius: 999px; height: 42px; font-weight: 800; background: var(--tinta); color: var(--ambar); }
 .prop-bot button + button { background: #F3E6DA; color: var(--tinta); }
+.propuesta.sugerencia { border: 2px solid var(--fuego); }
+.sug-dias { text-align: left; background: #FFF7F0; border-radius: 18px; padding: 4px 14px 12px; }
+.sug-dias .prop-dia b { color: var(--brasa-osc, #B33A00); }

@@ -18,6 +18,16 @@ const E = { token: mem.get("token"), atleta: mem.get("atleta"), lang: mem.get("l
 
 // ---------- textos ----------
 const FR = {
+  "Lo ha preparado para ti, a tu medida. Míralo y acéptalo para empezar.": "Il l'a préparé pour toi, sur mesure. Regarde-le et accepte-le pour commencer.",
+  "Lo ha preparado para ti. Míralo y dime si lo quieres.": "Il l'a préparé pour toi. Regarde-le et dis-nous si tu le veux.",
+  "Diego te sugiere este cambio en tu programa": "Diego te suggère ce changement dans ton programme",
+  "Ver el programa nuevo": "Voir le nouveau programme",
+  "Aceptar": "Accepter",
+  "Ahora no": "Pas maintenant",
+  "Diego ha actualizado tu programa": "Diego a mis à jour ton programme",
+  "Échale un vistazo a tus días: hay cambios nuevos hechos para ti.": "Jette un œil à tes jours : il y a des changements faits pour toi.",
+  "¡Programa nuevo puesto! 💪": "Nouveau programme en place ! 💪",
+  "Vale, sigues con tu programa de ahora": "OK, tu gardes ton programme actuel",
   "Diego está revisando tu programa": "Diego vérifie ton programme",
   "Primero cuéntanos tus objetivos: con tus respuestas preparamos tu rutina.": "Commence par nous dire tes objectifs : avec tes réponses, on prépare ton programme.",
   "Con tus respuestas ya hemos preparado tu rutina. Diego la revisa, la ajusta a ti y te la activa. Vuelve más tarde: te avisaremos aquí.": "Avec tes réponses, ton programme est prêt. Diego le vérifie, l'adapte à toi et te l'active. Reviens plus tard : on te préviendra ici.",
@@ -540,7 +550,7 @@ function poner(v) {
   E.semana = v.semana; E.dia = v.dia && v.dia.id;
   if (v.solo && v.lang && !mem.get("lang_elegido")) E.lang = v.lang;
   pintar();
-  if (v.pr) { aviso("🎉 " + v.pr); confeti(); } else if (v.aviso) aviso(v.aviso);
+  if (v.pr) { aviso("🎉 " + v.pr); confeti(); } else if (v.aviso) aviso(t(v.aviso));
   if (E.pagoCs !== undefined && !E.pagoMostrado) { E.pagoMostrado = true; E.bienvenidaDemo = true; setTimeout(() => hojaPago(E.pagoCs), 300); }
   if (v.recien_aprobado && $hoja.hidden && !E.aprobadoMostrado) {
     E.aprobadoMostrado = true;
@@ -549,7 +559,7 @@ function poner(v) {
       <p>${t("Ya lo tienes listo. Tu semana gratis empieza hoy. ¡A entrenar! 🔥")}</p></div>
       <button class="btn btn-fuego" data-cerrar style="height:54px">${t("¡Vamos!")} 💪</button>`); }, 300);
   }
-  if (!v.recien_aprobado && v.objetivos_pendientes && !E.objMostrado && !(Date.now() - (+mem.get("objetivos_luego") || 0) < 2 * 86400000) && $hoja.hidden && E.pagoCs === undefined) {
+  if (!v.recien_aprobado && !v.sugerencia_diego && v.objetivos_pendientes && !E.objMostrado && !(Date.now() - (+mem.get("objetivos_luego") || 0) < 2 * 86400000) && $hoja.hidden && E.pagoCs === undefined) {
     E.objMostrado = true; const ya = mem.get("bienvenida_" + v.atleta); mem.set("bienvenida_" + v.atleta, "1");
     setTimeout(() => hojaObjetivos(ya ? null : hojaNuevoAbonado), 300);
   } else if (v.abonado_nuevo && !mem.get("bienvenida_" + v.atleta) && $hoja.hidden) { mem.set("bienvenida_" + v.atleta, "1"); setTimeout(hojaNuevoAbonado, 300); }
@@ -890,6 +900,19 @@ function pintar() {
     document.getElementById("rv-salir").onclick = salir;
     return;
   }
+  if (v.sugerencia_diego) {  // Diego le sugiere un programa nuevo: lo tiene que ver sí o sí (tapa la rutina)
+    const s = v.sugerencia_diego;
+    $app.innerHTML = cabecera({ ...v, semana: null, dias: null }) + `<main><div class="muro-pago sugerencia-full">
+      <div class="pago-ok">💡</div>
+      <h2>${t("Diego te sugiere este cambio en tu programa")}</h2>
+      <p>${t("Lo ha preparado para ti, a tu medida. Míralo y acéptalo para empezar.")}</p>
+      <div class="sug-dias">${s.dias.map((d) => `<div class="prop-dia"><b>${esc(trDia(d.nombre))}</b>${d.lineas.map((x) => `<div>${esc(trWod(x))}</div>`).join("")}</div>`).join("")}</div>
+      <button class="btn btn-fuego" id="b-sug-si" style="height:58px">✅ ${t("Aceptar")}</button></div></main>`;
+    enlazar();
+    const bss = document.getElementById("b-sug-si"); bss.onclick = () => { E.semana = null; E.dia = null; hacer({ tipo: "aceptar_sugerencia" }, bss).then(() => confeti()); };
+    window.scrollTo(0, 0);
+    return;
+  }
   if (v.pago_requerido) {  // semana gratis terminada: o se abona o no hay rutina
     $app.innerHTML = cabecera(v) + `<main><div class="muro-pago">
       <div class="pago-ok">🔒</div>
@@ -962,6 +985,9 @@ function cabecera(v) {
         <button class="redondo" id="b-ajustes" aria-label="${t("Ajustes")}">${ic.ajustes}</button>
       </div>
     </div>
+    ${v.programa_actualizado ? `<div class="propuesta sugerencia"><b>💡 ${t("Diego ha actualizado tu programa")}</b>
+      <small>${t("Échale un vistazo a tus días: hay cambios nuevos hechos para ti.")}</small>
+      <div class="prop-bot"><button id="b-prog-ok">👍 ${t("Vale")}</button></div></div>` : ""}
     ${v.revision_pendiente ? `<div class="propuesta"><b>🕐 ${esc(v.nombre)} ${t("espera que apruebes su programa")}</b>
       <small>${t("Revísalo abajo y ajusta lo que quieras. Hasta que lo apruebes no lo ve.")}</small>
       <div class="prop-bot"><button id="b-aprobar">✅ ${t("Aprobar y activárselo")}</button></div></div>` : ""}
@@ -1186,6 +1212,7 @@ function enlazar() {
   if (bcp) bcp.onclick = () => hojaCrearPerfil({});
   const bcl = document.getElementById("b-clientes-demo"); if (bcl) bcl.onclick = hojaPersonas;
   const bpa = document.getElementById("b-prueba-abono"); if (bpa) bpa.onclick = abonarse;
+  const bpo = document.getElementById("b-prog-ok"); if (bpo) bpo.onclick = () => hacer({ tipo: "programa_visto" }, bpo);
   const bap = document.getElementById("b-aprobar"); if (bap) bap.onclick = () => hacer({ tipo: "aprobar_programa" }, bap);
   const bps = document.getElementById("b-prop-si"); if (bps) bps.onclick = () => { E.semana = null; E.dia = null; hacer({ tipo: "aplicar_propuesta" }, bps); };
   const bpn = document.getElementById("b-prop-no"); if (bpn) bpn.onclick = () => hacer({ tipo: "descartar_propuesta" }, bpn);
