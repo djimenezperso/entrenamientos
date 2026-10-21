@@ -44,7 +44,7 @@ from logica import (
     prs_de_entrenos, series_ejercicios, mejor_punto, cambio_pct, ids_con_pr, consejos, sesiones_por_semana,
     CATALOGO_PR, movimiento_pr, fmt_tiempo, a_fecha, anadir_parte, sustituir_parte, deshacer_sustitucion, CLAVE_BIBLIOTECA, CLAVES_BIBLIO,
 )
-from repertorio import CASA, ELITE, REPERTORIO
+from repertorio import CASA, ELITE, PRINCIPIANTE, REPERTORIO
 from rutinas_iniciales import migrar, rutinas_iniciales, _yo as _rutina_base_yo
 import cuestionario
 from propuestas import propuesta_para
@@ -345,7 +345,7 @@ def _igual(a: str, b: str) -> bool:
     return bool(a) and bool(b) and hmac.compare_digest(a.encode(), b.encode())
 
 
-VERSION = "10.8"
+VERSION = "11.0"
 CLAVES_NECESARIAS = ["CONTRASENA_DIEGO", "SUPABASE_URL", "SUPABASE_KEY", "APP_PASSWORD", "CONTRASENA_ARCHCHANA", "CONTRASENA_INVITADOS", "COACH_PIN",
                      "APP_ANTIGUA_URL", "CONTRASENA_DEMO"]
 
@@ -841,7 +841,8 @@ NOMBRES_DEMO = {"Yo": ("Prog Competidor · Diego", "🏆"), "Archchana": ("Prog 
                 "Manu Anel": ("Prog Principiante", "🌱"), "Salatti": ("Prog Fuerza + WOD", "💪")}
 DEMO_PESOS_YO = [(r"pull", 150), (r"clean", 110), (r"^power snatch$", 80), (r"^snatch$", 85)]  # demo · Prog Competidor: pesos de muestra
 DEMO_NIVEL = {"Manu Anel": "Scaled", "Archchana": "Scaled", "Salatti": "Inter"}
-DEMO_CASA = ("Archchana",)  # en la demo, este programa usa WOD de casa (mancuernas, gomas, elíptica)
+DEMO_CASA = ("Archchana",)
+DEMO_PRINCIPIANTE = ("Manu Anel",)  # en la demo, el Prog Débutant lleva siempre WOD de principiante  # en la demo, este programa usa WOD de casa (mancuernas, gomas, elíptica)
 DEMO_DIAS_CERRADOS_YO = {1, 3, 4, 5, 6}  # Prog Competidor: en la demo solo se abre el día 2
 DEMO_C_YO = "4x: 10 T2B direct into 1' L-sit on bar · 1' rest"
 DEMO_CICLO_EN = "Salatti"  # en la demo, este cliente enseña el ciclo de handstand push ups
@@ -1958,12 +1959,18 @@ def _rellenar_demo(partes: list[dict], dia_id: str, semana: int, nivel: str, num
                 if l.get("texto_sig") and "@" not in l["texto_sig"]:
                     l["texto_sig"] = f"{l['texto_sig'].strip()} @{kg}"
     for i, p in enumerate(partes):
-        vacias = [l for l in p["lineas"] if l.get("kind") == "texto" and not _parece_entreno(l.get("visto") or l.get("texto") or "")]
+        vacias = [l for l in p["lineas"] if l.get("kind") == "texto" and (
+            atleta in DEMO_PRINCIPIANTE and tipo_de_linea(p.get("parte", ""), l.get("ejercicio", "")) in ("wod", "conditioning")
+            or not _parece_entreno(l.get("visto") or l.get("texto") or ""))]
         if not vacias:
             continue
         letra = (p.get("letra") or "").upper()
         etq = norm_busqueda(p.get("etiqueta") or "")
-        if atleta in DEMO_CASA:
+        if atleta in DEMO_PRINCIPIANTE:
+            es_cond = "conditioning" in etq or letra == "C"
+            lista = PRINCIPIANTE["conditioning"] if es_cond else PRINCIPIANTE["wod"]
+            titulo = "Conditioning" if es_cond else "WOD"
+        elif atleta in DEMO_CASA:
             lista = CASA["conditioning"] if ("conditioning" in etq or letra == "C") else CASA["wod"]
             titulo = "Conditioning" if lista is CASA["conditioning"] else "WOD"
         elif numero == 2 and letra == "B":
@@ -1978,9 +1985,12 @@ def _rellenar_demo(partes: list[dict], dia_id: str, semana: int, nivel: str, num
         for j, l in enumerate(vacias):
             nombre, txt = lista[(semilla + i * 7 + j * 3) % len(lista)]
             nv_ = l.get("nivel") or nivel
+            ya_a_medida = atleta in DEMO_PRINCIPIANTE or atleta in DEMO_CASA  # estos ya vienen a su nivel
             l["texto"] = txt
-            l["visto"] = escalar(txt, nv_) if nv_ != "RX" else txt
-            l["versiones_nivel"] = {n: escalar(txt, n) for n in NIVELES}
+            l["visto"] = txt if ya_a_medida or nv_ == "RX" else escalar(txt, nv_)
+            l["versiones_nivel"] = None if ya_a_medida else {n: escalar(txt, n) for n in NIVELES}
+            if ya_a_medida:
+                l["nivel"] = "RX"
             l["crono"] = crono_de(txt, f"{letra}) {titulo}", titulo)
             l["texto_sig"] = None
             l.pop("ultimo", None)

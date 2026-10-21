@@ -173,3 +173,20 @@ CASA = {
         ("DB romanian deadlift", "3x12"),
     ],
 }
+
+
+# Para principiantes: movimientos básicos, pesos ligeros, sin gimnásticos complejos ni volúmenes enormes.
+PRINCIPIANTE = {
+    "wod": [
+        ("Primer AMRAP", "AMRAP 12': 10 air squats, 8 push ups (rodillas si hace falta), 10 sit ups, 200 m row"),
+        ("EMOM básico", "EMOM 12': 1) 12 cal row 2) 10 KB swings 12/8 kg 3) 10 wall balls 6/4 kg"),
+        ("For time suave", "For time 3 rondas: 400 m run, 12 DB push press 10/5 kg, 12 box step ups · cap 15'"),
+        ("Couplet fácil", "AMRAP 10': 10 goblet squats 12/8 kg, 10 ring rows"),
+        ("Intervalos 3x", "3 x 4' ON / 2' OFF: 200 m row, 10 DB deadlifts 10/7,5 kg, 10 lunges"),
+    ],
+    "conditioning": [
+        ("Remo suave", "5 x 300 m row · descanso 1:30"),
+        ("Bike Z2", "20' bike zona 2 (puedes hablar)"),
+        ("Caminar + remo", "4 rondas: 3' marcha rápida, 250 m row · descanso 1'"),
+    ],
+}

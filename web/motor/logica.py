@@ -1432,7 +1432,7 @@ def escalar(texto: str, nivel: str) -> str:
         return texto or ""
     # cada movimiento por separado (una línea puede tener wall balls y KB swings, con pesos distintos)
     lineas = ["".join(_escalar_linea(trozo, nivel) if i % 2 == 0 else trozo
-                      for i, trozo in enumerate(re.split(r"(,\s+|\s\+\s|;\s*|\s/\s)", l)))
+                      for i, trozo in enumerate(re.split(r"(,\s+|\s\+\s|;\s*|\s/\s|\s(?=\d\)\s))", l)))
               for l in texto.split("\n")]
     out = "\n".join(lineas)
     # muscle ups con número delante («3x 1RMU», «5 bar muscle ups»): se cambian con más reps de un movimiento más fácil
