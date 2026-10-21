@@ -345,7 +345,7 @@ def _igual(a: str, b: str) -> bool:
     return bool(a) and bool(b) and hmac.compare_digest(a.encode(), b.encode())
 
 
-VERSION = "11.0"
+VERSION = "11.1"
 CLAVES_NECESARIAS = ["CONTRASENA_DIEGO", "SUPABASE_URL", "SUPABASE_KEY", "APP_PASSWORD", "CONTRASENA_ARCHCHANA", "CONTRASENA_INVITADOS", "COACH_PIN",
                      "APP_ANTIGUA_URL", "CONTRASENA_DEMO"]
 
@@ -842,7 +842,8 @@ NOMBRES_DEMO = {"Yo": ("Prog Competidor · Diego", "🏆"), "Archchana": ("Prog 
 DEMO_PESOS_YO = [(r"pull", 150), (r"clean", 110), (r"^power snatch$", 80), (r"^snatch$", 85)]  # demo · Prog Competidor: pesos de muestra
 DEMO_NIVEL = {"Manu Anel": "Scaled", "Archchana": "Scaled", "Salatti": "Inter"}
 DEMO_CASA = ("Archchana",)
-DEMO_PRINCIPIANTE = ("Manu Anel",)  # en la demo, el Prog Débutant lleva siempre WOD de principiante  # en la demo, este programa usa WOD de casa (mancuernas, gomas, elíptica)
+DEMO_PRINCIPIANTE = ("Manu Anel",)
+DEMO_WOD_PRINCIPIANTE = ("21-15-9", "21-15-9: thrusters 30/20 kg + burpees over the bar")  # B fijo del Prog Débutant  # en la demo, el Prog Débutant lleva siempre WOD de principiante  # en la demo, este programa usa WOD de casa (mancuernas, gomas, elíptica)
 DEMO_DIAS_CERRADOS_YO = {1, 3, 4, 5, 6}  # Prog Competidor: en la demo solo se abre el día 2
 DEMO_C_YO = "4x: 10 T2B direct into 1' L-sit on bar · 1' rest"
 DEMO_CICLO_EN = "Salatti"  # en la demo, este cliente enseña el ciclo de handstand push ups
@@ -1968,7 +1969,7 @@ def _rellenar_demo(partes: list[dict], dia_id: str, semana: int, nivel: str, num
         etq = norm_busqueda(p.get("etiqueta") or "")
         if atleta in DEMO_PRINCIPIANTE:
             es_cond = "conditioning" in etq or letra == "C"
-            lista = PRINCIPIANTE["conditioning"] if es_cond else PRINCIPIANTE["wod"]
+            lista = PRINCIPIANTE["conditioning"] if es_cond else ([DEMO_WOD_PRINCIPIANTE] if letra == "B" else PRINCIPIANTE["wod"])
             titulo = "Conditioning" if es_cond else "WOD"
         elif atleta in DEMO_CASA:
             lista = CASA["conditioning"] if ("conditioning" in etq or letra == "C") else CASA["wod"]
