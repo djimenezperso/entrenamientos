@@ -44,7 +44,7 @@ from logica import (
     prs_de_entrenos, series_ejercicios, mejor_punto, cambio_pct, ids_con_pr, consejos, sesiones_por_semana,
     CATALOGO_PR, movimiento_pr, fmt_tiempo, a_fecha, anadir_parte, sustituir_parte, deshacer_sustitucion, CLAVE_BIBLIOTECA, CLAVES_BIBLIO,
 )
-from repertorio import ELITE, REPERTORIO
+from repertorio import CASA, ELITE, REPERTORIO
 from rutinas_iniciales import migrar, rutinas_iniciales, _yo as _rutina_base_yo
 import cuestionario
 from propuestas import propuesta_para
@@ -345,7 +345,7 @@ def _igual(a: str, b: str) -> bool:
     return bool(a) and bool(b) and hmac.compare_digest(a.encode(), b.encode())
 
 
-VERSION = "10.7"
+VERSION = "10.8"
 CLAVES_NECESARIAS = ["CONTRASENA_DIEGO", "SUPABASE_URL", "SUPABASE_KEY", "APP_PASSWORD", "CONTRASENA_ARCHCHANA", "CONTRASENA_INVITADOS", "COACH_PIN",
                      "APP_ANTIGUA_URL", "CONTRASENA_DEMO"]
 
@@ -840,6 +840,8 @@ CUESTIONARIO_DESDE = "2026-10-15"  # perfiles nuevos desde esta fecha: les sale 
 NOMBRES_DEMO = {"Yo": ("Prog Competidor · Diego", "🏆"), "Archchana": ("Prog Casa y Movilidad", "🏠"),
                 "Manu Anel": ("Prog Principiante", "🌱"), "Salatti": ("Prog Fuerza + WOD", "💪")}
 DEMO_PESOS_YO = [(r"pull", 150), (r"clean", 110), (r"^power snatch$", 80), (r"^snatch$", 85)]  # demo · Prog Competidor: pesos de muestra
+DEMO_NIVEL = {"Manu Anel": "Scaled", "Archchana": "Scaled", "Salatti": "Inter"}
+DEMO_CASA = ("Archchana",)  # en la demo, este programa usa WOD de casa (mancuernas, gomas, elíptica)
 DEMO_DIAS_CERRADOS_YO = {1, 3, 4, 5, 6}  # Prog Competidor: en la demo solo se abre el día 2
 DEMO_C_YO = "4x: 10 T2B direct into 1' L-sit on bar · 1' rest"
 DEMO_CICLO_EN = "Salatti"  # en la demo, este cliente enseña el ciclo de handstand push ups
@@ -1893,6 +1895,12 @@ def _demo_accessory(partes: list[dict], semilla: int, acc: list | None = None, c
     partes.append(p)
 
 
+def _novedad_a_su_nivel(x: dict, nivel: str) -> dict:
+    """La novedad de Diego, adaptada al alumno: mancuerna como mucho 22,5/15 y escalada a su nivel."""
+    txt = tope_db_alumno(str(x.get("texto") or ""))
+    return {**x, "texto": escalar(txt, nivel) if nivel != "RX" else txt}
+
+
 def _rut_demo_yo() -> dict:
     """Muestra fija del Prog Competidor (días 1 y 2 hechos; el resto con candado en la demo)."""
     rut = completar(_rutina_base_yo(), "Yo")
@@ -1955,7 +1963,10 @@ def _rellenar_demo(partes: list[dict], dia_id: str, semana: int, nivel: str, num
             continue
         letra = (p.get("letra") or "").upper()
         etq = norm_busqueda(p.get("etiqueta") or "")
-        if numero == 2 and letra == "B":
+        if atleta in DEMO_CASA:
+            lista = CASA["conditioning"] if ("conditioning" in etq or letra == "C") else CASA["wod"]
+            titulo = "Conditioning" if lista is CASA["conditioning"] else "WOD"
+        elif numero == 2 and letra == "B":
             lista, titulo = gym, "Gym / WOD"
         elif letra == "B" or (letra != "C" and "conditioning" not in etq):
             lista, titulo = wods, "WOD"
@@ -2077,6 +2088,8 @@ def vista(sesion: dict, atleta: str | None, semana: int | None, dia_id: str | No
         cerrados = {d["id"] for i, d in enumerate(rut["dias"]) if i + 1 in (DEMO_DIAS_CERRADOS_YO if atleta == "Yo" else DEMO_DIAS_CERRADOS)}
         abiertos = [x for x in abiertos if x not in cerrados] or [d["id"] for d in rut["dias"] if d["id"] not in cerrados][:1] or abiertos
     nivel = rut.get("nivel") or NIVEL_DEFECTO.get(atleta, "Inter")
+    if demo:
+        nivel = DEMO_NIVEL.get(atleta, nivel)  # Débutant y Maison en Scaled, Renforcement en Inter
     sugs = sugerencias(rut, semana, wods_de_diego(rutina("Yo", guardadas))) if alumno else {}
 
     dias = []
@@ -2134,8 +2147,9 @@ def vista(sesion: dict, atleta: str | None, semana: int | None, dia_id: str | No
             "dias": dias, "dia": {"id": dia["id"], "nombre": dia["nombre"], "estado": resumen_dia(rut, semana, dia),
                                   "por_ejercicio": bool(dia.get("por_ejercicio"))},
             "partes": partes, "pendientes": pendientes,
-            "novedades": novedades_para(rut, (guardadas.get(CLAVE_NOVEDADES) or {}).get("lista") or [],
-                                        rutina("Yo", guardadas)) if alumno else [],
+            "novedades": [_novedad_a_su_nivel(x, nivel) for x in novedades_para(
+                rut, (guardadas.get(CLAVE_NOVEDADES) or {}).get("lista") or [], rutina("Yo", guardadas))]
+                if alumno and not demo else [],
             "retests": [_retest_ui(x) for x in rut.get("retests") or []
                         if x.get("estado") == "pendiente" and x.get("fecha", "9") <= dt.date.today().isoformat()],
             "retest_lineas": {x["linea"]: _fecha_corta(x["fecha"]) for x in rut.get("retests") or []
