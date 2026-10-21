@@ -853,7 +853,7 @@ function hojaChat() {
     <p class="mini" id="ch-nota" style="margin:0 4px">${coach ? t("Lo que escribas aquí le sale en su app.") : t("Le llega a Diego al móvil al momento.")}</p>`, (h) => {
     const lista = h.querySelector("#ch-lista");
     const pinta = (ms) => { const abajo = lista.scrollTop + lista.clientHeight >= lista.scrollHeight - 30; lista.innerHTML = burbujas(ms); if (abajo || !pinta.ya) lista.scrollTop = lista.scrollHeight; pinta.ya = true; };
-    const leer = async () => { try { const r = await api("chat", { q }); pinta(r.mensajes); if (E.vista.chat_no_leidos) { E.vista.chat_no_leidos = 0; const b = document.querySelector("#b-chat i"); if (b) b.remove(); } } catch (e) { lista.innerHTML = `<p class="error">${esc(e.message)}</p>`; } };
+    const leer = async () => { try { const r = await api("chat", { q }); pinta(r.mensajes); if (E.vista.chat_no_leidos) { E.vista.chat_no_leidos = 0; const b = document.querySelector("#b-chat i"); if (b) b.remove(); const bc = document.getElementById("b-chat"); if (bc) bc.classList.remove("campana"); } } catch (e) { lista.innerHTML = `<p class="error">${esc(e.message)}</p>`; } };
     leer();
     const reloj = setInterval(() => { if ($hoja.hidden || !document.body.contains(lista)) return clearInterval(reloj); if (!document.hidden) leer(); }, 12000);
     const f = h.querySelector("#ch-form"); const ta = h.querySelector("#ch-texto");
@@ -1046,7 +1046,7 @@ function cabecera(v) {
       </button>
       <div style="display:flex;gap:8px">
         ${v.coach && v.solicitudes && v.solicitudes.length ? `<button class="redondo campana" id="b-solicitudes" aria-label="${t("Solicitudes")}">${ic.campana}<i>${v.solicitudes.length}</i></button>` : ""}
-        ${v.chat_activo && !(v.coach && v.atleta === "Yo") ? `<button class="redondo campana" id="b-chat" aria-label="${t("Chat con Diego")}">💬${v.chat_no_leidos ? `<i>${v.chat_no_leidos}</i>` : ""}</button>` : ""}
+        ${v.chat_activo && !(v.coach && v.atleta === "Yo") ? `<button class="redondo ${v.chat_no_leidos ? "campana" : ""}" id="b-chat" aria-label="${t("Chat con Diego")}">💬${v.chat_no_leidos ? `<i>${v.chat_no_leidos}</i>` : ""}</button>` : ""}
         <button class="redondo" id="b-reloj" aria-label="${t("Reloj")}">${ic.reloj.replace("currentColor", "#1F1208")}</button>
         <button class="redondo" id="b-ajustes" aria-label="${t("Ajustes")}">${ic.ajustes}</button>
       </div>
