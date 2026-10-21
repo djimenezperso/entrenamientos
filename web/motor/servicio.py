@@ -47,6 +47,7 @@ from logica import (
 from repertorio import ELITE, REPERTORIO
 from rutinas_iniciales import migrar, rutinas_iniciales
 import cuestionario
+from propuestas import propuesta_para
 from ciclos import CICLOS
 
 # ===== personas (igual que en app.py) =====
@@ -335,7 +336,7 @@ def _igual(a: str, b: str) -> bool:
     return bool(a) and bool(b) and hmac.compare_digest(a.encode(), b.encode())
 
 
-VERSION = "9.4"
+VERSION = "9.5"
 CLAVES_NECESARIAS = ["CONTRASENA_DIEGO", "SUPABASE_URL", "SUPABASE_KEY", "APP_PASSWORD", "CONTRASENA_ARCHCHANA", "CONTRASENA_INVITADOS", "COACH_PIN",
                      "APP_ANTIGUA_URL", "CONTRASENA_DEMO"]
 
@@ -452,6 +453,36 @@ def _rutina_inicio(nombre: str, plantilla: str | None) -> dict | None:
     nueva.pop("permiso_pesos", None)
     datos().guardar(nombre, nueva)
     return nueva
+
+
+def _propuesta_pendiente(atleta: str, rut: dict | None) -> dict | None:
+    p = propuesta_para(atleta)
+    if not p or (rut or {}).get("propuesta_aplicada") == p["id"] or p["id"] in ((rut or {}).get("propuestas_descartadas") or []):
+        return None
+    return {"id": p["id"], "titulo": p["titulo"],
+            "dias": [{"nombre": d["nombre"], "partes": list(dict.fromkeys(l["parte"] for l in d["lineas"])),
+                      "lineas": [f"{l['ejercicio']}: {l['prescripcion']}" for l in d["lineas"]]} for d in p["dias"]]}
+
+
+def aplicar_propuesta(rut: dict | None, atleta: str, descartar: bool = False) -> tuple[dict, str]:
+    """Pone la rutina preparada (empieza en la semana en la que está; las marcas anteriores se quedan)."""
+    p = propuesta_para(atleta)
+    if not p:
+        raise Error("No hay ninguna rutina preparada para esta persona")
+    rut = copy.deepcopy(rut or {"semana_actual": 1, "ajustes": {}, "dias": []})
+    if descartar:
+        rut["propuestas_descartadas"] = list(set((rut.get("propuestas_descartadas") or []) + [p["id"]]))
+        return rut, "Vale, no la aplico"
+    sem = int(rut.get("semana_actual") or 1)
+    anterior = {"dias": rut.get("dias"), "fecha": dt.date.today().isoformat()}
+    dias = copy.deepcopy(p["dias"])
+    for d in dias:
+        d["id"] = f"{p['id']}-{d['id']}"
+        for l in d["lineas"]:
+            l["id"] = f"{p['id']}-{l['id']}"
+            l["base"] = sem
+    rut.update(dias=dias, nivel=p.get("nivel") or rut.get("nivel"), propuesta_aplicada=p["id"], rutina_anterior=anterior)
+    return rut, "Rutina nueva aplicada ✅ (empieza esta semana)"
 
 
 def _info_abono(sesion: dict, atleta: str, inv: dict) -> dict:
@@ -1792,6 +1823,7 @@ def vista(sesion: dict, atleta: str | None, semana: int | None, dia_id: str | No
                                          and not (inv.get(atleta) or {}).get("cuestionario")),
             "objetivos": (inv.get(atleta) or {}).get("cuestionario") if sesion.get("u") == atleta else None,
             **_info_abono(sesion, atleta, inv),
+            "propuesta": _propuesta_pendiente(atleta, rut) if es_coach(sesion) and not es_demo(sesion) else None,
             "chat_no_leidos": chat_no_leidos(atleta) if not es_demo(sesion) and (sesion.get("u") == atleta or not sesion.get("u")) and not es_coach(sesion) else 0,
             "chat_activo": bool(_telegram().get("chat_id")) or es_coach(sesion),
             "abonado_nuevo": bool(sesion.get("u") == atleta and (inv.get(atleta) or {}).get("abonado", "") >=
@@ -2346,6 +2378,10 @@ def accion(sesion: dict, c: dict) -> dict:
     elif tipo == "descartar_novedad":
         rut = dict(rut, novedades_vistas=(rut.get("novedades_vistas") or [])[-60:] + [str(c.get("id"))])
         aviso = "Vale, no te la pongo"
+    elif tipo in ("aplicar_propuesta", "descartar_propuesta"):
+        if not es_coach(sesion):
+            raise Error("Solo Diego puede cambiar la rutina", 403)
+        rut, aviso = aplicar_propuesta(rut, atleta, descartar=tipo == "descartar_propuesta")
     elif tipo == "permiso_pesos":
         if not es_coach(sesion):
             raise Error("Solo el coach puede dar permiso", 403)

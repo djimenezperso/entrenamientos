@@ -18,6 +18,10 @@ const E = { token: mem.get("token"), atleta: mem.get("atleta"), lang: mem.get("l
 
 // ---------- textos ----------
 const FR = {
+  "Rutina nueva preparada para": "Nouveau programme préparé pour",
+  "Ver la rutina": "Voir le programme",
+  "Aplicar": "Appliquer",
+  "Descartar": "Ignorer",
   "Tu semana gratis ha terminado": "Ta semaine gratuite est terminée",
   "Tu rutina sigue aquí, hecha para ti. Abónate para seguir entrenando con Diego.": "Ton programme est toujours là, fait pour toi. Abonne-toi pour continuer à t'entraîner avec Diego.",
   "Abonarme y seguir": "M'abonner et continuer",
@@ -922,6 +926,10 @@ function cabecera(v) {
         <button class="redondo" id="b-ajustes" aria-label="${t("Ajustes")}">${ic.ajustes}</button>
       </div>
     </div>
+    ${v.propuesta ? `<div class="propuesta"><b>📋 ${t("Rutina nueva preparada para")} ${esc(v.nombre)}</b>
+      <small>${esc(v.propuesta.titulo)}</small>
+      <details><summary>${t("Ver la rutina")}</summary>${v.propuesta.dias.map((d) => `<div class="prop-dia"><b>${esc(trDia(d.nombre))}</b>${d.lineas.map((x) => `<div>${esc(x)}</div>`).join("")}</div>`).join("")}</details>
+      <div class="prop-bot"><button id="b-prop-si">✅ ${t("Aplicar")}</button><button id="b-prop-no">${t("Descartar")}</button></div></div>` : ""}
     ${v.prueba && v.prueba.en_prueba ? `<div class="banda-abono banda-prueba"><span>🎁 ${v.prueba.dias === 1 ? t("Te queda 1 día de prueba gratis") : t("Te quedan {n} días de prueba gratis").replace("{n}", v.prueba.dias)}</span>
       ${v.abono ? `<button id="b-prueba-abono">💳 ${t("Abonarme")}</button>` : ""}</div>` : ""}
     ${v.abono_problema ? `<div class="banda-abono"><span>⚠️ ${t("Tu abono está")} <b>${esc(t(v.abono_estado_txt || ""))}</b>.</span>
@@ -1139,6 +1147,8 @@ function enlazar() {
   if (bcp) bcp.onclick = () => hojaCrearPerfil({});
   const bcl = document.getElementById("b-clientes-demo"); if (bcl) bcl.onclick = hojaPersonas;
   const bpa = document.getElementById("b-prueba-abono"); if (bpa) bpa.onclick = abonarse;
+  const bps = document.getElementById("b-prop-si"); if (bps) bps.onclick = () => { E.semana = null; E.dia = null; hacer({ tipo: "aplicar_propuesta" }, bps); };
+  const bpn = document.getElementById("b-prop-no"); if (bpn) bpn.onclick = () => hacer({ tipo: "descartar_propuesta" }, bpn);
   const baa = document.getElementById("b-abono-arreglar");
   if (baa) baa.onclick = () => (E.vista.abono_estado === "canceled" || E.vista.abono_estado === "incomplete_expired") ? abonarse() : abrirPortal(baa);
   const bcd = document.getElementById("b-compartir-demo");

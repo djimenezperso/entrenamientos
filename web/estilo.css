@@ -620,3 +620,11 @@ main { padding: 4px 16px 0; display: flex; flex-direction: column; gap: 12px; }
 .muro-pago h2 { margin: 0; font-family: var(--titulo); font-size: 30px; text-transform: uppercase; }
 .muro-pago p { margin: 0; color: var(--medio); }
 .muro-pago .pago-ok { align-self: center; }
+/* rutina preparada (solo coach) */
+.propuesta { margin: 10px 0 2px; padding: 12px 14px; border-radius: 16px; background: #fff; color: var(--tinta); display: flex; flex-direction: column; gap: 6px; font-size: 14px; box-shadow: var(--sombra); }
+.propuesta small { color: var(--medio); }
+.propuesta summary { cursor: pointer; font-weight: 700; color: var(--brasa-osc, #B33A00); }
+.prop-dia { margin-top: 8px; font-size: 13px; line-height: 1.4; }
+.prop-bot { display: flex; gap: 8px; }
+.prop-bot button { flex: 1; border: 0; border-radius: 999px; height: 42px; font-weight: 800; background: var(--tinta); color: var(--ambar); }
+.prop-bot button + button { background: #F3E6DA; color: var(--tinta); }
