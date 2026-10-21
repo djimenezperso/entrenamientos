@@ -45,7 +45,7 @@ from logica import (
     CATALOGO_PR, movimiento_pr, fmt_tiempo, a_fecha, anadir_parte, sustituir_parte, deshacer_sustitucion, CLAVE_BIBLIOTECA, CLAVES_BIBLIO,
 )
 from repertorio import CASA, ELITE, PRINCIPIANTE, REPERTORIO
-from rutinas_iniciales import migrar, rutinas_iniciales, _yo as _rutina_base_yo
+from rutinas_iniciales import migrar, rutinas_iniciales, _yo as _rutina_base_yo, _manu, _salatti, _archchana
 import cuestionario
 from propuestas import propuesta_para
 import propuestas as _propuestas
@@ -345,7 +345,7 @@ def _igual(a: str, b: str) -> bool:
     return bool(a) and bool(b) and hmac.compare_digest(a.encode(), b.encode())
 
 
-VERSION = "11.4"
+VERSION = "11.5"
 CLAVES_NECESARIAS = ["CONTRASENA_DIEGO", "SUPABASE_URL", "SUPABASE_KEY", "APP_PASSWORD", "CONTRASENA_ARCHCHANA", "CONTRASENA_INVITADOS", "COACH_PIN",
                      "APP_ANTIGUA_URL", "CONTRASENA_DEMO"]
 
@@ -845,7 +845,8 @@ DEMO_CASA = ("Archchana",)
 DEMO_PRINCIPIANTE = ("Manu Anel",)
 DEMO_WOD_PRINCIPIANTE = ("21-15-9", "For time 21-15-9: thrusters 30/20 kg + burpees over the bar")  # B fijo del Prog Débutant  # en la demo, el Prog Débutant lleva siempre WOD de principiante  # en la demo, este programa usa WOD de casa (mancuernas, gomas, elíptica)
 DEMO_DIAS_CERRADOS_YO = {1, 3, 4, 5, 6}  # Prog Competidor: en la demo solo se abre el día 2
-DEMO_DIAS_CERRADOS_POR = {"Yo": DEMO_DIAS_CERRADOS_YO, "Manu Anel": {2, 3, 4, 5, 6}}  # Débutant: solo el día 1
+DEMO_DIAS_CERRADOS_POR = {"Yo": DEMO_DIAS_CERRADOS_YO, "Manu Anel": {2, 3, 4, 5, 6},  # Débutant: solo el día 1
+                          "Salatti": {2, 3, 4, 5, 6}, "Archchana": {2, 3, 4, 5, 6}}
 DEMO_PESOS = {"Yo": DEMO_PESOS_YO, "Manu Anel": [(r"^bench press", 30)]}
 DEMO_C_YO = "4x: 10 T2B direct into 1' L-sit on bar · 1' rest"
 DEMO_CICLO_EN = "Salatti"  # en la demo, este cliente enseña el ciclo de handstand push ups
@@ -1905,17 +1906,26 @@ def _novedad_a_su_nivel(x: dict, nivel: str) -> dict:
     return {**x, "texto": escalar(txt, nivel) if nivel != "RX" else txt}
 
 
-def _rut_demo_yo() -> dict:
-    """Muestra fija del Prog Competidor (días 1 y 2 hechos; el resto con candado en la demo)."""
-    rut = completar(_rutina_base_yo(), "Yo")
+DEMO_FIJAS = {"Yo": _rutina_base_yo, "Manu Anel": _manu, "Salatti": _salatti, "Archchana": _archchana}
+
+
+def _rut_demo(atleta: str) -> dict:
+    """Muestra fija de cada programa de la demo: el día que se puede abrir sale hecho; el resto, con candado."""
+    rut = completar(DEMO_FIJAS[atleta](), atleta)
+    if atleta != "Yo":
+        rut["semana_actual"] = 1  # los pesos tal cual están escritos
     for d in rut["dias"]:
         for l in d["lineas"]:
             if l["ejercicio"].lower().replace(" ", "") == "powerclean+press":
                 l["ejercicio"] = "Power clean + push jerk"
+            if norm_busqueda(l.get("nota", "")).startswith("propuesta"):
+                l["nota"] = ""  # notas internas de la plantilla, no para la demo
     sem = int(rut.get("semana_actual") or 1)
-    for d in rut["dias"][:2]:
-        for p, _ in agrupar_por_parte(d, sem):
-            rut = marcar_parte(rut, sem, d["id"], p, "hecho")
+    cerrados = DEMO_DIAS_CERRADOS_POR.get(atleta, DEMO_DIAS_CERRADOS)
+    for i, d in enumerate(rut["dias"]):
+        if i + 1 not in cerrados:
+            for p, _ in agrupar_por_parte(d, sem):
+                rut = marcar_parte(rut, sem, d["id"], p, "hecho")
     return rut
 
 
@@ -2016,8 +2026,8 @@ def vista(sesion: dict, atleta: str | None, semana: int | None, dia_id: str | No
     alumno = es_alumno(atleta, inv)
     guardadas = datos().rutinas(list({atleta, "Yo", CLAVE_SOLICITUDES, CLAVE_NOVEDADES, CLAVE_ACTIVIDAD, CLAVE_VIDEOS, CLAVE_CONFIG}))
     rut = rutina(atleta, guardadas)
-    if es_demo(sesion) and atleta == "Yo":
-        rut = _rut_demo_yo()  # la muestra del «Prog Competidor» es siempre la misma, cambie lo que cambie Diego
+    if es_demo(sesion) and atleta in DEMO_FIJAS:
+        rut = _rut_demo(atleta)  # la muestra de la demo es siempre la misma, cambie lo que cambie la rutina real
     if not es_demo(sesion):
         prop = propuesta_para(atleta)
         if prop and prop.get("auto") and _propuesta_pendiente(atleta, rut):  # autorizada por Diego: se aplica sola
