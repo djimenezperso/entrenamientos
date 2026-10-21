@@ -18,6 +18,7 @@ const E = { token: mem.get("token"), atleta: mem.get("atleta"), lang: mem.get("l
 
 // ---------- textos ----------
 const FR = {
+  "Pesos: hombre / mujer": "Charges : homme / femme",
   "He leído y acepto la": "J'ai lu et j'accepte la",
   "política de privacidad": "politique de confidentialité",
   "y las": "et les",
@@ -561,6 +562,8 @@ const WOD_FR = [[/\brondas\b/gi, "tours"], [/\balternos?\b/gi, "alternés"], [/\
   [/\bandando\b/gi, "en marchant"], [/\bpausa\b/gi, "pause"], [/\bmáx\.?/gi, "max."], [/\bminutos\b/gi, "minutes"],
   [/\bcon\b/gi, "avec"], [/\by\b/g, "et"], [/\bo\b/g, "ou"], [/\bsin\b/gi, "sans"], [/\bde tu\b/gi, "de ton"], [/\bpor\b/gi, "par"]];
 const trWod = (x) => E.lang !== "fr" || !x ? x : WOD_FR.reduce((a, [r, v]) => a.replace(r, v), String(x));
+// «22,5/15», «9/6 kg»… : peso de hombre / peso de mujer (no cuentan calorías, metros ni alturas)
+const conPesoDoble = (x) => /(?<![\d.,])\d+(?:[.,]\d+)?\s*\/\s*\d+(?:[.,]\d+)?(?![\d.,])(?!\s*(?:cal|m\b|''|"|’|in\b|%))/i.test(String(x || ""));
 // notas cortas de la rutina («dinámico · peso orientativo…») en francés, trozo a trozo
 const trNota = (n) => E.lang !== "fr" ? n : String(n).split(" · ").map((x) => t(x.trim())).join(" · ");
 // «Cliente 1» de la demo → «Client 1» en francés
@@ -1168,7 +1171,7 @@ function linea(l, p, k) {
   const nombre = l.solo_bloque || (p.lineas.length === 1) ? "" : `<b>${esc(l.ejercicio)}</b>`;
   let html = `<div class="linea" data-l="${k}">
     ${nombre || extra || (l.nivel && l.nivel !== "RX") ? `<div class="linea-cab">${nombre}<span>${extra}${l.nivel && l.nivel !== "RX" && visto ? ` <span class="etq nivel">${esc(l.nivel)}</span>` : ""}</span></div>` : ""}
-    <div class="texto-wod">${visto ? esc(trWod(visto)) : `<span class="mini">${t("por definir")}</span>`}</div>${nota}${ultimoHtml(l)}${videoHtml(l, k)}`;
+    <div class="texto-wod">${visto ? esc(trWod(visto)) : `<span class="mini">${t("por definir")}</span>`}</div>${conPesoDoble(visto) ? `<div class="pesos-hm">${t("Pesos: hombre / mujer")} <span>♂ / ♀</span></div>` : ""}${nota}${ultimoHtml(l)}${videoHtml(l, k)}`;
   if (l.sugerencia) html += `<div class="sug">${ic.llama("#8A5E00", 20)}<span>${t("WOD de Diego · semana")} ${l.sugerencia.semana}, ${esc(l.sugerencia.dia)}</span>
     <button data-fijar="${k}">${t("Fijar")}</button></div>`;
   if (l.tabla) html += `<details class="desplegable"><summary>${t("RX · Inter · Scaled por movimiento")} ${ic.abajo}</summary>

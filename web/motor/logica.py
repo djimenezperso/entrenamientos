@@ -1303,8 +1303,37 @@ def deshacer_sustitucion(rut: dict, dia_id: str, parte_nueva: str, semana: int) 
 NIVELES = ["RX", "Inter", "Scaled", "Elite"]
 _DB = [5, 7.5, 10, 12.5, 15, 17.5, 20, 22.5, 25, 27.5, 30, 32.5, 35, 40, 45, 50]
 _KB = [8, 12, 16, 20, 24, 28, 32, 40]
-_WB = {"Inter": {9: 6, 6: 4, 14: 9, 10: 6}, "Scaled": {9: 4, 6: 3, 14: 6, 10: 4}, "Elite": {9: 9, 6: 6, 14: 14}}
-_FACTOR = {"Inter": 0.75, "Scaled": 0.55, "Elite": 1.15}
+# Referencias CrossFit Open: wall ball RX 9/6 kg → Scaled 6/4; barra Scaled ≈ 70 % del RX (61→43, 43→29)
+_WB = {"Inter": {9: 9, 6: 6, 14: 9, 10: 6}, "Scaled": {9: 6, 6: 4, 14: 6, 10: 4}, "Elite": {9: 9, 6: 6, 14: 14}}
+_FACTOR = {"Inter": 0.85, "Scaled": 0.7, "Elite": 1.15}
+
+
+def _db_nivel(v: float, nivel: str) -> float:
+    """Mancuerna: RX 22,5/15 → Inter 17,5/12,5 → Scaled 15/10 (Open). En Scaled nunca más de 17,5 (Diego)."""
+    if nivel == "Elite":
+        return _redondear(v * 1.15, "db")
+    if nivel == "Inter":
+        return 17.5 if v >= 20 else 12.5 if v >= 13 else _redondear(v * 0.8, "db")
+    if nivel == "Scaled":
+        return 15 if v >= 20 else 10 if v >= 13 else max(5.0, _redondear(v * 0.7, "db"))
+    return v
+
+
+def tope_db_alumno(texto: str) -> str:
+    """Para los alumnos el RX de mancuerna es 22,5/15 kg (lo de 32,5 es el ciclo de Diego)."""
+    if not texto or not re.search(r"\bdb|dbs\b|dumbb?ell|mancuerna", texto, re.I):
+        return texto
+    def una(trozo):
+        if not re.search(r"\bdb|dbs\b|dumbb?ell|mancuerna", trozo, re.I):
+            return trozo
+        trozo = re.sub(r"(?P<a>\d+(?:[.,]\d+)?)\s*/\s*(?P<b>\d+(?:[.,]\d+)?)(?![\d.,])(?!\s*(?:cal|m\b|''|\"))",
+                       lambda m: (f"{fmt_num(min(float(m['a'].replace(',', '.')), 22.5))}/{fmt_num(min(float(m['b'].replace(',', '.')), 15))}"
+                                  if float(m['a'].replace(',', '.')) >= 12 else m.group(0)), trozo)
+        trozo = re.sub(r"@\s*(\d+(?:[.,]\d+)?)(?![\d.,/])(?!\s*%)", lambda m: "@" + fmt_num(min(float(m.group(1).replace(",", ".")), 22.5)), trozo)
+        trozo = re.sub(r"(?<![\d.,/@])(\d+(?:[.,]\d+)?)(?=\s*kg)", lambda m: fmt_num(min(float(m.group(1).replace(",", ".")), 22.5)), trozo)
+        return trozo
+    return "\n".join("".join(una(t) if i % 2 == 0 else t for i, t in enumerate(re.split(r"(,\s+|\s\+\s|;\s*)", l)))
+                     for l in texto.split("\n"))
 
 _SUSTITUCIONES = {
     "Inter": [
@@ -1317,14 +1346,14 @@ _SUSTITUCIONES = {
         (r"legless rope climbs?", "rope climbs"),
     ],
     "Scaled": [
-        (r"(?:ring |bar )?muscle[ -]?ups?(?: ring)?|(?<![a-z])[br]?mu'?s?\b(?: ring)?", "pull ups con banda"),
-        (r"\bc2b\b|chest to bar(?: pull ups?)?", "pull ups con banda"),
-        (r"(?<!weighted )(?:butterfly |kipping |strict )?pull ?ups?", "ring rows"),
+        (r"(?:ring |bar )?muscle[ -]?ups?(?: ring)?|(?<![a-z])[br]?mu'?s?\b(?: ring)?", "jumping pull ups"),
+        (r"\bc2b\b|chest to bar(?: pull ups?)?", "jumping pull ups"),
+        (r"(?<!weighted )(?<!jumping )(?:butterfly |kipping |strict )?pull ?ups?", "jumping pull ups"),
         (r"strict hspu|strict handstand push ?ups?|\bhspu'?s?\b|handstand push ?ups?", "pike push ups"),
         (r"handstand walks?|\bhw\b", "bear crawl"),
         (r"wall walks?|\bww\b", "inchworms"),
-        (r"double[ -]?unders?|\bdu'?s?\b|dble du'?s?", "single unders (x2)"),
-        (r"toes[ -]?to[ -]?bar|\bt2b\b|\bttb\b", "knee raises"),
+        (r"double[ -]?unders?|\bdu'?s?\b|dble du'?s?", "single unders"),
+        (r"toes[ -]?to[ -]?bar|\bt2b\b|\bttb\b", "hanging knee raises"),
         (r"\bpistols?(?: squats?)?\b", "air squats"),
         (r"(?:legless )?rope climbs?", "rope pulls desde el suelo"),
         (r"burpees? box jump overs?", "burpees + step ups"),
@@ -1341,8 +1370,8 @@ _SUSTITUCIONES = {
 
 
 _MU_CON_REPS = re.compile(r"(?<![\d.,])(?P<n>\d+)\s*(?:x\s*)?(?:ring |bar )?(?:muscle[ -]?ups?|(?<![a-z])[rb]?mus?\b)(?: ring)?", re.I)
-_MU_A = {"Inter": lambda n: f"{n * 2} C2B pull ups",               # Inter: casi nunca muscle ups → C2B (x2)
-         "Scaled": lambda n: f"{n * 3} pull ups (con banda si hace falta)"}  # Scaled: nunca muscle ups
+_MU_A = {"Inter": lambda n: f"{n} C2B pull ups",            # Open: bar MU → C2B (mismas reps)
+         "Scaled": lambda n: f"{n} jumping pull ups"}         # Scaled: nada complejo (ni MU, ni C2B, ni pull ups)
 
 
 def _redondear(v: float, tipo: str) -> float:
@@ -1363,6 +1392,8 @@ def _escalar_linea(linea: str, nivel: str) -> str:
         v = float(txt.replace(",", "."))
         if tipo == "wb":
             nuevo = _WB[nivel].get(int(v), v * (f if nivel != "Elite" else 1))
+        elif tipo == "db":
+            nuevo = _db_nivel(v, nivel)
         else:
             nuevo = _redondear(v * f, tipo)
         return fmt_num(nuevo)
@@ -1381,6 +1412,9 @@ def _escalar_linea(linea: str, nivel: str) -> str:
             return "@" + "-".join(esc(x) for x in re.findall(num, m.group("arr")))
         if m.group("a"):
             peso = tipo != "bar" or "kg" in bajo or "@" in bajo or float(m.group("a").replace(",", ".")) >= 20
+            if peso and tipo == "db" and nivel in ("Inter", "Scaled"):  # hombre/mujer desde el RX 22,5/15
+                a_, b_ = (float(m.group(x).replace(",", ".")) for x in ("a", "b"))
+                return f"{fmt_num(_db_nivel(min(a_, 22.5), nivel))}/{fmt_num(_db_nivel(min(b_, 15), nivel) if b_ < 20 else _db_nivel(min(b_, 15), nivel))}"
             return f"{esc(m.group('a'))}/{esc(m.group('b'))}" if peso else m.group(0)
         if m.group("kg"):
             return esc(m.group("kg"))

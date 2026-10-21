@@ -40,7 +40,7 @@ from logica import (
     letra_visible, linea_activa, linea_no_hecha, marcar_linea, marcar_parte, no_hechas_en, norm, norm_busqueda,
     parametros_semana, partes_del_dia, pendientes_para, poner_pesos, prescripcion_semana, referencias_elite,
     resumen_dia, se_repite, semanas_que_sube, sin_validar, tipo_de_linea, versiones_por_movimiento,
-    TIPOS, UNIDADES, duracion_emom, formato_de, mejores_prs, parse_tiempo, parse_valor, peso_principal, fmt_valor,
+    TIPOS, UNIDADES, duracion_emom, tope_db_alumno, formato_de, mejores_prs, parse_tiempo, parse_valor, peso_principal, fmt_valor,
     prs_de_entrenos, series_ejercicios, mejor_punto, cambio_pct, ids_con_pr, consejos, sesiones_por_semana,
     CATALOGO_PR, movimiento_pr, fmt_tiempo, a_fecha, anadir_parte, sustituir_parte, deshacer_sustitucion, CLAVE_BIBLIOTECA, CLAVES_BIBLIO,
 )
@@ -345,7 +345,7 @@ def _igual(a: str, b: str) -> bool:
     return bool(a) and bool(b) and hmac.compare_digest(a.encode(), b.encode())
 
 
-VERSION = "10.2"
+VERSION = "10.3"
 CLAVES_NECESARIAS = ["CONTRASENA_DIEGO", "SUPABASE_URL", "SUPABASE_KEY", "APP_PASSWORD", "CONTRASENA_ARCHCHANA", "CONTRASENA_INVITADOS", "COACH_PIN",
                      "APP_ANTIGUA_URL", "CONTRASENA_DEMO"]
 
@@ -1753,6 +1753,8 @@ def registro_inicial(rut: dict, dia: dict, semana: int, lineas: list[dict] | Non
 def _linea(rut: dict, l: dict, semana: int, parte: str, nivel: str, alumno: bool, sug: dict | None,
            por_ejercicio: bool) -> dict:
     txt, subio, ajuste = prescripcion_semana(l, semana, rut.get("ajustes"))
+    if alumno and tipo_de_linea(parte, l["ejercicio"]) is not None:
+        txt = tope_db_alumno(txt)  # su RX de mancuerna es 22,5/15 (el 32,5 es del ciclo de Diego)
     tipo = _tipo_ui(parte, l["ejercicio"])
     out = {"id": l["id"], "ejercicio": l["ejercicio"], "nota": l.get("nota") or "", "texto": txt,
            "extra": _etiqueta_extra(l, txt, semana, ajuste, subio), "tipo": tipo,
@@ -1765,7 +1767,7 @@ def _linea(rut: dict, l: dict, semana: int, parte: str, nivel: str, alumno: bool
         return out
     out["kind"] = "texto"
     if not txt and sug:
-        txt = sug["texto"]
+        txt = tope_db_alumno(sug["texto"]) if alumno else sug["texto"]
         out["sugerencia"] = {"semana": sug["semana"], "dia": sug["dia"], "texto": sug["texto"]}
     escalable = norm_busqueda(_etiqueta_parte(parte)) != "gym"
     nv_ = nivel if escalable and tipo in TIPOS_WOD + ("conditioning", "accessory") else "RX"
