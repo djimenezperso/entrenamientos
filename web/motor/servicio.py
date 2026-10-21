@@ -45,7 +45,7 @@ from logica import (
     CATALOGO_PR, movimiento_pr, fmt_tiempo, a_fecha, anadir_parte, sustituir_parte, deshacer_sustitucion, CLAVE_BIBLIOTECA, CLAVES_BIBLIO,
 )
 from repertorio import ELITE, REPERTORIO
-from rutinas_iniciales import migrar, rutinas_iniciales
+from rutinas_iniciales import migrar, rutinas_iniciales, _yo as _rutina_base_yo
 import cuestionario
 from propuestas import propuesta_para
 import propuestas as _propuestas
@@ -345,7 +345,7 @@ def _igual(a: str, b: str) -> bool:
     return bool(a) and bool(b) and hmac.compare_digest(a.encode(), b.encode())
 
 
-VERSION = "10.4"
+VERSION = "10.5"
 CLAVES_NECESARIAS = ["CONTRASENA_DIEGO", "SUPABASE_URL", "SUPABASE_KEY", "APP_PASSWORD", "CONTRASENA_ARCHCHANA", "CONTRASENA_INVITADOS", "COACH_PIN",
                      "APP_ANTIGUA_URL", "CONTRASENA_DEMO"]
 
@@ -839,6 +839,8 @@ DEMO_ACCESSORY = [("GHD lateral crunch", "4x10 por lado")]  # C del día 2 de la
 CUESTIONARIO_DESDE = "2026-10-15"  # perfiles nuevos desde esta fecha: les sale el cuestionario de objetivos (pagando o no)
 NOMBRES_DEMO = {"Yo": ("Prog Competidor · Diego", "🏆"), "Archchana": ("Prog Casa y Movilidad", "🏠"),
                 "Manu Anel": ("Prog Principiante", "🌱"), "Salatti": ("Prog Fuerza + WOD", "💪")}
+DEMO_PESOS_YO = [(r"pull", 150), (r"clean", 110), (r"^power snatch$", 80), (r"^snatch$", 85)]  # demo · Prog Competidor: pesos de muestra
+DEMO_C_YO = "4x: 10 T2B direct into 1' L-sit on bar"
 DEMO_CICLO_EN = "Salatti"  # en la demo, este cliente enseña el ciclo de handstand push ups
 DEMO_DIAS_CERRADOS = {3, 4, 5, 6}  # en la demo, solo se pueden abrir los días 1 y 2
 PLANTILLAS_DEMO = {"Salatti": "Rutina 1 · fuerza + WOD", "Dario": "Rutina 2 · fuerza + WOD"}
@@ -1890,6 +1892,20 @@ def _demo_accessory(partes: list[dict], semilla: int, acc: list | None = None, c
     partes.append(p)
 
 
+def _rut_demo_yo() -> dict:
+    """Muestra fija del Prog Competidor (días 1 y 2 hechos; el resto con candado en la demo)."""
+    rut = completar(_rutina_base_yo(), "Yo")
+    for d in rut["dias"]:
+        for l in d["lineas"]:
+            if l["ejercicio"].lower().replace(" ", "") == "powerclean+press":
+                l["ejercicio"] = "Power clean + push jerk"
+    sem = int(rut.get("semana_actual") or 1)
+    for d in rut["dias"][:2]:
+        for p, _ in agrupar_por_parte(d, sem):
+            rut = marcar_parte(rut, sem, d["id"], p, "hecho")
+    return rut
+
+
 def _rellenar_demo(partes: list[dict], dia_id: str, semana: int, nivel: str, numero: int = 1, atleta: str = "") -> None:
     """En la demo no puede salir nada «por definir»: la B vacía lleva siempre un WOD y la C un conditioning
     (de verdad, distintos, con sus niveles y su cronómetro). Otras partes vacías, lo que encaje con su nombre."""
@@ -1909,6 +1925,29 @@ def _rellenar_demo(partes: list[dict], dia_id: str, semana: int, nivel: str, num
         w = min(2, len(c["semanas"]))
         lineas = [(x["ejercicio"], x["prescripcion"]) for x in c["semanas"][w - 1]["sesiones"][0]]
         _demo_accessory(partes, semilla, lineas, {"semana": w, "total": len(c["semanas"]), "nombre": c["nombre"]})
+    if atleta == "Yo":  # el «Prog Competidor» de la demo enseña pesos de competidor
+        for p in partes:
+            for l in p["lineas"]:
+                if l.get("kind") != "peso":
+                    continue
+                n = norm_busqueda(l.get("ejercicio", ""))
+                kg = next((v for patron, v in DEMO_PESOS_YO if re.search(patron, n)), None)
+                if kg is None:
+                    continue
+                l["pesos"] = [float(kg)] * max(1, len(l.get("pesos") or [1]))
+                l["texto"] = re.sub(r"@\s*\d+(?:[.,]\d+)?", f"@{fmt_num(kg)}", l.get("texto") or "") or f"@{fmt_num(kg)}"
+                if l.get("texto_sig"):
+                    l["texto_sig"] = re.sub(r"@\s*\d+(?:[.,]\d+)?", f"@{fmt_num(kg + 2.5)}", l["texto_sig"])
+        if numero == 1:  # C del día 1: gimnásticos
+            c = next((p for p in partes if (p.get("letra") or "").upper() == "C"), None)
+            if c and c["lineas"]:
+                l = c["lineas"][0]
+                c["etiqueta"], c["tipo"] = "Accessory", "accessory"
+                l.update(ejercicio="T2B + L-sit", texto=DEMO_C_YO, visto=DEMO_C_YO, kind="texto", tipo="accessory",
+                         nota="", extra=None, texto_sig=None, crono=None, versiones_nivel=None, solo_bloque=False)
+                for k in ("ultimo", "elite", "tabla", "pesos", "esquema"):
+                    l.pop(k, None)
+                c["lineas"] = [l]
     for p in partes:  # fuerza sin peso puesto → uno ligero de ejemplo (mancuerna 8 kg, lo demás 10 kg)
         for l in p["lineas"]:
             if l.get("kind") == "peso" and not l.get("pesos"):
@@ -1960,6 +1999,8 @@ def vista(sesion: dict, atleta: str | None, semana: int | None, dia_id: str | No
     alumno = es_alumno(atleta, inv)
     guardadas = datos().rutinas(list({atleta, "Yo", CLAVE_SOLICITUDES, CLAVE_NOVEDADES, CLAVE_ACTIVIDAD, CLAVE_VIDEOS, CLAVE_CONFIG}))
     rut = rutina(atleta, guardadas)
+    if es_demo(sesion) and atleta == "Yo":
+        rut = _rut_demo_yo()  # la muestra del «Prog Competidor» es siempre la misma, cambie lo que cambie Diego
     if not es_demo(sesion):
         prop = propuesta_para(atleta)
         if prop and prop.get("auto") and _propuesta_pendiente(atleta, rut):  # autorizada por Diego: se aplica sola
