@@ -337,7 +337,7 @@ def _igual(a: str, b: str) -> bool:
     return bool(a) and bool(b) and hmac.compare_digest(a.encode(), b.encode())
 
 
-VERSION = "9.9"
+VERSION = "10.0"
 CLAVES_NECESARIAS = ["CONTRASENA_DIEGO", "SUPABASE_URL", "SUPABASE_KEY", "APP_PASSWORD", "CONTRASENA_ARCHCHANA", "CONTRASENA_INVITADOS", "COACH_PIN",
                      "APP_ANTIGUA_URL", "CONTRASENA_DEMO"]
 
@@ -1846,6 +1846,16 @@ def vista(sesion: dict, atleta: str | None, semana: int | None, dia_id: str | No
     alumno = es_alumno(atleta, inv)
     guardadas = datos().rutinas(list({atleta, "Yo", CLAVE_SOLICITUDES, CLAVE_NOVEDADES, CLAVE_ACTIVIDAD, CLAVE_VIDEOS, CLAVE_CONFIG}))
     rut = rutina(atleta, guardadas)
+    if not es_demo(sesion):
+        prop = propuesta_para(atleta)
+        if prop and prop.get("auto") and _propuesta_pendiente(atleta, rut):  # autorizada por Diego: se aplica sola
+            try:
+                rut, _ = aplicar_propuesta(rut, atleta)
+                datos().guardar(atleta, rut)
+                rut = completar(rut, atleta)
+                notificar(f"✅ Programa nuevo aplicado a {nv(atleta)}: {prop['titulo']}")
+            except Exception:  # noqa: BLE001
+                pass
     _apuntar(guardadas, sesion, atleta)
     if _propuestas.claves() and not es_demo(sesion):
         _avisar_propuestas(guardadas)
