@@ -518,7 +518,7 @@ async function cargar(opc = {}) {
 }
 
 // textos de entreno escritos en español → francés (palabras típicas; los nombres de movimientos ya son en inglés)
-const WOD_FR = [[/\brondas\b/gi, "tours"], [/\bronda\b/gi, "tour"], [/\bpor lado\b/gi, "par côté"], [/\bpor pierna\b/gi, "par jambe"],
+const WOD_FR = [[/\brondas\b/gi, "tours"], [/\balternos?\b/gi, "alternés"], [/\balternas?\b/gi, "alternées"], [/\bronda\b/gi, "tour"], [/\bpor lado\b/gi, "par côté"], [/\bpor pierna\b/gi, "par jambe"],
   [/\bpor brazo\b/gi, "par bras"], [/\bdescanso\b/gi, "repos"], [/\blento\b/gi, "lent"], [/\barriba\b/gi, "en haut"],
   [/\babajo\b/gi, "en bas"], [/\bcada\b/gi, "toutes les"], [/\bimpar\b/gi, "impair"], [/\bpar\b(?= \d| ·)/g, "pair"],
   [/\bzona 2\b/gi, "zone 2"], [/\bnegativas?\b/gi, "négatives"], [/\bcon banda\b/gi, "avec élastique"], [/\ben pared\b/gi, "au mur"],
