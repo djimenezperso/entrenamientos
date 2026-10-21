@@ -94,6 +94,10 @@ def _escalar_texto(texto: str, factor: float) -> str:
     return re.sub(r"@\s*(\d+(?:[.,]\d+)?)(?!\s*%)", cambio, texto)
 
 
+def fmt_kg(v: float) -> str:
+    return f"{v:.1f}".rstrip("0").rstrip(".").replace(".", ",")
+
+
 def _nota(l: dict, txt: str) -> None:
     l["nota"] = (l.get("nota", "") + " · " + txt).strip(" ·") if txt not in (l.get("nota") or "") else l["nota"]
 
@@ -188,6 +192,31 @@ def construir(base: dict, referencia: str, r: dict, nuevo_id) -> tuple[dict, lis
         rut["dias"].append(_dia_extra(i, r, nuevo_id, fr))
     if r["dias"] > n0:
         notas.append(f"+{r['dias'] - n0} día(s) de conditioning y movilidad")
+    # sin snatch con barra si no es avanzado (y no ha pedido aprenderlo): con mancuerna y ligero al principio
+    cambiados = set()
+    if r["nivel"] != "mas3" and "halterofilia" not in r["aprender"] and "halterofilia" not in r["prioridades"]:
+        kg_db = 7.5 if r["categoria"] == "mujer" or r["nivel"] == "empiezo" else 12.5
+        nota_db = "avec haltère, léger au début" if fr else "con mancuerna, ligero al principio"
+        n_snatch = 0
+        for d in rut["dias"]:
+            for l in d["lineas"]:
+                nom = norm(l["ejercicio"])
+                if "snatch" not in nom or re.search(r"\b(db|dumbbell|mancuerna|kb|kettlebell)\b", nom) \
+                        or tipo_de_linea(l.get("parte", ""), l["ejercicio"]) not in (None, "accessory"):
+                    continue
+                n_snatch += 1
+                pesos = re.findall(r"@\s*(\d+(?:[.,]\d+)?)", l["prescripcion"])
+                if "pull" in nom or "deadlift" in nom:
+                    l["ejercicio"] = "Romanian deadlift"
+                    l["prescripcion"] = f"3x8 @{pesos[0]}" if pesos else "3x8"
+                else:
+                    l["ejercicio"] = "DB snatch alterno" if not fr else "DB snatch alterné"
+                    l["prescripcion"] = f"4x8 (4+4) @{fmt_kg(kg_db)}"
+                    l["sube"] = 0.0
+                    _nota(l, nota_db)
+                    cambiados.add(l["id"])
+        if n_snatch:
+            notas.append(f"snatch con barra → DB snatch ligero ({n_snatch} línea(s)), no es avanzado/a")
     # pesos a su nivel
     factor = None
     if referencia in NIVEL_REF:
@@ -203,7 +232,7 @@ def construir(base: dict, referencia: str, r: dict, nuevo_id) -> tuple[dict, lis
     for d in rut["dias"]:
         for l in d["lineas"]:
             texto = f"{l['ejercicio']} {l['prescripcion']}"
-            if factor and tipo_de_linea(l.get("parte", ""), l["ejercicio"]) is None and "@" in l["prescripcion"]:
+            if factor and l["id"] not in cambiados and tipo_de_linea(l.get("parte", ""), l["ejercicio"]) is None and "@" in l["prescripcion"]:
                 nuevo = _escalar_texto(l["prescripcion"], factor)
                 if nuevo != l["prescripcion"]:
                     l["prescripcion"] = nuevo
