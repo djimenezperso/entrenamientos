@@ -18,6 +18,11 @@ const E = { token: mem.get("token"), atleta: mem.get("atleta"), lang: mem.get("l
 
 // ---------- textos ----------
 const FR = {
+  "Subir": "Monter",
+  "Bajar": "Descendre",
+  "Se cambia de sitio con la de al lado (y cada una se queda la letra de la otra).": "Elle échange sa place avec celle d'à côté (et chacune prend la lettre de l'autre).",
+  "Parte movida ↕️": "Partie déplacée ↕️",
+  "Esa parte ya está al límite": "Cette partie est déjà au bout",
   "Pesos: hombre / mujer": "Charges : homme / femme",
   "He leído y acepto la": "J'ai lu et j'accepte la",
   "política de privacidad": "politique de confidentialité",
@@ -1711,6 +1716,11 @@ async function hojaParte(p) {
   };
   abrirHoja(`${cabHoja(cambiar ? `${p.letra ? p.letra + " · " : ""}${etqParte(p.etiqueta)}` : esc(trDia(v.dia.nombre)), cambiar ? t("Cambiar esta parte") : t("Añadir parte"))}
     ${avisoCoach(v)}
+    ${cambiar && !p.origen && v.partes.filter((x) => !x.origen && !x.calentamiento).length > 1 ? (() => {
+      const lista = v.partes.filter((x) => !x.origen && !x.calentamiento); const i = lista.indexOf(p);
+      return `<div class="mover-parte"><button class="btn" id="p-subir" ${i <= 0 ? "disabled" : ""}>⬆️ ${t("Subir")}</button>
+        <button class="btn" id="p-bajar" ${i < 0 || i >= lista.length - 1 ? "disabled" : ""}>⬇️ ${t("Bajar")}</button></div>
+        <p class="mini" style="margin:-6px 4px 0">${t("Se cambia de sitio con la de al lado (y cada una se queda la letra de la otra).")}</p>`; })() : ""}
     ${cambiar && p.es_cambio ? `<button class="btn btn-negro" id="p-volver">↩ ${t("Volver a lo que había")}</button>` : ""}
     <div><div class="paso-etq" style="margin:0 4px 8px">${t("Tipo")}</div>
       <div class="fila-chips">${tipos.map((x) => `<button type="button" class="chip ${x === est.tipo ? "on" : ""}" data-tp="${esc(x)}">${esc(x === "Fuerza" ? t("Fuerza") : x)}</button>`).join("")}</div></div>
@@ -1724,6 +1734,9 @@ async function hojaParte(p) {
     <div><div class="paso-etq" style="margin:6px 4px 8px">${t("Ideas")} · <span id="p-tipo-ideas">${esc(est.tipo)}</span></div><div class="ideas" id="p-ideas"></div></div>`, (h) => {
     enlazarAlcance(h, est);
     enlazarPin(h, () => hojaParte(kParte && kParte !== "p-1" ? parteDe(kParte) : null));
+    [["#p-subir", -1], ["#p-bajar", 1]].forEach(([sel, dir]) => { const b = h.querySelector(sel); if (b) b.onclick = () => {
+      cerrarHoja(); hacer({ tipo: "mover_parte", dia: p.dia_id, parte: p.parte, direccion: dir, semana: p.semana });
+    }; });
     pintarIdeas(h);
     h.querySelectorAll("[data-tp]").forEach((b) => b.onclick = () => {
       est.tipo = b.dataset.tp;

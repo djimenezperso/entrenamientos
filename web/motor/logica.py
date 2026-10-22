@@ -598,6 +598,35 @@ def renombrar_parte(rut: dict, dia_id: str, vieja: str, nueva: str) -> dict:
     return rut
 
 
+def mover_parte(rut: dict, dia_id: str, parte: str, direccion: int) -> dict:
+    """Sube (-1) o baja (+1) una parte del día: se intercambia con la de al lado y cada una se queda la letra de la otra."""
+    dia = next((d for d in rut["dias"] if d["id"] == dia_id), None)
+    if dia is None:
+        return rut
+    orden = [p for p, _ in agrupar_por_parte(dia)]
+    if parte not in orden:
+        return rut
+    i = orden.index(parte)
+    j = i + (1 if direccion > 0 else -1)
+    if j < 0 or j >= len(orden):
+        return rut
+    a, b = orden[i], orden[j]
+    la, lb = _letra(a), _letra(b)
+    nueva_a, nueva_b = f"{lb}) {_etiqueta_parte(a)}", f"{la}) {_etiqueta_parte(b)}"
+    tmp = f"~{la}) {_etiqueta_parte(a)}"
+    rut = renombrar_parte(rut, dia_id, a, tmp)
+    rut = renombrar_parte(rut, dia_id, b, nueva_b)
+    rut = renombrar_parte(rut, dia_id, tmp, nueva_a)
+    for d in rut["dias"]:  # las partes cambiadas «solo esta semana» recuerdan a cuál sustituyen
+        if d["id"] == dia_id:
+            for l in d["lineas"]:
+                if l.get("sustituye") == a:
+                    l["sustituye"] = nueva_a
+                elif l.get("sustituye") == b:
+                    l["sustituye"] = nueva_b
+    return rut
+
+
 def historial_parte(rut: dict, dia_id: str, parte: str, hasta: int, maximo: int = 6) -> list[tuple[int, str]]:
     """[(semana, estado)] de las últimas semanas hasta `hasta` (incluida)."""
     desde = max(1, hasta - maximo + 1)

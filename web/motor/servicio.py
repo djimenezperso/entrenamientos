@@ -42,7 +42,7 @@ from logica import (
     resumen_dia, se_repite, semanas_que_sube, sin_validar, tipo_de_linea, versiones_por_movimiento,
     TIPOS, UNIDADES, duracion_emom, tope_db_alumno, formato_de, mejores_prs, parse_tiempo, parse_valor, peso_principal, fmt_valor,
     prs_de_entrenos, series_ejercicios, mejor_punto, cambio_pct, ids_con_pr, consejos, sesiones_por_semana,
-    CATALOGO_PR, movimiento_pr, fmt_tiempo, a_fecha, anadir_parte, sustituir_parte, deshacer_sustitucion, CLAVE_BIBLIOTECA, CLAVES_BIBLIO,
+    CATALOGO_PR, movimiento_pr, mover_parte, fmt_tiempo, a_fecha, anadir_parte, sustituir_parte, deshacer_sustitucion, CLAVE_BIBLIOTECA, CLAVES_BIBLIO,
 )
 from repertorio import CASA, ELITE, PRINCIPIANTE, REPERTORIO
 from rutinas_iniciales import migrar, rutinas_iniciales, _yo as _rutina_base_yo, _manu, _salatti, _archchana
@@ -345,7 +345,7 @@ def _igual(a: str, b: str) -> bool:
     return bool(a) and bool(b) and hmac.compare_digest(a.encode(), b.encode())
 
 
-VERSION = "11.6"
+VERSION = "11.7"
 CLAVES_NECESARIAS = ["CONTRASENA_DIEGO", "SUPABASE_URL", "SUPABASE_KEY", "APP_PASSWORD", "CONTRASENA_ARCHCHANA", "CONTRASENA_INVITADOS", "COACH_PIN",
                      "APP_ANTIGUA_URL", "CONTRASENA_DEMO"]
 
@@ -2447,13 +2447,18 @@ def puede_programar(sesion: dict, rut: dict) -> bool:
     return es_coach(sesion) or bool(rut.get("permiso_pesos"))
 
 
-CAMBIOS_PROGRAMA = ("editar_texto", "cambiar_parte", "anadir_parte", "deshacer_parte", "quitar_ajuste")
+CAMBIOS_PROGRAMA = ("editar_texto", "cambiar_parte", "anadir_parte", "deshacer_parte", "quitar_ajuste", "mover_parte")
 
 
 def aplicar_programa(rut: dict, tipo: str, c: dict, semana: int, atleta: str) -> tuple[dict, str]:
     """Cambios en lo programado (texto de un WOD, cambiar/añadir/volver una parte). Devuelve (rutina, aviso)."""
     texto = str(c.get("texto") or "").strip()[:3000]
     solo = bool(c.get("solo_esta"))
+    if tipo == "mover_parte":
+        antes = [p for p, _ in agrupar_por_parte(next(d for d in rut["dias"] if d["id"] == c.get("dia")))]
+        rut = mover_parte(rut, c.get("dia"), c.get("parte"), int(c.get("direccion") or 1))
+        despues = [p for p, _ in agrupar_por_parte(next(d for d in rut["dias"] if d["id"] == c.get("dia")))]
+        return rut, ("Parte movida ↕️" if antes != despues else "Esa parte ya está al límite")
     if tipo == "quitar_ajuste":  # deshace el cambio «solo esta semana» de una línea
         rut = copy.deepcopy(rut)
         aj = (rut.get("ajustes") or {}).get(str(semana)) or {}
@@ -2510,6 +2515,8 @@ def _resumen_cambio(tipo: str, c: dict, rut: dict) -> str:
         return f"Volver a lo que había en {c.get('parte', '')}"
     if tipo == "quitar_ajuste":
         return "Quitar el cambio de esta semana"
+    if tipo == "mover_parte":
+        return f"{'Bajar' if int(c.get('direccion') or 1) > 0 else 'Subir'} la parte {c.get('parte', '')}"
     return f"{'Cambiar' if tipo == 'cambiar_parte' else 'Añadir'} {c.get('etiqueta', '')}: {c.get('texto', '')}"
 
 
@@ -2570,7 +2577,7 @@ def accion(sesion: dict, c: dict) -> dict:
             import uuid
             reg = datos().rutinas([CLAVE_SOLICITUDES]).get(CLAVE_SOLICITUDES) or {}
             lista = reg.get("lista") or []
-            datos_c = {k: c.get(k) for k in ("linea", "texto", "texto_sig", "nombre", "solo_esta", "dia", "parte", "etiqueta")}
+            datos_c = {k: c.get(k) for k in ("linea", "texto", "texto_sig", "nombre", "solo_esta", "dia", "parte", "etiqueta", "direccion")}
             lista.append({"id": uuid.uuid4().hex[:10], "atleta": atleta, "nombre": nv(atleta), "kind": tipo,
                           "linea": c.get("linea") or f"{c.get('dia')}|{c.get('parte')}", "semana": semana,
                           "datos": datos_c, "resumen": _resumen_cambio(tipo, c, rut)[:400], "antes": [], "valores": [],
