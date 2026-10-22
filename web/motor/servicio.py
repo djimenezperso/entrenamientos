@@ -285,6 +285,10 @@ CAMBIOS_PUNTUALES = [
                                        "8 burpees sobre la mancuerna"),
         "C": ("Conditioning", "Mini conditioning", "20' (4 vueltas): 3' row + 2' bike · ritmo constante, que puedas hablar"),
     }},
+    {"id": "salatti-d4-wod40-2026-10", "atleta": "Salatti", "dia": 3, "hasta": "2026-10-29", "partes": {
+        "B": ("WOD", "WOD largo 40'", "AMRAP 40' (ritmo constante, sin parar): 400 m run, 20 wall balls 9/6 kg, "
+                                      "15 KB swings 24/16 kg, 12 box jumps, 8 pull ups"),
+    }},
 ]
 
 
@@ -417,7 +421,7 @@ def _igual(a: str, b: str) -> bool:
     return bool(a) and bool(b) and hmac.compare_digest(a.encode(), b.encode())
 
 
-VERSION = "11.14"
+VERSION = "11.15"
 CLAVES_NECESARIAS = ["CONTRASENA_DIEGO", "SUPABASE_URL", "SUPABASE_KEY", "APP_PASSWORD", "CONTRASENA_ARCHCHANA", "CONTRASENA_INVITADOS", "COACH_PIN",
                      "APP_ANTIGUA_URL", "CONTRASENA_DEMO"]
 
