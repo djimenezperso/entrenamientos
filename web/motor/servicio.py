@@ -274,11 +274,13 @@ def _limpiar_extra(rut: dict | None, atleta: str) -> dict | None:
 # Cambios puntuales que pide Diego para la semana en curso de alguien (se ponen una sola vez, «solo esta semana»).
 # partes: letra → (etiqueta, nombre, texto). dia: posición del día (0 = día 1). Caduca en `hasta` si no se ha aplicado.
 CAMBIOS_PUNTUALES = [
-    {"id": "salatti-d3-v2-2026-10", "atleta": "Salatti", "dia": 2, "hasta": "2026-10-29",
-     "reemplaza": ("salatti-d3-gym-2026-10", ("EMOM gym", "Conditioning")), "partes": {
-        "A": ("Gym", "EMOM gym", "EMOM 10': 3 pull ups + 2 toes to bar cada minuto\n"
-                                 "Inter: 2 pull ups + 2 toes to bar\n"
-                                 "Scaled: 2 jumping pull ups + 2 hanging knee raises"),
+    {"id": "salatti-d3-v3-2026-10", "atleta": "Salatti", "dia": 2, "hasta": "2026-10-29",
+     "reemplaza": (("salatti-d3-gym-2026-10", "salatti-d3-v2-2026-10"),
+                   ("EMOM gym", "Conditioning", "WOD mancuernas", "Mini conditioning")), "partes": {
+        "A": ("Gym", "EMOM gym", "EMOM 10': 3 pull ups + 2 toes to bar cada minuto", {
+            "RX": "EMOM 10': 3 pull ups + 2 toes to bar cada minuto",
+            "Inter": "EMOM 10': 2 pull ups + 2 toes to bar cada minuto",
+            "Scaled": "EMOM 10': 2 jumping pull ups + 2 hanging knee raises cada minuto"}),
         "B": ("WOD", "WOD mancuernas", "AMRAP 12': 10 DB snatch alternos 22,5/15 kg, 10 DB goblet squats 22,5/15 kg, "
                                        "8 burpees sobre la mancuerna"),
         "C": ("Conditioning", "Mini conditioning", "20' (4 vueltas): 3' row + 2' bike · ritmo constante, que puedas hablar"),
@@ -298,21 +300,25 @@ def _cambios_puntuales(rut: dict | None, atleta: str) -> dict | None:
     for x in pend:
         dia_id = rut["dias"][x["dia"]]["id"]
         sem_x = sem
-        viejo, nombres = x.get("reemplaza") or (None, ())
-        if viejo in hechos:  # deshace el cambio puntual anterior (en la semana en que se puso)
+        viejos, nombres = x.get("reemplaza") or ((), ())
+        if set(viejos) & hechos:  # deshace el cambio puntual anterior (en la semana en que se puso)
             dia = next(d for d in rut["dias"] if d["id"] == dia_id)
             for l in [l for l in dia["lineas"] if l.get("sustituye") and l.get("ejercicio") in nombres]:
                 sem_x = int(l.get("desde") or sem)
                 rut = deshacer_sustitucion(rut, dia_id, l["parte"], sem_x)
             dia = next(d for d in rut["dias"] if d["id"] == dia_id)
             dia["lineas"] = [l for l in dia["lineas"] if not (l.get("ejercicio") in nombres and l.get("plan") and not l.get("sustituye"))]
-        for letra, (etq, nombre, texto) in x["partes"].items():
+        for letra, (etq, nombre, texto, *niveles) in x["partes"].items():
             actual = next((p for p, _ in agrupar_por_parte(next(d for d in rut["dias"] if d["id"] == dia_id))
                            if p[:1].upper() == letra), None)
             if actual:
                 rut = sustituir_parte(rut, dia_id, actual, sem_x, etq, nombre, texto, True)
             else:
                 rut = anadir_parte(rut, dia_id, etq, nombre, texto, sem_x, True)
+            if niveles:  # versiones a mano para la pestaña RX · Inter · Scaled
+                dia = next(d for d in rut["dias"] if d["id"] == dia_id)
+                dia["lineas"][-1 if not actual else next(i for i, l in enumerate(dia["lineas"])
+                                                         if l.get("ejercicio") == nombre and l.get("desde") == sem_x)]["niveles_txt"] = niveles[0]
         rut = dict(rut, puntuales=sorted(set(rut.get("puntuales") or []) | {x["id"]}))
     datos().guardar(atleta, rut)
     return rut
@@ -411,7 +417,7 @@ def _igual(a: str, b: str) -> bool:
     return bool(a) and bool(b) and hmac.compare_digest(a.encode(), b.encode())
 
 
-VERSION = "11.13"
+VERSION = "11.14"
 CLAVES_NECESARIAS = ["CONTRASENA_DIEGO", "SUPABASE_URL", "SUPABASE_KEY", "APP_PASSWORD", "CONTRASENA_ARCHCHANA", "CONTRASENA_INVITADOS", "COACH_PIN",
                      "APP_ANTIGUA_URL", "CONTRASENA_DEMO"]
 
@@ -1848,6 +1854,11 @@ def _linea(rut: dict, l: dict, semana: int, parte: str, nivel: str, alumno: bool
         txt = tope_db_alumno(sug["texto"]) if alumno else sug["texto"]
         out["sugerencia"] = {"semana": sug["semana"], "dia": sug["dia"], "texto": sug["texto"]}
     escalable = norm_busqueda(_etiqueta_parte(parte)) != "gym"
+    a_mano = l.get("niveles_txt") if txt and isinstance(l.get("niveles_txt"), dict) else None
+    if a_mano:  # versiones por nivel escritas por Diego: salen en la pestaña y cada uno ve la suya
+        nv_ = nivel if nivel in a_mano else "RX"
+        out.update(visto=a_mano.get(nv_) or txt, nivel=nv_, versiones_nivel=a_mano, solo_bloque=False)
+        return out
     nv_ = nivel if escalable and tipo in TIPOS_WOD + ("conditioning", "accessory") else "RX"
     out["visto"] = escalar(txt, nv_) if txt and nv_ != "RX" else txt
     out["nivel"] = nv_
