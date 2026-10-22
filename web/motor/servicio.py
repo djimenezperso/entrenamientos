@@ -274,9 +274,14 @@ def _limpiar_extra(rut: dict | None, atleta: str) -> dict | None:
 # Cambios puntuales que pide Diego para la semana en curso de alguien (se ponen una sola vez, «solo esta semana»).
 # partes: letra → (etiqueta, nombre, texto). dia: posición del día (0 = día 1). Caduca en `hasta` si no se ha aplicado.
 CAMBIOS_PUNTUALES = [
-    {"id": "salatti-d3-gym-2026-10", "atleta": "Salatti", "dia": 2, "hasta": "2026-10-29", "partes": {
-        "A": ("Gym", "EMOM gym", "EMOM 16' (4 vueltas):\n1) 6-8 pull ups\n2) 10 toes to bar\n3) 10 push ups\n4) 30\" hollow hold"),
-        "B": ("Conditioning", "Conditioning", "4 rondas: 500 m row, 12 cal bike, 200 m run · descanso 1:30 (ritmo que aguantes hasta el final)"),
+    {"id": "salatti-d3-v2-2026-10", "atleta": "Salatti", "dia": 2, "hasta": "2026-10-29",
+     "reemplaza": ("salatti-d3-gym-2026-10", ("EMOM gym", "Conditioning")), "partes": {
+        "A": ("Gym", "EMOM gym", "EMOM 10': 3 pull ups + 2 toes to bar cada minuto\n"
+                                 "Inter: 2 pull ups + 2 toes to bar\n"
+                                 "Scaled: 2 jumping pull ups + 2 hanging knee raises"),
+        "B": ("WOD", "WOD mancuernas", "AMRAP 12': 10 DB snatch alternos 22,5/15 kg, 10 DB goblet squats 22,5/15 kg, "
+                                       "8 burpees sobre la mancuerna"),
+        "C": ("Conditioning", "Mini conditioning", "20' (4 vueltas): 3' row + 2' bike · ritmo constante, que puedas hablar"),
     }},
 ]
 
@@ -291,14 +296,23 @@ def _cambios_puntuales(rut: dict | None, atleta: str) -> dict | None:
         return rut
     sem = int(rut.get("semana_actual") or 1)
     for x in pend:
-        dia = rut["dias"][x["dia"]]
+        dia_id = rut["dias"][x["dia"]]["id"]
+        sem_x = sem
+        viejo, nombres = x.get("reemplaza") or (None, ())
+        if viejo in hechos:  # deshace el cambio puntual anterior (en la semana en que se puso)
+            dia = next(d for d in rut["dias"] if d["id"] == dia_id)
+            for l in [l for l in dia["lineas"] if l.get("sustituye") and l.get("ejercicio") in nombres]:
+                sem_x = int(l.get("desde") or sem)
+                rut = deshacer_sustitucion(rut, dia_id, l["parte"], sem_x)
+            dia = next(d for d in rut["dias"] if d["id"] == dia_id)
+            dia["lineas"] = [l for l in dia["lineas"] if not (l.get("ejercicio") in nombres and l.get("plan") and not l.get("sustituye"))]
         for letra, (etq, nombre, texto) in x["partes"].items():
-            actual = next((p for p, _ in agrupar_por_parte(next(d for d in rut["dias"] if d["id"] == dia["id"]))
+            actual = next((p for p, _ in agrupar_por_parte(next(d for d in rut["dias"] if d["id"] == dia_id))
                            if p[:1].upper() == letra), None)
             if actual:
-                rut = sustituir_parte(rut, dia["id"], actual, sem, etq, nombre, texto, True)
+                rut = sustituir_parte(rut, dia_id, actual, sem_x, etq, nombre, texto, True)
             else:
-                rut = anadir_parte(rut, dia["id"], etq, nombre, texto, sem, True)
+                rut = anadir_parte(rut, dia_id, etq, nombre, texto, sem_x, True)
         rut = dict(rut, puntuales=sorted(set(rut.get("puntuales") or []) | {x["id"]}))
     datos().guardar(atleta, rut)
     return rut
@@ -397,7 +411,7 @@ def _igual(a: str, b: str) -> bool:
     return bool(a) and bool(b) and hmac.compare_digest(a.encode(), b.encode())
 
 
-VERSION = "11.12"
+VERSION = "11.13"
 CLAVES_NECESARIAS = ["CONTRASENA_DIEGO", "SUPABASE_URL", "SUPABASE_KEY", "APP_PASSWORD", "CONTRASENA_ARCHCHANA", "CONTRASENA_INVITADOS", "COACH_PIN",
                      "APP_ANTIGUA_URL", "CONTRASENA_DEMO"]
 
