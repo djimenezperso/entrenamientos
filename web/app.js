@@ -1448,14 +1448,33 @@ function abrirHoja(html, alAbrir) {
   $hoja.querySelectorAll("[data-cerrar]").forEach((b) => b.onclick = cerrarHoja);
   if (alAbrir) alAbrir($hoja.firstElementChild);
 }
-function cerrarHoja() { $hoja.hidden = true; $hoja.innerHTML = ""; desbloquearScroll(); }
+function cerrarHoja() { $hoja.hidden = true; $hoja.innerHTML = ""; desbloquearScroll(); recolocar(); }
 // Si no hay ninguna ventana abierta, la página tiene que poder bajar siempre (algunos Android dejaban el bloqueo puesto).
 function desbloquearScroll() {
   const crono = document.getElementById("crono");
   if ($hoja.hidden && (!crono || crono.hidden)) { document.body.style.overflow = ""; document.documentElement.style.overflow = ""; }
 }
-window.addEventListener("pageshow", desbloquearScroll);
-document.addEventListener("visibilitychange", () => { if (!document.hidden) desbloquearScroll(); });
+// iPhone: al cerrar el teclado, una hoja o volver a la app, a veces la barra de abajo se queda flotando a media pantalla.
+// Un «empujón» de scroll (y recolocar la barra según la pantalla visible) la devuelve a su sitio.
+function recolocar() {
+  setTimeout(() => {
+    if (document.activeElement && /^(INPUT|TEXTAREA|SELECT)$/.test(document.activeElement.tagName)) return;
+    window.scrollTo(window.scrollX, window.scrollY + 1); window.scrollTo(window.scrollX, window.scrollY - 1);
+    ajustarNav();
+  }, 120);
+}
+function ajustarNav() {
+  const vv = window.visualViewport, nav = document.querySelector(".nav");
+  if (!vv || !nav) return;
+  const tecladoAbierto = document.activeElement && /^(INPUT|TEXTAREA|SELECT)$/.test(document.activeElement.tagName);
+  const hueco = Math.round(window.innerHeight - vv.height - vv.offsetTop);
+  nav.style.marginBottom = !tecladoAbierto && vv.scale <= 1.01 && Math.abs(hueco) > 2 && Math.abs(hueco) < 400 ? `${hueco}px` : "";
+}
+if (window.visualViewport) { visualViewport.addEventListener("resize", ajustarNav); visualViewport.addEventListener("scroll", ajustarNav); }
+document.addEventListener("focusout", recolocar);
+window.addEventListener("orientationchange", recolocar);
+window.addEventListener("pageshow", () => { desbloquearScroll(); recolocar(); });
+document.addEventListener("visibilitychange", () => { if (!document.hidden) { desbloquearScroll(); recolocar(); } });
 document.addEventListener("keydown", (ev) => { if (ev.key === "Escape" && !$hoja.hidden) cerrarHoja(); });
 const cabHoja = (pre, titulo) => `<div class="hoja-cab"><div><small>${esc(pre)}</small><h3>${esc(titulo)}</h3></div>
   <button class="cerrar" data-cerrar aria-label="Cerrar">${ic.x}</button></div>`;
