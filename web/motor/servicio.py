@@ -271,9 +271,43 @@ def _limpiar_extra(rut: dict | None, atleta: str) -> dict | None:
     return rut
 
 
+# Cambios puntuales que pide Diego para la semana en curso de alguien (se ponen una sola vez, «solo esta semana»).
+# partes: letra → (etiqueta, nombre, texto). dia: posición del día (0 = día 1). Caduca en `hasta` si no se ha aplicado.
+CAMBIOS_PUNTUALES = [
+    {"id": "salatti-d3-gym-2026-10", "atleta": "Salatti", "dia": 2, "hasta": "2026-10-29", "partes": {
+        "A": ("Gym", "EMOM gym", "EMOM 16' (4 vueltas):\n1) 6-8 pull ups\n2) 10 toes to bar\n3) 10 push ups\n4) 30\" hollow hold"),
+        "B": ("Conditioning", "Conditioning", "4 rondas: 500 m row, 12 cal bike, 200 m run · descanso 1:30 (ritmo que aguantes hasta el final)"),
+    }},
+]
+
+
+def _cambios_puntuales(rut: dict | None, atleta: str) -> dict | None:
+    if not rut or not rut.get("dias"):
+        return rut
+    hechos = set(rut.get("puntuales") or [])
+    pend = [x for x in CAMBIOS_PUNTUALES if x["atleta"] == atleta and x["id"] not in hechos
+            and dt.date.today().isoformat() <= x["hasta"] and x["dia"] < len(rut["dias"])]
+    if not pend:
+        return rut
+    sem = int(rut.get("semana_actual") or 1)
+    for x in pend:
+        dia = rut["dias"][x["dia"]]
+        for letra, (etq, nombre, texto) in x["partes"].items():
+            actual = next((p for p, _ in agrupar_por_parte(next(d for d in rut["dias"] if d["id"] == dia["id"]))
+                           if p[:1].upper() == letra), None)
+            if actual:
+                rut = sustituir_parte(rut, dia["id"], actual, sem, etq, nombre, texto, True)
+            else:
+                rut = anadir_parte(rut, dia["id"], etq, nombre, texto, sem, True)
+        rut = dict(rut, puntuales=sorted(set(rut.get("puntuales") or []) | {x["id"]}))
+    datos().guardar(atleta, rut)
+    return rut
+
+
 def rutina(atleta: str, guardadas: dict | None = None) -> dict | None:
     guardadas = datos().rutinas([atleta]) if guardadas is None else guardadas
-    return completar(_limpiar_extra(guardadas.get(atleta), atleta) or rutinas_iniciales(ATLETAS).get(atleta), atleta)
+    r = _cambios_puntuales(_limpiar_extra(guardadas.get(atleta), atleta), atleta)
+    return completar(r or rutinas_iniciales(ATLETAS).get(atleta), atleta)
 
 
 # ===== sesión =====
@@ -363,7 +397,7 @@ def _igual(a: str, b: str) -> bool:
     return bool(a) and bool(b) and hmac.compare_digest(a.encode(), b.encode())
 
 
-VERSION = "11.11"
+VERSION = "11.12"
 CLAVES_NECESARIAS = ["CONTRASENA_DIEGO", "SUPABASE_URL", "SUPABASE_KEY", "APP_PASSWORD", "CONTRASENA_ARCHCHANA", "CONTRASENA_INVITADOS", "COACH_PIN",
                      "APP_ANTIGUA_URL", "CONTRASENA_DEMO"]
 
