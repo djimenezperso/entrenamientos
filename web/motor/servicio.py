@@ -345,7 +345,7 @@ def _igual(a: str, b: str) -> bool:
     return bool(a) and bool(b) and hmac.compare_digest(a.encode(), b.encode())
 
 
-VERSION = "11.8"
+VERSION = "11.9"
 CLAVES_NECESARIAS = ["CONTRASENA_DIEGO", "SUPABASE_URL", "SUPABASE_KEY", "APP_PASSWORD", "CONTRASENA_ARCHCHANA", "CONTRASENA_INVITADOS", "COACH_PIN",
                      "APP_ANTIGUA_URL", "CONTRASENA_DEMO"]
 
@@ -2045,6 +2045,15 @@ def vista(sesion: dict, atleta: str | None, semana: int | None, dia_id: str | No
         _avisar_propuestas(guardadas)
     coach = es_coach(sesion)
     todas_sol = (guardadas.get(CLAVE_SOLICITUDES) or {}).get("lista") or []
+    if coach:  # los movimientos de partes se describen con el orden actual: «Ahora … / Quedaría …»
+        for x in todas_sol:
+            if x.get("kind") == "mover_parte" and "Quedaría" not in (x.get("resumen") or ""):
+                try:
+                    r_ = rutina(x["atleta"])
+                    if r_:
+                        x["resumen"] = _resumen_cambio("mover_parte", {**(x.get("datos") or {}), "semana": x.get("semana")}, r_)[:400]
+                except Exception:
+                    pass
     nombre_de = nombre_demo if es_demo(sesion) else nv  # en la demo, los alumnos salen como «Cliente 1, 2…»
     base = {"atleta": atleta, "nombre": nombre_de(atleta), "solo": None if es_demo(sesion) else sesion.get("u") or None,
             "personas": [{"id": p, "nombre": nombre_de(p), **({"icono": NOMBRES_DEMO.get(p, ("", "👤"))[1],
@@ -2532,7 +2541,21 @@ def _resumen_cambio(tipo: str, c: dict, rut: dict) -> str:
     if tipo == "quitar_ajuste":
         return "Quitar el cambio de esta semana"
     if tipo == "mover_parte":
-        return f"{'Bajar' if int(c.get('direccion') or 1) > 0 else 'Subir'} la parte {c.get('parte', '')}"
+        try:
+            import copy
+            dia = next(d for d in rut["dias"] if d["id"] == c.get("dia"))
+            antes = [p for p, _ in agrupar_por_parte(dia)]
+            sim, _ = aplicar_programa(copy.deepcopy(rut), tipo, c, int(c.get("semana") or rut.get("semana_actual") or 1), "")
+            dia2 = next(d for d in sim["dias"] if d["id"] == c.get("dia"))
+            despues = [p for p, _ in agrupar_por_parte(dia2)]
+            if c.get("con"):
+                accion_ = f"Mover {c.get('parte', '')} al sitio de {c['con']}"
+            else:
+                accion_ = f"{'Bajar' if int(c.get('direccion') or 1) > 0 else 'Subir'} la parte {c.get('parte', '')}"
+            return (f"{accion_} · {dia.get('nombre') or c.get('dia')}\nAhora: " + " · ".join(antes)
+                    + "\nQuedaría: " + " · ".join(despues))
+        except Exception:
+            return f"{'Bajar' if int(c.get('direccion') or 1) > 0 else 'Subir'} la parte {c.get('parte', '')}"
     return f"{'Cambiar' if tipo == 'cambiar_parte' else 'Añadir'} {c.get('etiqueta', '')}: {c.get('texto', '')}"
 
 
