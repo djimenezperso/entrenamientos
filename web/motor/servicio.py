@@ -35,7 +35,7 @@ import urllib.request
 from pathlib import Path
 
 from logica import (
-    NIVELES, NUM_PESO, _etiqueta_parte, agrupar_por_parte, cambiar_pesos, copiar_rutina, destino_dia_siguiente,
+    NIVELES, NUM_PESO, _etiqueta_parte, agrupar_por_parte, quitar_parte, cambiar_pesos, copiar_rutina, destino_dia_siguiente,
     destino_semana_siguiente, editar_texto_linea, es_metcon, escalar, estado_parte, fmt_num, historial_parte,
     letra_visible, linea_activa, linea_no_hecha, marcar_linea, marcar_parte, no_hechas_en, norm, norm_busqueda,
     parametros_semana, partes_del_dia, pendientes_para, poner_pesos, prescripcion_semana, referencias_elite,
@@ -253,9 +253,27 @@ def completar(rut: dict | None, atleta: str) -> dict | None:
     return rut
 
 
+LIMPIAR_EXTRA = {"ruchama": "C"}  # perfiles que no deben tener partes más allá de esa letra (limpieza única)
+
+
+def _limpiar_extra(rut: dict | None, atleta: str) -> dict | None:
+    """Quita (desde la semana actual) las partes añadidas después de la C a quien solo debe tener A-C."""
+    tope = next((v for k, v in LIMPIAR_EXTRA.items() if (atleta or "").strip().lower().startswith(k)), None)
+    if not rut or not tope or rut.get("limpio_extra") == tope or not rut.get("dias"):
+        return rut
+    sem = int(rut.get("semana_actual") or 1)
+    for d in list(rut["dias"]):
+        for p, _ in agrupar_por_parte(d):
+            if (p[:1].upper() > tope) and p[1:2] == ")":
+                rut = quitar_parte(rut, d["id"], p, sem)
+    rut = dict(rut, limpio_extra=tope)
+    datos().guardar(atleta, rut)
+    return rut
+
+
 def rutina(atleta: str, guardadas: dict | None = None) -> dict | None:
     guardadas = datos().rutinas([atleta]) if guardadas is None else guardadas
-    return completar(guardadas.get(atleta) or rutinas_iniciales(ATLETAS).get(atleta), atleta)
+    return completar(_limpiar_extra(guardadas.get(atleta), atleta) or rutinas_iniciales(ATLETAS).get(atleta), atleta)
 
 
 # ===== sesión =====
@@ -345,7 +363,7 @@ def _igual(a: str, b: str) -> bool:
     return bool(a) and bool(b) and hmac.compare_digest(a.encode(), b.encode())
 
 
-VERSION = "11.9"
+VERSION = "11.10"
 CLAVES_NECESARIAS = ["CONTRASENA_DIEGO", "SUPABASE_URL", "SUPABASE_KEY", "APP_PASSWORD", "CONTRASENA_ARCHCHANA", "CONTRASENA_INVITADOS", "COACH_PIN",
                      "APP_ANTIGUA_URL", "CONTRASENA_DEMO"]
 
@@ -2611,6 +2629,16 @@ def accion(sesion: dict, c: dict) -> dict:
                   + (f"\n💬 {c.get('mensaje')}" if c.get("mensaje") else "") + "\nÁbrelo en la app → 🔔")
         v["aviso"] = f"Enviado a {nv('Yo')}: te avisará cuando lo apruebe"
         return v
+    elif tipo == "ponerme_novedad" and not puede_programar(sesion, rut):
+        # sin permiso para programar, la novedad no se añade sola (saldría una D, E, F…): va a Diego como solicitud
+        reg = datos().rutinas([CLAVE_NOVEDADES]).get(CLAVE_NOVEDADES) or {}
+        nov = next((x for x in reg.get("lista") or [] if x["id"] == c.get("id")), None)
+        if not nov:
+            raise Error("Esa novedad ya no está")
+        datos().guardar(atleta, dict(rut, novedades_vistas=(rut.get("novedades_vistas") or [])[-60:] + [nov["id"]]))
+        return accion(sesion, {**c, "tipo": "anadir_parte", "etiqueta": nov["etiqueta"], "nombre": nov["nombre"],
+                               "texto": nov["texto"], "solo_esta": not c.get("adelante"),
+                               "mensaje": "Quiere probar esta novedad"})
     elif tipo in CAMBIOS_PROGRAMA:
         if not puede_programar(sesion, rut):
             import uuid
