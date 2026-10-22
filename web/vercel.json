@@ -39,5 +39,11 @@
         }
       ]
     }
+  ],
+  "crons": [
+    {
+      "path": "/api/resumen_plan",
+      "schedule": "0 17 * * 0"
+    }
   ]
 }

@@ -38,6 +38,11 @@ class handler(BaseHTTPRequestHandler):
         try:
             if metodo == "POST" and ruta not in ("login", "compartir", "crear_perfil", "abonarse", "datos_pago", "contactar", "me_gusta", "chat", "tg_webhook"):
                 servicio.solo_lectura(self._sesion())  # la demo no puede guardar nada
+            if ruta == "resumen_plan" and metodo == "GET":  # cron de Vercel (domingos): lo que queda por preparar
+                secreto = servicio.env("CRON_SECRET")
+                if secreto and self.headers.get("Authorization", "") != f"Bearer {secreto}":
+                    raise servicio.Error("No autorizado", 401)
+                return self._responder(200, servicio.resumen_planificacion())
             if ruta == "estado" and metodo == "GET":
                 return self._responder(200, servicio.estado())
             if ruta == "login" and metodo == "POST":

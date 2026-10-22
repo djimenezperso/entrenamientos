@@ -1063,6 +1063,9 @@ function cabecera(v) {
     ${v.revision_pendiente ? `<div class="propuesta"><b>🕐 ${esc(v.nombre)} ${t("espera que apruebes su programa")}</b>
       <small>${t("Revísalo abajo y ajusta lo que quieras. Hasta que lo apruebes no lo ve.")}</small>
       <div class="prop-bot"><button id="b-aprobar">✅ ${t("Aprobar y activárselo")}</button></div></div>` : ""}
+    ${v.por_preparar && v.por_preparar.length ? `<div class="propuesta plan-pend"><b>📝 ${t("Te queda por preparar")}</b>
+      <div class="fila-chips">${Object.values(v.por_preparar.reduce((m, x) => { (m[x.atleta] = m[x.atleta] || []).push(x); return m; }, {})).map((g) => `<button class="chip ${g[0].urgente ? "urgente" : ""}" data-preparar="${esc(g[0].atleta)}|${g[0].semana}">${esc(g[0].nombre)} · S${g.map((x) => x.semana).join("-")}</button>`).join("")}</div>
+      <small>${t("Prepárala y dale a ✅ Semana lista. Si no, sale la progresión automática.")}</small></div>` : ""}
     ${v.propuesta ? `<div class="propuesta"><b>📋 ${t("Rutina nueva preparada para")} ${esc(v.nombre)}</b>
       <small>${esc(v.propuesta.titulo)}</small>
       <details><summary>${t("Ver la rutina")}</summary>${v.propuesta.dias.map((d) => `<div class="prop-dia"><b>${esc(trDia(d.nombre))}</b>${d.lineas.map((x) => `<div>${esc(x)}</div>`).join("")}</div>`).join("")}</details>
@@ -1195,6 +1198,13 @@ function linea(l, p, k) {
 }
 
 function finSemana(v) {
+  const lista = v.coach && v.atleta !== "Yo" && !v.demo && v.semana > v.actual
+    ? ((v.semanas_listas || []).includes(v.semana)
+      ? `<button class="btn btn-negro fin-semana" id="b-lista" data-lista="0" style="margin-bottom:10px">✅ ${t("Semana")} ${v.semana} ${t("lista")} · ${t("quitar")}</button>`
+      : `<button class="btn btn-fuego fin-semana" id="b-lista" data-lista="1" style="margin-bottom:10px">✅ ${t("Semana lista")} (${v.semana})</button>`) : "";
+  return lista + finSemanaBase(v);
+}
+function finSemanaBase(v) {
   if (v.semana === v.actual) {
     const todo = v.dias.every((d) => d.estado !== "pendiente");
     return `<button class="btn ${todo ? "btn-fuego" : "btn-negro"} fin-semana" id="b-fin">${t("Terminé la semana")} ${v.actual} → ${t("pasar a la")} ${v.actual + 1}</button>`;
@@ -1275,6 +1285,11 @@ function enlazar() {
   on("b-sem-mas", () => cargar({ semana: v.semana + 1, dia: null }).then(() => window.scrollTo(0, 0)));
   on("b-fin", (ev) => hacer({ tipo: "semana", nueva: v.actual + 1, ver_semana: v.actual + 1, ver_dia: null }, ev.currentTarget).then(() => window.scrollTo(0, 0)));
   on("b-actual", (ev) => hacer({ tipo: "semana", nueva: v.semana }, ev.currentTarget));
+  on("b-lista", (ev) => hacer({ tipo: "semana_lista", semana: v.semana, lista: ev.currentTarget.dataset.lista === "1", ver_semana: v.semana, ver_dia: v.dia_id || E.dia }, ev.currentTarget));
+  $app.querySelectorAll("[data-preparar]").forEach((b) => b.onclick = () => {
+    const [atleta, sem] = b.dataset.preparar.split("|");
+    cargar({ atleta, semana: +sem, dia: null }).then(() => window.scrollTo(0, 0));
+  });
   $app.querySelectorAll("[data-dia]").forEach((b) => b.onclick = () => {
     if (b.dataset.bloq) { aviso(t("🔒 Este día se desbloquea con tu perfil")); return setTimeout(hojaBienvenidaDemo, 400); }
     if (b.dataset.dia === E.dia) return;

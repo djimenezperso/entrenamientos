@@ -421,7 +421,7 @@ def _igual(a: str, b: str) -> bool:
     return bool(a) and bool(b) and hmac.compare_digest(a.encode(), b.encode())
 
 
-VERSION = "11.15"
+VERSION = "11.16"
 CLAVES_NECESARIAS = ["CONTRASENA_DIEGO", "SUPABASE_URL", "SUPABASE_KEY", "APP_PASSWORD", "CONTRASENA_ARCHCHANA", "CONTRASENA_INVITADOS", "COACH_PIN",
                      "APP_ANTIGUA_URL", "CONTRASENA_DEMO"]
 
@@ -1339,6 +1339,91 @@ def notificar(texto: str) -> None:
         pass
 
 
+def notificar_botones(texto: str, botones: list[list[dict]]) -> None:
+    """Aviso a Diego con botones (inline keyboard). Nunca rompe nada."""
+    try:
+        cfg = _telegram()
+        if cfg.get("token") and cfg.get("chat_id"):
+            _asegurar_webhook(cfg)
+            _tg(cfg["token"], "sendMessage", {"chat_id": cfg["chat_id"], "text": texto[:3500], "disable_web_page_preview": True,
+                                              "reply_markup": {"inline_keyboard": botones}}, timeout=3)
+    except Exception:  # noqa: BLE001
+        pass
+
+
+# ===== planificación: semanas preparadas por adelantado =====
+SEMANAS_ADELANTO = 2  # Diego quiere tener hechas las 2 semanas siguientes a la actual
+
+
+def _boton_lista(atleta: str, semana: int) -> dict:
+    return {"text": f"✅ {nv(atleta)} S{semana} lista", "callback_data": f"lista|{semana}|{atleta}"[:64]}
+
+
+def por_preparar(guardadas: dict | None = None, inv: dict | None = None) -> list[dict]:
+    """Semanas (actual+1 … actual+2) que Diego aún no ha marcado como listas, de la gente que entrena ahora."""
+    inv = invitados() if inv is None else inv
+    gente = [p for p in todas_las_personas(inv) if p != "Yo" and (inv.get(p) or {}).get("revision") != "pendiente"]
+    ruts = datos().rutinas(gente + [CLAVE_ACTIVIDAD])
+    act = (ruts.get(CLAVE_ACTIVIDAD) or {}).get("personas") or {}
+    corte = (_ahora() - dt.timedelta(days=21)).isoformat()
+    out = []
+    for n in gente:
+        r = ruts.get(n)
+        if not r or not r.get("dias") or (act.get(n) or {}).get("ultimo", "") < corte:
+            continue  # sin rutina o sin entrar en 3 semanas: no cuenta
+        actual = int(r.get("semana_actual") or 1)
+        listas = {int(x) for x in r.get("semanas_listas") or []}
+        for w in range(actual + 1, actual + 1 + SEMANAS_ADELANTO):
+            if w not in listas:
+                out.append({"atleta": n, "nombre": nv(n), "semana": w, "urgente": w == actual + 1})
+    return out
+
+
+def marcar_semana_lista(atleta: str, semana: int, lista: bool = True) -> dict:
+    rut = datos().rutinas([atleta]).get(atleta)
+    if not rut:
+        raise Error("Esa persona no tiene rutina")
+    listas = {int(x) for x in rut.get("semanas_listas") or []}
+    listas = (listas | {int(semana)}) if lista else (listas - {int(semana)})
+    actual = int(rut.get("semana_actual") or 1)
+    rut = dict(rut, semanas_listas=sorted(x for x in listas if x >= actual - 4))
+    datos().guardar(atleta, rut)
+    return rut
+
+
+def _avisar_semana_sin_preparar(atleta: str, antes: int, despues: int, rut: dict) -> None:
+    """Un alumno pasa de semana y la nueva (o la siguiente) no está marcada como lista → aviso con botón."""
+    if atleta == "Yo" or despues <= antes:
+        return
+    listas = {int(x) for x in rut.get("semanas_listas") or []}
+    faltan = [w for w in range(despues, despues + SEMANAS_ADELANTO) if w not in listas]
+    if not faltan:
+        return
+    txt = (f"⚠️ {nv(atleta)} pasa a la semana {despues} y no la has marcado como lista" if despues in faltan else
+           f"📝 {nv(atleta)} empieza la semana {despues}. Te queda por preparar la {faltan[0]}")
+    notificar_botones(txt + "\nSi no la tocas, le sale la progresión automática.",
+                      [[_boton_lista(atleta, w)] for w in faltan] + [[{"text": "📲 Abrir la app", "url": URL_APP}]])
+
+
+def resumen_planificacion(forzar: bool = False) -> dict:
+    """Resumen de lo que queda por preparar (lo lanza el cron del domingo). Como mucho uno al día."""
+    reg = dict(datos().rutinas([CLAVE_CONFIG]).get(CLAVE_CONFIG) or {})
+    hoy = _ahora().date().isoformat()
+    if reg.get("resumen_plan") == hoy and not forzar:
+        return {"ok": True, "ya": True}
+    lista = por_preparar()
+    if lista:
+        lineas = [f"{'⚠️' if x['urgente'] else '•'} {x['nombre']}: semana {x['semana']}" for x in lista]
+        notificar_botones("📝 Te queda por preparar:\n" + "\n".join(lineas) +
+                          "\n\nToca cuando tengas una lista ✅ (si no, sale la progresión automática).",
+                          [[_boton_lista(x["atleta"], x["semana"])] for x in lista[:20]] + [[{"text": "📲 Abrir la app", "url": URL_APP}]])
+    else:
+        notificar("✅ Planificación al día: tienes listas las 2 semanas siguientes de todos. 🔥")
+    reg["resumen_plan"] = hoy
+    datos().guardar(CLAVE_CONFIG, reg)
+    return {"ok": True, "pendientes": len(lista)}
+
+
 def telegram(sesion: dict, c: dict) -> dict:
     """Conecta (con el token de @BotFather), prueba o quita los avisos por Telegram. Solo el coach."""
     if not es_coach(sesion):
@@ -1398,11 +1483,12 @@ def _asegurar_webhook(cfg: dict | None = None) -> bool:
     reg = dict(datos().rutinas([CLAVE_CONFIG]).get(CLAVE_CONFIG) or {})
     tg = dict(reg.get("telegram") or {})
     url = (env("APP_URL") or URL_APP).rstrip("/") + "/api/tg_webhook"
-    if tg.get("webhook") == url:
+    if tg.get("webhook") == url + "|cb":
         return True
-    r = _tg(cfg["token"], "setWebhook", {"url": url, "secret_token": _secreto_tg(), "allowed_updates": ["message"]}, timeout=4)
+    r = _tg(cfg["token"], "setWebhook", {"url": url, "secret_token": _secreto_tg(),
+                                         "allowed_updates": ["message", "callback_query"]}, timeout=4)
     if r.get("ok") and tg:
-        tg["webhook"] = url
+        tg["webhook"] = url + "|cb"
         reg["telegram"] = tg
         datos().guardar(CLAVE_CONFIG, reg)
     return bool(r.get("ok"))
@@ -1483,8 +1569,27 @@ def tg_webhook(secreto: str, update: dict) -> dict:
     """Telegram nos manda lo que Diego escribe al bot. Si responde a un mensaje del chat, se lo pasamos al alumno."""
     if not hmac.compare_digest(secreto or "", _secreto_tg()):
         raise Error("No autorizado", 401)
-    m = update.get("message") or {}
     cfg = _telegram()
+    cq = update.get("callback_query")
+    if cq:  # botón «✅ X Sn lista»
+        msg = cq.get("message") or {}
+        if str((msg.get("chat") or {}).get("id")) != str(cfg.get("chat_id")):
+            return {"ok": True}
+        partes = str(cq.get("data") or "").split("|", 2)
+        texto_resp = "No entendí ese botón"
+        if len(partes) == 3 and partes[0] == "lista" and partes[1].isdigit():
+            try:
+                marcar_semana_lista(partes[2], int(partes[1]))
+                texto_resp = f"✅ {nv(partes[2])}: semana {partes[1]} lista"
+                teclado = (msg.get("reply_markup") or {}).get("inline_keyboard") or []
+                teclado = [fila for fila in teclado if not any(b.get("callback_data") == cq.get("data") for b in fila)]
+                _tg(cfg["token"], "editMessageReplyMarkup", {"chat_id": cfg["chat_id"], "message_id": msg.get("message_id"),
+                                                            "reply_markup": {"inline_keyboard": teclado}}, timeout=3)
+            except Error as e:
+                texto_resp = str(e)
+        _tg(cfg["token"], "answerCallbackQuery", {"callback_query_id": cq.get("id"), "text": texto_resp}, timeout=3)
+        return {"ok": True}
+    m = update.get("message") or {}
     if not m or str((m.get("chat") or {}).get("id")) != str(cfg.get("chat_id")):
         return {"ok": True}
     texto = (m.get("text") or m.get("caption") or "").strip()
@@ -2163,7 +2268,13 @@ def vista(sesion: dict, atleta: str | None, semana: int | None, dia_id: str | No
             "puede_pesos": coach or bool((rut or {}).get("permiso_pesos")),
             "permiso_pesos": bool((rut or {}).get("permiso_pesos")),
             "solicitudes": [x for x in todas_sol if coach and (not sesion.get("u") or x["atleta"] == sesion["u"])],
+            "semanas_listas": sorted(int(x) for x in (rut or {}).get("semanas_listas") or []) if coach else [],
             "mis_solicitudes": {x["linea"]: x for x in todas_sol if x["atleta"] == atleta}}
+    if coach and not es_demo(sesion) and not sesion.get("u"):
+        try:
+            base["por_preparar"] = por_preparar(inv=inv)
+        except Exception:  # noqa: BLE001
+            base["por_preparar"] = []
     en_revision = (inv.get(atleta) or {}).get("revision") == "pendiente"
     if en_revision and coach:
         base["revision_pendiente"] = True
@@ -2652,6 +2763,7 @@ def accion(sesion: dict, c: dict) -> dict:
         raise Error("Esa persona no tiene rutina")
     tipo = c.get("tipo")
     semana = int(c.get("semana") or rut.get("semana_actual") or 1)
+    semana_antes = int(rut.get("semana_actual") or 1)
     aviso = "Guardado"
     if tipo == "marcar":
         estado = c.get("estado")
@@ -2834,6 +2946,14 @@ def accion(sesion: dict, c: dict) -> dict:
             raise Error("Semana no válida")
         rut = dict(rut, semana_actual=nueva)
         aviso = f"Semana {nueva} es ahora la actual"
+    elif tipo == "semana_lista":
+        if not es_coach(sesion):
+            raise Error("Solo el coach", 403)
+        listas = {int(x) for x in rut.get("semanas_listas") or []}
+        lista = c.get("lista") is not False
+        listas = (listas | {semana}) if lista else (listas - {semana})
+        rut = dict(rut, semanas_listas=sorted(listas))
+        aviso = f"✅ Semana {semana} lista" if lista else f"Semana {semana} vuelve a pendiente"
     elif tipo == "nivel":
         if c.get("nivel") not in NIVELES:
             raise Error("Nivel no válido")
@@ -2849,6 +2969,8 @@ def accion(sesion: dict, c: dict) -> dict:
         raise Error("Acción desconocida")
     rut, fin_semana = avanzar_si_completa(atleta, rut)
     datos().guardar(atleta, rut)
+    if not es_coach(sesion) and not es_demo(sesion):
+        _avisar_semana_sin_preparar(atleta, semana_antes, int(rut.get("semana_actual") or 1), rut)
     v = vista(sesion, atleta, int(c.get("ver_semana") or semana), c.get("ver_dia"))
     v["aviso"] = fin_semana or aviso
     return v
