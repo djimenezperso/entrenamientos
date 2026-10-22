@@ -345,7 +345,7 @@ def _igual(a: str, b: str) -> bool:
     return bool(a) and bool(b) and hmac.compare_digest(a.encode(), b.encode())
 
 
-VERSION = "11.7"
+VERSION = "11.8"
 CLAVES_NECESARIAS = ["CONTRASENA_DIEGO", "SUPABASE_URL", "SUPABASE_KEY", "APP_PASSWORD", "CONTRASENA_ARCHCHANA", "CONTRASENA_INVITADOS", "COACH_PIN",
                      "APP_ANTIGUA_URL", "CONTRASENA_DEMO"]
 
@@ -1609,6 +1609,8 @@ def olvidadas(rut: dict, semana: int, dia_id: str, atleta: str) -> list[dict]:
         for p, ls in agrupar_por_parte(d, semana):
             if atleta not in MOVILIDAD_ES_PARTE and es_movilidad(p, ls):
                 continue  # el warm up no se recuerda
+            if not (tipo_de_linea(p, ls[0]["ejercicio"]) == "accessory" or (atleta in MOVILIDAD_ES_PARTE and es_movilidad(p, ls))):
+                continue  # fuerza, WOD y conditioning se pasan de día; solo se recuerdan los accessory
             m = re.search(r"\d+", d["nombre"])
             n = m.group(0) if m else d["nombre"][:2]
             letra = p.split(")")[0].strip() if ")" in p else ""
@@ -2455,8 +2457,22 @@ def aplicar_programa(rut: dict, tipo: str, c: dict, semana: int, atleta: str) ->
     texto = str(c.get("texto") or "").strip()[:3000]
     solo = bool(c.get("solo_esta"))
     if tipo == "mover_parte":
-        antes = [p for p, _ in agrupar_por_parte(next(d for d in rut["dias"] if d["id"] == c.get("dia")))]
-        rut = mover_parte(rut, c.get("dia"), c.get("parte"), int(c.get("direccion") or 1))
+        dia_ = next(d for d in rut["dias"] if d["id"] == c.get("dia"))
+        antes = [p for p, _ in agrupar_por_parte(dia_)]
+        if c.get("con") in antes and c.get("parte") in antes:  # arrastrada: se queda donde estaba la parte «con»
+            c = {**c, "hasta": antes.index(c["con"])}
+        if c.get("hasta") is not None and c.get("parte") in antes:  # arrastrada: hasta la posición elegida
+            desde, hasta = antes.index(c["parte"]), max(0, min(len(antes) - 1, int(c["hasta"])))
+            etq = _etiqueta_parte(c["parte"])
+            paso = 1 if hasta > desde else -1
+            for i in range(desde, hasta, paso):
+                orden = [p for p, _ in agrupar_por_parte(next(d for d in rut["dias"] if d["id"] == c.get("dia")))]
+                actual = orden[i] if _etiqueta_parte(orden[i]) == etq else next((x for x in orden if _etiqueta_parte(x) == etq), None)
+                if not actual:
+                    break
+                rut = mover_parte(rut, c.get("dia"), actual, paso)
+        else:
+            rut = mover_parte(rut, c.get("dia"), c.get("parte"), int(c.get("direccion") or 1))
         despues = [p for p, _ in agrupar_por_parte(next(d for d in rut["dias"] if d["id"] == c.get("dia")))]
         return rut, ("Parte movida ↕️" if antes != despues else "Esa parte ya está al límite")
     if tipo == "quitar_ajuste":  # deshace el cambio «solo esta semana» de una línea
@@ -2577,7 +2593,7 @@ def accion(sesion: dict, c: dict) -> dict:
             import uuid
             reg = datos().rutinas([CLAVE_SOLICITUDES]).get(CLAVE_SOLICITUDES) or {}
             lista = reg.get("lista") or []
-            datos_c = {k: c.get(k) for k in ("linea", "texto", "texto_sig", "nombre", "solo_esta", "dia", "parte", "etiqueta", "direccion")}
+            datos_c = {k: c.get(k) for k in ("linea", "texto", "texto_sig", "nombre", "solo_esta", "dia", "parte", "etiqueta", "direccion", "hasta", "con")}
             lista.append({"id": uuid.uuid4().hex[:10], "atleta": atleta, "nombre": nv(atleta), "kind": tipo,
                           "linea": c.get("linea") or f"{c.get('dia')}|{c.get('parte')}", "semana": semana,
                           "datos": datos_c, "resumen": _resumen_cambio(tipo, c, rut)[:400], "antes": [], "valores": [],

@@ -18,6 +18,7 @@ const E = { token: mem.get("token"), atleta: mem.get("atleta"), lang: mem.get("l
 
 // ---------- textos ----------
 const FR = {
+  "Mantén y arrastra para mover": "Maintiens et glisse pour déplacer",
   "Subir": "Monter",
   "Bajar": "Descendre",
   "Se cambia de sitio con la de al lado (y cada una se queda la letra de la otra).": "Elle échange sa place avec celle d'à côté (et chacune prend la lettre de l'autre).",
@@ -1100,7 +1101,7 @@ function tarjeta(p, k) {
   const tagTxt = p.calentamiento ? (nombreTit === "Mobility" ? "Warm up" : "Warm up · Mobility")
     : nombreTit === etqParte(p.etiqueta) ? `${t("Parte")} ${p.letra || ""}`.trim() : `${p.letra ? p.letra + " · " : ""}${etqParte(p.etiqueta)}`;
   return `
-  <section class="card ${p.estado === "hecho" ? "hecha" : ""} ${p.calentamiento ? "warmup" : ""} ${p.ciclo ? "con-ciclo" : ""}">
+  <section class="card ${p.estado === "hecho" ? "hecha" : ""} ${p.calentamiento ? "warmup" : ""} ${p.ciclo ? "con-ciclo" : ""}" ${k[0] === "p" && !p.origen && !p.calentamiento && !E.vista.demo ? `data-mov="${k}"` : ""}>
     ${p.ciclo ? `<div class="cinta-ciclo">🔥 ${t("Ciclo")}</div>` : ""}
     <div class="card-cab">
       <div class="letra ${p.estado}">${letra}</div>
@@ -1224,7 +1225,45 @@ function lineaDe(k) {
   return { p: parteDe(pk), l: parteDe(pk).lineas[+j] };
 }
 
+// arrastrar una parte (cogiéndola por su letra) para cambiarla de sitio
+function enlazarArrastre() {
+  const cards = [...$app.querySelectorAll("[data-mov]")];
+  if (cards.length < 2) return;
+  cards.forEach((card) => {
+    const asa = card.querySelector(".letra");
+    if (!asa) return;
+    asa.classList.add("asa-mover"); asa.title = t("Mantén y arrastra para mover");
+    asa.addEventListener("pointerdown", (ev) => {
+      if (ev.button > 0) return;
+      ev.preventDefault();
+      const y0 = ev.clientY; let destino = null; let movido = false;
+      asa.setPointerCapture(ev.pointerId);
+      const mover = (e) => {
+        const dy = e.clientY - y0;
+        if (!movido && Math.abs(dy) < 8) return;
+        if (!movido) { movido = true; card.classList.add("arrastrando"); if (navigator.vibrate) try { navigator.vibrate(15); } catch { } }
+        card.style.transform = `translateY(${dy}px)`;
+        destino = null;
+        cards.forEach((c) => { c.classList.remove("destino"); if (c === card) return; const r = c.getBoundingClientRect(); if (e.clientY > r.top && e.clientY < r.bottom) destino = c; });
+        if (destino) destino.classList.add("destino");
+        if (e.clientY < 90) window.scrollBy(0, -12); else if (e.clientY > window.innerHeight - 140) window.scrollBy(0, 12);
+      };
+      const soltar = () => {
+        asa.removeEventListener("pointermove", mover); asa.removeEventListener("pointerup", soltar); asa.removeEventListener("pointercancel", soltar);
+        cards.forEach((c) => c.classList.remove("destino"));
+        card.classList.remove("arrastrando"); card.style.transform = "";
+        if (movido && destino) {
+          const p = parteDe(card.dataset.mov), q = parteDe(destino.dataset.mov);
+          hacer({ tipo: "mover_parte", dia: p.dia_id, parte: p.parte, con: q.parte, semana: p.semana });
+        }
+      };
+      asa.addEventListener("pointermove", mover); asa.addEventListener("pointerup", soltar); asa.addEventListener("pointercancel", soltar);
+    });
+  });
+}
+
 function enlazar() {
+  enlazarArrastre();
   const v = E.vista;
   const on = (id, f) => { const el = document.getElementById(id); if (el) el.onclick = f; };
   on("b-persona", hojaPersonas);
