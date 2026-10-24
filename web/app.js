@@ -326,7 +326,7 @@ const FR = {
   "personas han entrado con su enlace": "personnes sont entrées avec son lien",
   "perfil creado desde la demo": "profil créé depuis la démo",
   "perfiles creados desde la demo": "profils créés depuis la démo",
-  "Hola,": "Salut,", "Semana": "Semaine", "de fuego": "de feu", "Entrar": "Entrer", "Contraseña": "Mot de passe",
+  "Hola,": "Salut,", "Semana": "Semaine", "de fuego": "de feu", "actual": "actuelle", "Entrar": "Entrer", "Contraseña": "Mot de passe",
   "Tu entrenamiento, tu progresión": "Ton entraînement, ta progression",
   "¿Eres nuevo? Entra con el código que te ha dado Diego": "Nouveau ? Entre avec le code que Diego t'a donné",
   "partes hechas": "parties faites", "de": "sur", "Hecho": "Fait", "No hecho": "Pas fait",
@@ -1077,8 +1077,8 @@ function cabecera(v) {
     ${v.demo ? `<div class="banda-demo">👀 ${t("Modo demo · solo para mirar")} <button id="b-crear-demo">✨ ${t("Crear mi perfil")}</button>${v.abono ? `<button id="b-abono-demo">💳 ${t("Abonarse")}</button>` : v.contacto ? `<button id="b-abono-demo">💬 ${t("Contacto")}</button>` : ""}<button id="b-compartir-demo">${ic.compartir} ${t("Compartir")}</button>${varias ? `<button id="b-clientes-demo" class="clientes-demo">👥 ${t("Ver programas")}</button>` : ""}</div>` : ""}
     ${v.semana && v.demo ? `<div class="pildora-semana"><span>${t("Semana")} ${v.semana} · <em>${t("de muestra")}</em></span></div>` : v.semana ? `<div class="pildora-semana">
       <button id="b-sem-menos" aria-label="Semana anterior" ${v.semana <= 1 ? "disabled style='opacity:.3'" : ""}>${ic.izq}</button>
-      <span>${t("Semana")} ${v.semana}${v.semana === v.actual ? ` · <em>${t("de fuego")}</em>` : ""}</span>
-      <button id="b-sem-mas" aria-label="Semana siguiente">${ic.der}</button>
+      <span>${t("Semana")} ${v.semana} · <em>${v.semana === v.actual ? `🔥 ${t("actual")}` : `${t("actual")}: ${v.actual}`}</em>${v.coach && v.atleta !== "Yo" && v.semana > v.actual ? ` · ${(v.semanas_listas || []).includes(v.semana) ? "✅" : "📝"}` : ""}</span>
+      ${v.max_semana != null && v.semana >= v.max_semana ? `<button aria-label="Semana siguiente" class="sem-cerrada" disabled>${ic.der}</button>` : `<button id="b-sem-mas" aria-label="Semana siguiente">${ic.der}</button>`}
     </div>` : ""}
     ${v.dias ? `<div class="dias" role="tablist">${v.dias.map((d) => {
       const n = (d.nombre.match(/\d+/) || [d.nombre.slice(0, 2)])[0];

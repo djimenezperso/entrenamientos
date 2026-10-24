@@ -652,3 +652,4 @@ main { padding: 4px 16px 0; display: flex; flex-direction: column; gap: 12px; }
 .card.destino { outline: 3px dashed var(--fuego); outline-offset: 3px; }
 .plan-pend .fila-chips { display: flex; flex-wrap: wrap; gap: 6px; margin: 8px 0 4px; }
 .plan-pend .chip.urgente { background: var(--fuego); color: #fff; border-color: var(--fuego); }
+.pildora-semana button.sem-cerrada { opacity: .25; }

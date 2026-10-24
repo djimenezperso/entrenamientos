@@ -421,7 +421,7 @@ def _igual(a: str, b: str) -> bool:
     return bool(a) and bool(b) and hmac.compare_digest(a.encode(), b.encode())
 
 
-VERSION = "11.16"
+VERSION = "11.17"
 CLAVES_NECESARIAS = ["CONTRASENA_DIEGO", "SUPABASE_URL", "SUPABASE_KEY", "APP_PASSWORD", "CONTRASENA_ARCHCHANA", "CONTRASENA_INVITADOS", "COACH_PIN",
                      "APP_ANTIGUA_URL", "CONTRASENA_DEMO"]
 
@@ -2306,6 +2306,17 @@ def vista(sesion: dict, atleta: str | None, semana: int | None, dia_id: str | No
         actual += 1
     semana = int(semana or actual)
     demo = es_demo(sesion)
+    # los clientes solo ven semanas futuras que Diego ha aprobado (✅ Semana lista), seguidas desde la actual
+    cliente = not coach and not demo and atleta != "Yo"
+    max_semana = None
+    if cliente:
+        listas = {int(x) for x in rut.get("semanas_listas") or []}
+        max_semana = actual
+        while max_semana + 1 in listas:
+            max_semana += 1
+        if semana > max_semana:
+            semana = actual
+    base["max_semana"] = max_semana
     if demo:  # la demo solo enseña una semana: la actual, o la anterior si en la actual aún no hay ningún día completo
         def _completos(sem):
             return [d["id"] for d in rut["dias"] if resumen_dia(rut, sem, d) == "hecho"]
@@ -2369,6 +2380,10 @@ def vista(sesion: dict, atleta: str | None, semana: int | None, dia_id: str | No
         _rellenar_demo(partes, dia["id"], semana, nivel, 1 + [d["id"] for d in rut["dias"]].index(dia["id"]), atleta)
     if aviso_semana:
         base["aviso"] = aviso_semana
+    if max_semana is not None and semana + 1 > max_semana:  # «Semana que viene: …» solo si ya está aprobada
+        for p in partes:
+            for l in p.get("lineas") or []:
+                l["texto_sig"] = None
     return {**base, "semana": semana, "actual": actual, "nivel": nivel, "niveles": NIVELES, "alumno": alumno,
             "dias": dias, "dia": {"id": dia["id"], "nombre": dia["nombre"], "estado": resumen_dia(rut, semana, dia),
                                   "por_ejercicio": bool(dia.get("por_ejercicio"))},
@@ -2944,6 +2959,8 @@ def accion(sesion: dict, c: dict) -> dict:
         nueva = int(c.get("nueva") or 1)
         if nueva < 1:
             raise Error("Semana no válida")
+        if not es_coach(sesion) and atleta != "Yo" and nueva > semana_antes + 1:
+            raise Error("Esa semana aún no está lista")
         rut = dict(rut, semana_actual=nueva)
         aviso = f"Semana {nueva} es ahora la actual"
     elif tipo == "semana_lista":
