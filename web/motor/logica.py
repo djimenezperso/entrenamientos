@@ -232,6 +232,9 @@ def prescripcion_semana(linea: dict, semana: int, ajustes: dict | None) -> tuple
         return aj, False, True
     if linea.get("plan") is not None:  # ciclo: texto fijado semana a semana
         return linea["plan"].get(str(semana), ""), False, False
+    if linea.get("rotacion"):  # una opción distinta cada semana, en bucle
+        rot = linea["rotacion"]
+        return rot[(int(semana) - int(linea.get("desde") or 1)) % len(rot)], False, False
     p = parametros_semana(linea, semana)
     base = p.get("prescripcion") or ""
     delta = semanas_que_sube(p, semana) * float(p.get("sube") or 0)

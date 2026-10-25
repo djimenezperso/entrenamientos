@@ -377,20 +377,50 @@ _GYM_SALATTI = [
      "Inter": "Test: 3 intentos de max pull ups seguidos + 3 de max toes to bar · 2' de descanso entre intentos",
      "Scaled": "Test: 3 intentos de max jumping pull ups + 3 de max hanging knee raises · 2' de descanso entre intentos"},
 ]
-_BRAZOS = {"RX": "4x: 12 DB hammer curl + 12 DB triceps extension (superserie) · 1' descanso · peso que te deje 2 reps en reserva"}
+_RIR = " · peso que te deje 2 reps en reserva"
+_BRAZOS_ROT = [x + _RIR for x in (  # una distinta cada semana (y vuelta a empezar)
+    "4x: 12 DB hammer curl + 12 DB triceps extension (superserie) · 1' descanso",
+    "4x: 10 barbell curl + 12 dips (o bench dips) · 1' descanso",
+    "4x: 12 DB curl alterno por brazo + 15 triceps pushdown con goma · 1' descanso",
+    "4x: 8 chin ups lentos (3\" bajando) + 10 DB skull crushers · 1:30 descanso",
+    "4x: 8+8 DB Zottman curl + 12 DB overhead triceps extension · 1' descanso",
+    "4x: 21s de curl con barra (7 abajo + 7 arriba + 7 completas) + 12 close-grip push ups · 1:30 descanso",
+    "4x: 12 DB incline curl (banco inclinado) + 12 DB kickbacks por brazo · 1' descanso",
+    "4x: 15 curl con goma + 12 diamond push ups · 1' descanso",
+)]
+_BRAZOS = {"RX": _BRAZOS_ROT[0]}
 PARTES_FIJAS = [
     {"id": "salatti-d3-gym-fija", "atleta": "Salatti", "dia": 2, "etiqueta": "Gym", "nombre": "Gym",
      "semanas": _GYM_SALATTI, "base": _GYM_SALATTI[0]},
     # viernes: C) Accessory de brazos, al final del día, desde la semana actual
     {"id": "manu-viernes-brazos", "atleta": "Manu Anel", "dia": 2, "dia_nombre": "viernes", "etiqueta": "Accessory",
-     "nombre": "Brazos", "semanas": [], "base": _BRAZOS, "final": True, "desde_rel": 0},
+     "nombre": "Brazos", "semanas": [], "base": _BRAZOS, "final": True, "desde_rel": 0, "rotacion": _BRAZOS_ROT},
     {"id": "salatti-viernes-brazos", "atleta": "Salatti", "dia": 3, "dia_nombre": "viernes", "etiqueta": "Accessory",
-     "nombre": "Brazos", "semanas": [], "base": _BRAZOS, "final": True, "desde_rel": 0},
+     "nombre": "Brazos", "semanas": [], "base": _BRAZOS, "final": True, "desde_rel": 0, "rotacion": _BRAZOS_ROT},
 ]
+
+
+def _poner_rotaciones(rut: dict, atleta: str) -> bool:
+    """Las partes fijas con rotación (p. ej. brazos de los viernes): cada semana una distinta."""
+    cambio = False
+    for x in PARTES_FIJAS:
+        if x["atleta"] != atleta or not x.get("rotacion"):
+            continue
+        for d in rut.get("dias") or []:
+            for l in d["lineas"]:
+                if l.get("ejercicio") == x["nombre"] and x["etiqueta"] in (l.get("parte") or "") and l.get("rotacion") != x["rotacion"]:
+                    l["rotacion"] = list(x["rotacion"])
+                    cambio = True
+    return cambio
 
 
 def _partes_fijas(rut: dict | None, atleta: str) -> dict | None:
     pend = [x for x in PARTES_FIJAS if x["atleta"] == atleta and x["id"] not in (rut or {}).get("fijas_hechas", [])]
+    if rut and rut.get("dias") and not pend:
+        rut = copy.deepcopy(rut)
+        if _poner_rotaciones(rut, atleta):
+            datos().guardar(atleta, rut)
+        return rut
     if not rut or not rut.get("dias") or not pend:
         return rut
     import uuid
@@ -423,6 +453,8 @@ def _partes_fijas(rut: dict | None, atleta: str) -> dict | None:
                 aj.setdefault(str(desde + i), {})[lid] = niveles["RX"]
                 ns.setdefault(str(desde + i), {})[lid] = niveles
         rut = dict(rut, fijas_hechas=list(rut.get("fijas_hechas") or []) + [x["id"]])
+    rut = copy.deepcopy(rut)
+    _poner_rotaciones(rut, atleta)
     datos().guardar(atleta, rut)
     return rut
 
@@ -538,7 +570,7 @@ def _igual(a: str, b: str) -> bool:
     return bool(a) and bool(b) and hmac.compare_digest(a.encode(), b.encode())
 
 
-VERSION = "11.23"
+VERSION = "11.24"
 CLAVES_NECESARIAS = ["CONTRASENA_DIEGO", "SUPABASE_URL", "SUPABASE_KEY", "APP_PASSWORD", "CONTRASENA_ARCHCHANA", "CONTRASENA_INVITADOS", "COACH_PIN",
                      "APP_ANTIGUA_URL", "CONTRASENA_DEMO"]
 
@@ -2857,6 +2889,11 @@ def aplicar_programa(rut: dict, tipo: str, c: dict, semana: int, atleta: str) ->
                 (noms.get(str(semana)) or {}).pop(l["id"], None)
             rut = dict(rut, nombres_semana={k: v for k, v in noms.items() if v})
         else:
+            if l.get("rotacion"):  # Diego lo fija «esta y las siguientes»: se acaba la rotación automática
+                rut = copy.deepcopy(rut)
+                lr = next(x for d in rut["dias"] for x in d["lineas"] if x["id"] == l["id"])
+                lr.pop("rotacion", None)
+                lr["prescripcion"] = prescripcion_semana(l, semana, rut.get("ajustes"))[0]
             rut = editar_texto_linea(rut, l["id"], semana, nombre, texto, l.get("nota", ""), solo)
         sig = c.get("texto_sig")
         if sig is not None and str(sig).strip() != prescripcion_semana(
