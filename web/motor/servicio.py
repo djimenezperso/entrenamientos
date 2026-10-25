@@ -570,7 +570,7 @@ def _igual(a: str, b: str) -> bool:
     return bool(a) and bool(b) and hmac.compare_digest(a.encode(), b.encode())
 
 
-VERSION = "11.27"
+VERSION = "11.28"
 CLAVES_NECESARIAS = ["CONTRASENA_DIEGO", "SUPABASE_URL", "SUPABASE_KEY", "APP_PASSWORD", "CONTRASENA_ARCHCHANA", "CONTRASENA_INVITADOS", "COACH_PIN",
                      "APP_ANTIGUA_URL", "CONTRASENA_DEMO"]
 
@@ -1546,12 +1546,23 @@ def por_preparar(guardadas: dict | None = None, inv: dict | None = None) -> list
         r = ruts.get(n)
         if not r or not r.get("dias") or (act.get(n) or {}).get("ultimo", "") < corte:
             continue  # sin rutina o sin entrar en 3 semanas: no cuenta
+        if _sin_pagar(n, inv):
+            continue  # en la semana gratis o sin abonarse: no hay nada que preparar hasta que pague
         actual = int(r.get("semana_actual") or 1)
         listas = {int(x) for x in r.get("semanas_listas") or []}
         for w in range(actual + 1, actual + 1 + SEMANAS_ADELANTO):
             if w not in listas:
                 out.append({"atleta": n, "nombre": nv(n), "semana": w, "urgente": w == actual + 1})
     return out
+
+
+def _sin_pagar(nombre: str, inv: dict | None = None) -> bool:
+    """Perfil de la demo que aún no paga (en prueba o bloqueado)."""
+    try:
+        p = estado_prueba(nombre, inv)
+        return bool(p) and not p.get("pagando")
+    except Exception:  # noqa: BLE001
+        return False
 
 
 def marcar_semana_lista(atleta: str, semana: int, lista: bool = True) -> dict:
@@ -1568,7 +1579,7 @@ def marcar_semana_lista(atleta: str, semana: int, lista: bool = True) -> dict:
 
 def _avisar_semana_sin_preparar(atleta: str, antes: int, despues: int, rut: dict) -> None:
     """Un alumno pasa de semana y la nueva (o la siguiente) no está marcada como lista → aviso con botón."""
-    if atleta == "Yo" or despues <= antes:
+    if atleta == "Yo" or despues <= antes or _sin_pagar(atleta):
         return
     listas = {int(x) for x in rut.get("semanas_listas") or []}
     faltan = [w for w in range(despues, despues + SEMANAS_ADELANTO) if w not in listas]
