@@ -1775,7 +1775,7 @@ async function hojaParte(p) {
   const kParte = p ? "p" + v.partes.indexOf(p) : null;
   const cambiar = !!p;
   const est = { tipo: cambiar ? "Conditioning" : "Conditioning & Volume", solo: true };
-  if (!E.ideas) { try { E.ideas = await api("ideas"); } catch { E.ideas = {}; } }
+  if (!E.ideas || Date.now() - (E.ideasT || 0) > 5 * 60e3) { try { E.ideas = await api("ideas"); E.ideasT = Date.now(); } catch { E.ideas = E.ideas || {}; } }
   const tipos = (E.ideas && E.ideas.tipos) || TIPOS_DEF;
   const pintarIdeas = (h) => {
     const lista = (E.ideas[TIPO_IDEAS[est.tipo]] || []).slice(0, 30);
@@ -1858,7 +1858,7 @@ function poolAzar(p, l) {
 async function hojaAzar(k) {
   const v = E.vista;
   const { p, l } = lineaDe(k);
-  if (!E.ideas) { try { E.ideas = await api("ideas"); } catch { E.ideas = {}; } }
+  if (!E.ideas || Date.now() - (E.ideasT || 0) > 5 * 60e3) { try { E.ideas = await api("ideas"); E.ideasT = Date.now(); } catch { E.ideas = E.ideas || {}; } }
   const pool = poolAzar(p, l);
   if (!pool.length) return aviso(t("No hay más ideas de este tipo todavía"), true);
   const est = { solo: true, i: Math.floor(Math.random() * pool.length), usados: new Set() };
