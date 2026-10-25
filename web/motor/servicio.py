@@ -421,7 +421,7 @@ def _igual(a: str, b: str) -> bool:
     return bool(a) and bool(b) and hmac.compare_digest(a.encode(), b.encode())
 
 
-VERSION = "11.17"
+VERSION = "11.18"
 CLAVES_NECESARIAS = ["CONTRASENA_DIEGO", "SUPABASE_URL", "SUPABASE_KEY", "APP_PASSWORD", "CONTRASENA_ARCHCHANA", "CONTRASENA_INVITADOS", "COACH_PIN",
                      "APP_ANTIGUA_URL", "CONTRASENA_DEMO"]
 
@@ -2428,8 +2428,8 @@ EXTRA_WODS = [
 def guardar_en_biblioteca(tipo: str, nombre: str, texto: str, atleta: str):
     """Igual que en app.py: lo creado a mano en la rutina se guarda también en su sección para reutilizarlo."""
     tipo = {"emom": "wod", "fortime": "wod", "amrap": "wod"}.get(tipo, tipo)
-    if tipo not in CLAVES_BIBLIO or not (texto or "").strip():
-        return
+    if tipo not in CLAVES_BIBLIO or not (texto or "").strip() or not parece_entreno(texto, nombre):
+        return  # comentarios y cambios contados en frase no van a la biblioteca
     try:
         import uuid
         bib = dict(datos().rutinas([CLAVE_BIBLIOTECA]).get(CLAVE_BIBLIOTECA) or {})
@@ -2457,6 +2457,12 @@ _MOVIMIENTOS = ("squat", "deadlift", "clean", "snatch", "jerk", "press", "thrust
 _NO_ENTRENO = ("niña", "nina", "perro", "ruta ", "rutas", "planning", "granada", "cueva", "embalse", "planes", "plan ",
                "playa", "restaurante", "vistas", "excursion", "excursión", "alhambra", "hotel", "viaje", "cumpleaños",
                "te preparo", "si quieres", "¿prefieres", "prefieres", "jaja", "jeje")
+# frases de alumno contando un cambio («Quitamos comba… No puedo con más»): eso es un comentario, no un entreno
+_COMENTARIO = re.compile(r"\b(quitamos|quito|quité|quitar|cambiamos|cambié|cambio el|no puedo|no pude|me duele|me dolía|"
+                         r"he hecho|hice|hicimos|ponme|pon me|mejor sin|sin comba|no tengo|no había|no habia|"
+                         r"j'ai|je peux pas|je ne peux|on a enlevé|on enlève|enlevé)\b", re.I)
+_FORMATO = re.compile(r"\b(amrap|emom|e\dmom|for time|rft|tabata|every|rondas?|rounds?|tours?|vueltas?|series)\b|"
+                      r"\b\d+\s*x\s*\d+|\b\d+\s*(?:-\s*\d+){1,}\b", re.I)
 
 
 def parece_entreno(texto: str, nombre: str = "") -> bool:
@@ -2469,8 +2475,12 @@ def parece_entreno(texto: str, nombre: str = "") -> bool:
     emojis = len(re.findall(r"[\U0001F300-\U0001FAFF\u2600-\u27BF]", t))
     if malas >= 2 or emojis > 4 or t.count("?") > 2:
         return False
+    if _COMENTARIO.search(t) and not _FORMATO.search(t):
+        return False
     buenas = sum(1 for w in _MOVIMIENTOS if w in f" {t} ") + len(re.findall(r"\b\d+\s*x\s*\d+", t))
-    return buenas >= 1 and buenas > malas
+    # un entreno tiene formato (AMRAP, rondas, 4x8, 21-15-9…) o al menos dos «número + movimiento»
+    cuantos = len(re.findall(r"\b\d+(?:[.,]\d+)?\s*(?:m|cal|cals|kg|reps?|''|')?\s+[a-zà-ü]", t))
+    return buenas >= 1 and buenas > malas and (bool(_FORMATO.search(t)) or cuantos >= 2)
 
 
 _MOVS_NOMBRE = [  # (palabras que lo detectan, nombre que se ve), en orden de prioridad
