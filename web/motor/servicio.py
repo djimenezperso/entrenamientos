@@ -328,9 +328,27 @@ def _cambios_puntuales(rut: dict | None, atleta: str) -> dict | None:
     return rut
 
 
+# nombres que se quedaron pegados a un WOD que ya no es ese (Al azar «solo esta semana» cambiaba el nombre para siempre)
+RENOMBRAR = {"Yo": {"Barbell cycling": "WOD"}}
+
+
+def _renombrar(rut: dict | None, atleta: str) -> dict | None:
+    cambios = RENOMBRAR.get(atleta)
+    if not rut or not cambios or rut.get("renombrado") == sorted(cambios):
+        return rut
+    rut = copy.deepcopy(rut)
+    for d in rut.get("dias") or []:
+        for l in d.get("lineas") or []:
+            if l.get("ejercicio") in cambios:
+                l["ejercicio"] = cambios[l["ejercicio"]]
+    rut["renombrado"] = sorted(cambios)
+    datos().guardar(atleta, rut)
+    return rut
+
+
 def rutina(atleta: str, guardadas: dict | None = None) -> dict | None:
     guardadas = datos().rutinas([atleta]) if guardadas is None else guardadas
-    r = _cambios_puntuales(_limpiar_extra(guardadas.get(atleta), atleta), atleta)
+    r = _cambios_puntuales(_renombrar(_limpiar_extra(guardadas.get(atleta), atleta), atleta), atleta)
     return completar(r or rutinas_iniciales(ATLETAS).get(atleta), atleta)
 
 
@@ -421,7 +439,7 @@ def _igual(a: str, b: str) -> bool:
     return bool(a) and bool(b) and hmac.compare_digest(a.encode(), b.encode())
 
 
-VERSION = "11.18"
+VERSION = "11.19"
 CLAVES_NECESARIAS = ["CONTRASENA_DIEGO", "SUPABASE_URL", "SUPABASE_KEY", "APP_PASSWORD", "CONTRASENA_ARCHCHANA", "CONTRASENA_INVITADOS", "COACH_PIN",
                      "APP_ANTIGUA_URL", "CONTRASENA_DEMO"]
 
@@ -1949,7 +1967,8 @@ def _linea(rut: dict, l: dict, semana: int, parte: str, nivel: str, alumno: bool
     if alumno and tipo_de_linea(parte, l["ejercicio"]) is not None:
         txt = tope_db_alumno(txt)  # su RX de mancuerna es 22,5/15 (el 32,5 es del ciclo de Diego)
     tipo = _tipo_ui(parte, l["ejercicio"])
-    out = {"id": l["id"], "ejercicio": l["ejercicio"], "nota": l.get("nota") or "", "texto": txt,
+    nombre_sem = ((rut.get("nombres_semana") or {}).get(str(semana)) or {}).get(l["id"])
+    out = {"id": l["id"], "ejercicio": nombre_sem or l["ejercicio"], "nota": l.get("nota") or "", "texto": txt,
            "extra": _etiqueta_extra(l, txt, semana, ajuste, subio), "tipo": tipo,
            "ciclo": l.get("plan") is not None,
            "texto_sig": prescripcion_semana(l, semana + 1, rut.get("ajustes"))[0]}
@@ -2477,6 +2496,9 @@ def parece_entreno(texto: str, nombre: str = "") -> bool:
         return False
     if _COMENTARIO.search(t) and not _FORMATO.search(t):
         return False
+    if len(re.findall(r"(?m)^\s*[a-f]\)\s*\S", t)) >= 1 and re.search(r"(?m)^\s*(fuerza|strength|accessory|wod|conditioning)\s*$", t) \
+            or len(re.findall(r"(?m)^\s*[a-f]\)\s*\S", t)) >= 2:
+        return False  # un día entero pegado (Fuerza… B) WOD… C) Accessory…), no una idea suelta
     buenas = sum(1 for w in _MOVIMIENTOS if w in f" {t} ") + len(re.findall(r"\b\d+\s*x\s*\d+", t))
     # un entreno tiene formato (AMRAP, rondas, 4x8, 21-15-9…) o al menos dos «número + movimiento»
     cuantos = len(re.findall(r"\b\d+(?:[.,]\d+)?\s*(?:m|cal|cals|kg|reps?|''|')?\s+[a-zà-ü]", t))
@@ -2713,7 +2735,16 @@ def aplicar_programa(rut: dict, tipo: str, c: dict, semana: int, atleta: str) ->
             raise Error("No se encontró esa parte")
         nombre = str(c.get("nombre") or l["ejercicio"]).strip()[:120]
         antes = prescripcion_semana(l, semana, rut.get("ajustes"))[0]
-        rut = editar_texto_linea(rut, l["id"], semana, nombre, texto, l.get("nota", ""), solo)
+        if solo:  # solo esta semana: el nombre también es solo de esta semana (si no, se queda pegado a los WODs siguientes)
+            rut = editar_texto_linea(rut, l["id"], semana, l["ejercicio"], texto, l.get("nota", ""), solo)
+            noms = copy.deepcopy(rut.get("nombres_semana") or {})
+            if nombre != l["ejercicio"]:
+                noms.setdefault(str(semana), {})[l["id"]] = nombre
+            else:
+                (noms.get(str(semana)) or {}).pop(l["id"], None)
+            rut = dict(rut, nombres_semana={k: v for k, v in noms.items() if v})
+        else:
+            rut = editar_texto_linea(rut, l["id"], semana, nombre, texto, l.get("nota", ""), solo)
         sig = c.get("texto_sig")
         if sig is not None and str(sig).strip() != prescripcion_semana(
                 next(x for d in rut["dias"] for x in d["lineas"] if x["id"] == l["id"]), semana + 1, rut.get("ajustes"))[0]:
