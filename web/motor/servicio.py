@@ -439,7 +439,7 @@ def _igual(a: str, b: str) -> bool:
     return bool(a) and bool(b) and hmac.compare_digest(a.encode(), b.encode())
 
 
-VERSION = "11.19"
+VERSION = "11.20"
 CLAVES_NECESARIAS = ["CONTRASENA_DIEGO", "SUPABASE_URL", "SUPABASE_KEY", "APP_PASSWORD", "CONTRASENA_ARCHCHANA", "CONTRASENA_INVITADOS", "COACH_PIN",
                      "APP_ANTIGUA_URL", "CONTRASENA_DEMO"]
 
@@ -2484,6 +2484,19 @@ _FORMATO = re.compile(r"\b(amrap|emom|e\dmom|for time|rft|tabata|every|rondas?|r
                       r"\b\d+\s*x\s*\d+|\b\d+\s*(?:-\s*\d+){1,}\b", re.I)
 
 
+_CABECERA = re.compile(r"(?mi)^\s*(?:[a-f]\)\s*)?(?:fuerza|strength|force|wod|gym|gym\s*/\s*wod|wod\s*/\s*gym|metcon|accessory|accessories|"
+                       r"conditioning|volume|mobility|movilidad|mobilit[eé]|warm\s*-?\s*up|calentamiento|cardio)\s*:?\s*$")
+_DIA_SEMANA = re.compile(r"(?mi)^\s*(?:lunes|martes|mi[eé]rcoles|jueves|viernes|s[aá]bado|domingo|lundi|mardi|mercredi|jeudi|"
+                         r"vendredi|samedi|dimanche|monday|tuesday|wednesday|thursday|friday|saturday|sunday|"
+                         r"d[ií]a\s*\d+|day\s*\d+|jour\s*\d+)\b.{0,20}$")
+
+
+def _varias_partes(t: str) -> bool:
+    """¿Es un día/semana entera (varias partes o varios días) y no un solo entreno?"""
+    letras = len(re.findall(r"(?m)^\s*[a-f]\)\s*\S", t))
+    return letras >= 2 or len(_CABECERA.findall(t)) + letras >= 2 or bool(_DIA_SEMANA.search(t))
+
+
 def parece_entreno(texto: str, nombre: str = "") -> bool:
     """¿Es un entreno (WOD, conditioning, accessory, movilidad) y no una conversación o un plan cualquiera?"""
     import re
@@ -2496,9 +2509,8 @@ def parece_entreno(texto: str, nombre: str = "") -> bool:
         return False
     if _COMENTARIO.search(t) and not _FORMATO.search(t):
         return False
-    if len(re.findall(r"(?m)^\s*[a-f]\)\s*\S", t)) >= 1 and re.search(r"(?m)^\s*(fuerza|strength|accessory|wod|conditioning)\s*$", t) \
-            or len(re.findall(r"(?m)^\s*[a-f]\)\s*\S", t)) >= 2:
-        return False  # un día entero pegado (Fuerza… B) WOD… C) Accessory…), no una idea suelta
+    if _varias_partes(t):
+        return False  # un día o una semana entera pegada (Fuerza… B) WOD… C) Accessory… / Lunes… Miércoles…)
     buenas = sum(1 for w in _MOVIMIENTOS if w in f" {t} ") + len(re.findall(r"\b\d+\s*x\s*\d+", t))
     # un entreno tiene formato (AMRAP, rondas, 4x8, 21-15-9…) o al menos dos «número + movimiento»
     cuantos = len(re.findall(r"\b\d+(?:[.,]\d+)?\s*(?:m|cal|cals|kg|reps?|''|')?\s+[a-zà-ü]", t))
