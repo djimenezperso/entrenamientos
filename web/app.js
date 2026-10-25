@@ -381,7 +381,7 @@ const FR = {
   "de un registro": "d'un enregistrement", "Cuando tengas más marcas de este movimiento verás aquí su evolución.": "Avec plus de marques, tu verras l'évolution ici.",
   "Movimiento": "Mouvement", "Otro…": "Autre…", "¿Cuál?": "Lequel ?", "Marca": "Marque", "Reps (1 = 1RM)": "Reps (1 = 1RM)",
   "Nota": "Note", "con cinturón…": "avec ceinture…", "Guardar PR": "Enregistrer le record",
-  "Salen solos de lo que registras si el ejercicio se llama igual (por ejemplo «Back squat», «RMU» o «5 km run»).": "Ils viennent aussi de tes séances si l'exercice a le même nom.", "¿Eres Diego? Mete tu PIN de coach y lo cambias directamente": "Tu es Diego ? Mets ton PIN de coach", "Ajustar": "Ajuster", "Quitar el cambio de esta semana": "Annuler le changement de cette semaine", "Limpiar la biblioteca": "Nettoyer la bibliothèque", "Quitarlas": "Les supprimer", "Al azar": "Au hasard", "Otro": "Un autre", "Usar este": "Utiliser celui-ci", "Ahora": "Actuel", "sugerido": "suggéré", "No hay más ideas de este tipo todavía": "Pas encore d'autres idées de ce type", "ideas de este tipo (tu biblioteca y el repertorio)": "idées de ce type (ta bibliothèque et le répertoire)", "Último": "Dernier", "Ajustar reps": "Ajuster les reps", "Semana que viene": "Semaine prochaine",
+  "Salen solos de lo que registras si el ejercicio se llama igual (por ejemplo «Back squat», «RMU» o «5 km run»).": "Ils viennent aussi de tes séances si l'exercice a le même nom.", "¿Eres Diego? Mete tu PIN de coach y lo cambias directamente": "Tu es Diego ? Mets ton PIN de coach", "Ajustar": "Ajuster", "Quitar el cambio de esta semana": "Annuler le changement de cette semaine", "Limpiar la biblioteca": "Nettoyer la bibliothèque", "Quitarlas": "Les supprimer", "Al azar": "Au hasard", "Otro": "Un autre", "Usar este": "Utiliser celui-ci", "ideas con eso": "idées avec ça", "Buscar movimiento (ej. T2B, wall balls…)": "Chercher un mouvement (ex. T2B, wall balls…)", "No hay ideas con todo eso. Quita algún movimiento.": "Aucune idée avec tout ça. Enlève un mouvement.", "Ahora": "Actuel", "sugerido": "suggéré", "No hay más ideas de este tipo todavía": "Pas encore d'autres idées de ce type", "ideas de este tipo (tu biblioteca y el repertorio)": "idées de ce type (ta bibliothèque et le répertoire)", "Último": "Dernier", "Ajustar reps": "Ajuster les reps", "Semana que viene": "Semaine prochaine",
   "Cambiar esta parte": "Changer cette partie", "Añadir parte": "Ajouter une partie", "Novedad de Diego": "Nouveauté de Diego",
   "Diego se lo ha puesto. ¿Te viene bien hoy?": "Diego l'a fait. Ça te va aujourd'hui ?", "Hoy no": "Pas aujourd'hui",
   "Ponérmelo hoy": "Je le fais aujourd'hui", "Lo programa tu coach": "C'est ton coach qui programme",
@@ -1830,7 +1830,7 @@ async function hojaParte(p) {
 }
 
 // ---------- al azar ----------
-function poolAzar(p, l) {
+function poolAzar(p, l, sinFormato = false) {
   const I = E.ideas || {};
   const etq = String(p.etiqueta || "").toLowerCase();
   let pool;
@@ -1844,7 +1844,7 @@ function poolAzar(p, l) {
     const FORM = { emom: /\b(e\d?mom|every|cada \d)/i, amrap: /\bamrap\b/i, fortime: /for time|\brft\b|por tiempo/i };
     const clave = FORM[l.tipo] ? l.tipo : Object.keys(FORM).find((f) => FORM[f].test(quien));
     const formato = FORM[clave];
-    if (formato) { const f = pool.filter((x) => formato.test(x.nombre + " " + x.texto)); if (f.length) pool = f; }
+    if (formato && !sinFormato) { const f = pool.filter((x) => formato.test(x.nombre + " " + x.texto)); if (f.length) pool = f; }
   }
   const actual = String(l.texto || "").trim().toLowerCase();
   const vistos = new Set();
@@ -1855,31 +1855,71 @@ function poolAzar(p, l) {
   });
 }
 
+// movimientos para buscar en «Al azar» (nombre del chip, maneras de escribirlo)
+const MOVS_BUSCA = [["T2B", ["t2b", "ttb", "toes to bar", "toes-to-bar"]], ["Pull ups", ["pull up", "pull-up", "pullup", "dominada", "traction"]],
+  ["C2B", ["c2b", "chest to bar"]], ["Muscle ups", ["muscle up", "rmu", "bmu", "ring mu", "bar mu"]], ["HSPU", ["hspu", "handstand push"]],
+  ["Handstand", ["handstand walk", "hs walk", "pino", "handstand hold"]], ["DU", ["du ", "dus", "double under", "double-under"]],
+  ["Burpees", ["burpee"]], ["Thrusters", ["thruster"]], ["Wall balls", ["wall ball", "wb "]], ["KB", ["kb", "kettlebell", "swing"]],
+  ["DB", ["db ", "dumbbell", "mancuerna", "haltère", "haltere"]], ["Snatch", ["snatch"]], ["Clean", ["clean"]], ["Deadlift", ["deadlift", "peso muerto"]],
+  ["Squat", ["squat", "sentadilla"]], ["Box", ["box jump", "box step", "box over"]], ["Lunges", ["lunge", "zancada", "fente"]],
+  ["Push ups", ["push up", "push-up", "flexion"]], ["Rope climb", ["rope climb", "cuerda"]], ["Row", ["row", "remo", "rameur"]],
+  ["Bike", ["bike", "aab", "assault", "echo", "vélo"]], ["Ski", ["ski"]], ["Run", ["run ", " run", "correr", "carrera", "course", " m run"]],
+  ["Sit ups", ["sit up", "situp", "abmat"]], ["Farmer carry", ["farmer", "carry"]]];
+const textoBusca = (x) => ` ${(x.nombre || "")} ${(x.texto || "")} `.toLowerCase().replace(/\s+/g, " ");
+function tieneMov(x, mov) {
+  const tx = textoBusca(x), m = MOVS_BUSCA.find((y) => y[0] === mov);
+  return m ? m[1].some((w) => tx.includes(w)) : tx.includes(mov.toLowerCase());
+}
+
 async function hojaAzar(k) {
   const v = E.vista;
   const { p, l } = lineaDe(k);
   if (!E.ideas || Date.now() - (E.ideasT || 0) > 5 * 60e3) { try { E.ideas = await api("ideas"); E.ideasT = Date.now(); } catch { E.ideas = E.ideas || {}; } }
-  const pool = poolAzar(p, l);
-  if (!pool.length) return aviso(t("No hay más ideas de este tipo todavía"), true);
-  const est = { solo: true, i: Math.floor(Math.random() * pool.length), usados: new Set() };
+  const base = poolAzar(p, l), ancho = poolAzar(p, l, true);
+  if (!ancho.length) return aviso(t("No hay más ideas de este tipo todavía"), true);
+  const est = { solo: true, movs: new Set(), q: "", usados: new Set() };
+  const filtrada = () => {
+    const q = est.q.trim().toLowerCase();
+    if (!est.movs.size && !q) return base.length ? base : ancho;
+    return ancho.filter((x) => [...est.movs].every((m) => tieneMov(x, m)) &&
+      (!q || q.split(/\s+/).every((w) => { const m = MOVS_BUSCA.find((y) => y[0].toLowerCase() === w || y[1].some((a) => a.trim() === w)); return m ? tieneMov(x, m[0]) : textoBusca(x).includes(w); })));
+  };
+  let pool = filtrada(); est.i = Math.floor(Math.random() * pool.length);
+  const chips = MOVS_BUSCA.map((m) => m[0]).filter((m) => ancho.some((x) => tieneMov(x, m)));
   const pintarIdea = (h) => {
     const x = pool[est.i];
+    h.querySelector("#az-card").hidden = !x; h.querySelector("#az-usar").disabled = !x; h.querySelector("#az-otro").disabled = pool.length < 2;
+    h.querySelector("#az-vacio").hidden = !!x;
+    h.querySelector("#az-cuantas").textContent = est.movs.size || est.q.trim()
+      ? `${pool.length} ${t("ideas con eso")}` : `${pool.length} ${t("ideas de este tipo (tu biblioteca y el repertorio)")}`;
+    if (!x) return;
     h.querySelector("#az-nombre").textContent = x.nombre || etqParte(p.etiqueta);
     h.querySelector("#az-texto").textContent = x.texto;
   };
   abrirHoja(`${cabHoja(`${p.letra ? p.letra + " · " : ""}${etqParte(p.etiqueta)}`, "🎲 " + t("Al azar"))}
     ${avisoCoach(v)}
     <div class="mini">${t("Ahora")}: ${esc(trWod(l.visto || l.texto || "").split("\n")[0].slice(0, 80) || t("por definir"))}${!l.texto && l.visto ? ` <em>(${t("sugerido")})</em>` : ""}</div>
-    <div class="card azar-card"><b id="az-nombre"></b><div class="texto-wod" id="az-texto"></div></div>
+    <div class="az-busca"><input id="az-q" type="search" placeholder="🔎 ${t("Buscar movimiento (ej. T2B, wall balls…)")}" autocomplete="off">
+      <div class="fila-chips az-chips">${chips.map((m) => `<button class="chip" data-azmov="${esc(m)}">${esc(m)}</button>`).join("")}</div></div>
+    <div class="card azar-card" id="az-card"><b id="az-nombre"></b><div class="texto-wod" id="az-texto"></div></div>
+    <div class="mini" id="az-vacio" hidden>${t("No hay ideas con todo eso. Quita algún movimiento.")}</div>
     <button class="btn" id="az-otro">🎲 ${t("Otro")}</button>
     ${alcanceHtml(est.solo)}
     ${msgCoach(v)}
     <button class="btn btn-fuego" id="az-usar">${v.puede_pesos === false ? t("Enviar a Diego para que lo apruebe") : t("Usar este")}</button>
-    <div class="mini">${pool.length} ${t("ideas de este tipo (tu biblioteca y el repertorio)")}</div>`, (h) => {
+    <div class="mini" id="az-cuantas"></div>`, (h) => {
+    const refiltrar = () => { pool = filtrada(); est.usados.clear(); est.i = Math.floor(Math.random() * pool.length); pintarIdea(h); };
     pintarIdea(h);
     enlazarAlcance(h, est);
     enlazarPin(h, () => hojaAzar(k));
+    h.querySelectorAll("[data-azmov]").forEach((b) => b.onclick = () => {
+      const m = b.dataset.azmov;
+      if (est.movs.has(m)) est.movs.delete(m); else est.movs.add(m);
+      b.classList.toggle("on", est.movs.has(m)); refiltrar();
+    });
+    let tmr; h.querySelector("#az-q").oninput = (ev) => { clearTimeout(tmr); tmr = setTimeout(() => { est.q = ev.target.value; refiltrar(); }, 200); };
     h.querySelector("#az-otro").onclick = () => {
+      if (pool.length < 2) return;
       est.usados.add(est.i);
       if (est.usados.size >= pool.length) est.usados.clear();
       let j; do { j = Math.floor(Math.random() * pool.length); } while ((est.usados.has(j) || j === est.i) && pool.length > 1);
@@ -1887,6 +1927,7 @@ async function hojaAzar(k) {
     };
     h.querySelector("#az-usar").onclick = (ev) => {
       const x = pool[est.i];
+      if (!x) return;
       ev.currentTarget.disabled = true; cerrarHoja();
       hacer({ tipo: "editar_texto", semana: p.semana, linea: l.id, nombre: x.nombre || l.ejercicio, texto: x.texto,
         solo_esta: est.solo, mensaje: (h.querySelector("#c-msg") || {}).value });
