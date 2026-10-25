@@ -570,7 +570,7 @@ def _igual(a: str, b: str) -> bool:
     return bool(a) and bool(b) and hmac.compare_digest(a.encode(), b.encode())
 
 
-VERSION = "11.24"
+VERSION = "11.25"
 CLAVES_NECESARIAS = ["CONTRASENA_DIEGO", "SUPABASE_URL", "SUPABASE_KEY", "APP_PASSWORD", "CONTRASENA_ARCHCHANA", "CONTRASENA_INVITADOS", "COACH_PIN",
                      "APP_ANTIGUA_URL", "CONTRASENA_DEMO"]
 
@@ -2095,6 +2095,7 @@ def registro_inicial(rut: dict, dia: dict, semana: int, lineas: list[dict] | Non
 def _linea(rut: dict, l: dict, semana: int, parte: str, nivel: str, alumno: bool, sug: dict | None,
            por_ejercicio: bool) -> dict:
     txt, subio, ajuste = prescripcion_semana(l, semana, rut.get("ajustes"))
+    txt = sin_restos_chat(txt)
     if alumno and tipo_de_linea(parte, l["ejercicio"]) is not None:
         txt = tope_db_alumno(txt)  # su RX de mancuerna es 22,5/15 (el 32,5 es del ciclo de Diego)
     tipo = _tipo_ui(parte, l["ejercicio"])
@@ -2590,7 +2591,7 @@ def guardar_en_biblioteca(tipo: str, nombre: str, texto: str, atleta: str):
             return
         generico = norm(nombre) in {norm(x) for x in TIPOS_PARTE} | {"wod", "gym / wod", "conditioning"}
         bib[clave] = bib.get(clave, []) + [{
-            "id": uuid.uuid4().hex[:8], "nombre": "" if generico else nombre.strip(), "texto": texto.strip(),
+            "id": uuid.uuid4().hex[:8], "nombre": "" if generico else nombre.strip(), "texto": sin_restos_chat(texto).strip(),
             "quien": [atleta], "fecha": dt.date.today().isoformat(), "resultado": "", "idea": True, "origen": "rutina"}]
         datos().guardar(CLAVE_BIBLIOTECA, bib)
     except Error:
@@ -2665,9 +2666,19 @@ _CARDIO = {"Run", "Row", "Ski", "Bike"}
 _GENERICOS = {"wod", "conditioning", "accessory", "mobility", "movilidad", "emom", "amrap", "for time", "gym", "metcon", "cardio"}
 
 
+# restos de WhatsApp al copiar mensajes: «<Ce message a été modifié>», «<Se editó este mensaje.>», «<Multimedia omitido>»…
+_RESTOS_CHAT = re.compile(r"[ \t]*[<‹][^<>\n]{0,60}?(?:modifi|edit|omit|omis|elimin|supprim|delet|borrad)[^<>\n]{0,40}[>›]|[\u200e\u200f\u202a-\u202e]",
+                          re.I)
+
+
+def sin_restos_chat(texto: str) -> str:
+    return _RESTOS_CHAT.sub("", texto or "").rstrip() if texto else texto
+
+
 def _limpia_texto_idea(texto: str) -> str:
     """Quita las frases de chat que haya antes del entreno («Mañana me haces solo cardio»…)."""
     import re
+    texto = sin_restos_chat(texto)
     lineas = [l.rstrip() for l in (texto or "").split("\n")]
     while lineas and lineas[0].strip() and not re.search(r"\d", lineas[0]) and \
             not any(w in lineas[0].lower() for w in ("emom", "amrap", "for time", "every", "tabata", "rondas", "rounds")):
