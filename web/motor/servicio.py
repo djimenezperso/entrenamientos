@@ -570,7 +570,7 @@ def _igual(a: str, b: str) -> bool:
     return bool(a) and bool(b) and hmac.compare_digest(a.encode(), b.encode())
 
 
-VERSION = "11.29"
+VERSION = "11.30"
 CLAVES_NECESARIAS = ["CONTRASENA_DIEGO", "SUPABASE_URL", "SUPABASE_KEY", "APP_PASSWORD", "CONTRASENA_ARCHCHANA", "CONTRASENA_INVITADOS", "COACH_PIN",
                      "APP_ANTIGUA_URL", "CONTRASENA_DEMO"]
 
@@ -597,6 +597,47 @@ def estado() -> dict:
     except Exception as e:  # noqa: BLE001
         out["datos"] = f"ERROR: {e}"[:300]
     return out
+
+
+def _hash_codigo(codigo: str) -> str:
+    return hmac.new(_secreto(), f"codigo-personal|{codigo.strip()}".encode(), hashlib.sha256).hexdigest()
+
+
+def accesos_personales() -> list[str]:
+    """Quién entra con un código propio (no con nombre + PIN): Archchana y los de ACCESOS_PERSONALES."""
+    try:
+        nombres = list(json.loads(env("ACCESOS_PERSONALES") or "{}"))
+    except ValueError:
+        nombres = []
+    cfg = datos().rutinas([CLAVE_CONFIG]).get(CLAVE_CONFIG) or {}
+    return sorted(set(nombres) | ({"Archchana"} if env("CONTRASENA_ARCHCHANA") else set()) | set(cfg.get("codigos") or {}))
+
+
+def nuevo_codigo(sesion: dict, c: dict) -> dict:
+    """Diego le pone un código nuevo a alguien: a los de código propio (Archchana) o el PIN a un perfil con nombre + PIN."""
+    if not es_coach(sesion):
+        raise Error("Solo el coach", 403)
+    atleta = str(c.get("atleta") or "")
+    codigo = str(c.get("codigo") or "").strip()
+    if len(codigo) < 4 or " " in codigo:
+        raise Error("El código tiene que tener al menos 4 caracteres, sin espacios")
+    inv = dict(invitados())
+    if atleta in inv:
+        inv[atleta] = {**inv[atleta], "pin": _hash(atleta, codigo)}
+        datos().guardar(CLAVE_INVITADOS, inv)
+        return {"ok": True, "aviso": f"PIN nuevo para {nv(atleta)} ✅ (entra con su nombre y este PIN)"}
+    if atleta not in accesos_personales():
+        raise Error("Esa persona no entra con código propio")
+    usados = [env(k) for k in ("CONTRASENA_DIEGO", "APP_PASSWORD", "CONTRASENA_DEMO", "CONTRASENA_INVITADOS", "COACH_PIN")]
+    if any(u and _igual(codigo, u) for u in usados):
+        raise Error("Ese código ya se usa para otra cosa. Elige otro.")
+    reg = dict(datos().rutinas([CLAVE_CONFIG]).get(CLAVE_CONFIG) or {})
+    otros = {n: h for n, h in (reg.get("codigos") or {}).items() if n != atleta}
+    if _hash_codigo(codigo) in otros.values():
+        raise Error("Ese código ya lo tiene otra persona. Elige otro.")
+    reg["codigos"] = {**otros, atleta: _hash_codigo(codigo)}
+    datos().guardar(CLAVE_CONFIG, reg)
+    return {"ok": True, "aviso": f"Código nuevo para {nv(atleta)} ✅ El anterior ya no vale."}
 
 
 def _hash(nombre: str, pin: str) -> str:
@@ -627,12 +668,19 @@ def login(cuerpo: dict) -> dict:
         pass
     if env("CONTRASENA_ARCHCHANA"):
         personales["Archchana"] = env("CONTRASENA_ARCHCHANA")
+    codigos = (datos().rutinas([CLAVE_CONFIG]).get(CLAVE_CONFIG) or {}).get("codigos") or {}
+    for n in codigos:
+        personales.pop(n, None)  # Diego le puso un código nuevo desde la app: el de antes ya no vale
     if _igual(intento, env("CONTRASENA_DIEGO")):
         return _sesion_para(None, diego=True)
     if _igual(intento, general):
         return _sesion_para(None)
     for nombre, clave in personales.items():
         if _igual(intento, clave):
+            return _sesion_para(nombre)
+    h = _hash_codigo(intento)
+    for nombre, hc in codigos.items():
+        if _igual(h, hc):
             return _sesion_para(nombre)
     if _igual(intento, env("CONTRASENA_DEMO")):
         _apuntar(None, {"d": 1}, "Demo", entrada=True)
@@ -2475,6 +2523,7 @@ def vista(sesion: dict, atleta: str | None, semana: int | None, dia_id: str | No
             "puede_pesos": coach or bool((rut or {}).get("permiso_pesos")),
             "permiso_pesos": bool((rut or {}).get("permiso_pesos")),
             "solicitudes": [x for x in todas_sol if coach and (not sesion.get("u") or x["atleta"] == sesion["u"])],
+            "codigo_propio": coach and not es_demo(sesion) and atleta != "Yo" and (atleta in inv or atleta in accesos_personales()),
             "semanas_listas": sorted(int(x) for x in (rut or {}).get("semanas_listas") or []) if coach else [],
             "mis_solicitudes": {x["linea"]: x for x in todas_sol if x["atleta"] == atleta}}
     if coach and not es_demo(sesion) and not sesion.get("u"):

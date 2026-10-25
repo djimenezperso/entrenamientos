@@ -1628,6 +1628,7 @@ function hojaAjustes() {
             <div style="display:flex;gap:8px"><input class="campo" id="i-tg" placeholder="123456789:AAH…" autocomplete="off" style="height:46px;background:#fff">
             <button class="btn btn-negro" id="b-tg">${t("Conectar")}</button></div>`}</div>
         <button class="btn btn-fuego" id="b-actividad" style="width:100%;margin-top:10px;height:50px">📊 ${t("Quién usa la app")}</button>
+        ${v.codigo_propio ? `<button class="btn" id="b-codigo" style="width:100%;margin-top:10px">🔑 ${t("Poner código / PIN nuevo a")} ${esc(v.nombre)}</button>` : ""}
         <button class="btn" id="b-limpiar" style="width:100%;margin-top:10px">🧹 ${t("Limpiar la biblioteca")}</button>
         <div id="limpiar-res"></div>
         <button class="btn" id="b-coach-salir" style="width:100%;margin-top:10px">${t("Quitar el modo coach en este móvil")}</button>`
@@ -1697,6 +1698,8 @@ function hojaAjustes() {
     const btq = h.querySelector("#b-tg-quitar"); if (btq) btq.onclick = () => tg({ quitar: true }, btq);
     const ba = h.querySelector("#b-actividad");
     if (ba) ba.onclick = () => hojaActividad();
+    const bcod = h.querySelector("#b-codigo");
+    if (bcod) bcod.onclick = () => hojaCodigo(v);
     const bl = h.querySelector("#b-limpiar");
     if (bl) bl.onclick = async () => {
       bl.disabled = true;
@@ -1967,6 +1970,24 @@ async function hojaAzar(k) {
       ev.currentTarget.disabled = true; cerrarHoja();
       hacer({ tipo: "editar_texto", semana: p.semana, linea: l.id, nombre: x.nombre || l.ejercicio, texto: x.texto,
         solo_esta: est.solo, mensaje: (h.querySelector("#c-msg") || {}).value });
+    };
+  });
+}
+
+function hojaCodigo(v) {
+  const sugerido = String(Math.floor(100000 + Math.random() * 900000));
+  abrirHoja(`${cabHoja(t("Solo para ti"), "🔑 " + t("Código nuevo"))}
+    <p>${t("Para")} <b>${esc(v.nombre)}</b>. ${t("El de antes deja de funcionar en cuanto lo guardes.")}</p>
+    <input class="campo" id="cod-nuevo" value="${sugerido}" autocapitalize="off" autocomplete="off" inputmode="text" style="font-size:22px;letter-spacing:2px;text-align:center">
+    <button class="btn btn-fuego" id="cod-guardar">${t("Guardar")}</button>
+    <div class="mini">${t("Apúntalo y pásaselo: luego no se puede volver a ver.")}</div>`, (h) => {
+    h.querySelector("#cod-guardar").onclick = async (ev) => {
+      const codigo = h.querySelector("#cod-nuevo").value.trim();
+      ev.currentTarget.disabled = true;
+      try {
+        const r = await api("nuevo_codigo", { metodo: "POST", cuerpo: { atleta: v.atleta, codigo } });
+        cerrarHoja(); aviso(r.aviso || t("Guardado"));
+      } catch (e) { ev.currentTarget.disabled = false; aviso(e.message, true); }
     };
   });
 }
