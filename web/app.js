@@ -1846,6 +1846,10 @@ function poolAzar(p, l, sinFormato = false) {
     const formato = FORM[clave];
     if (formato && !sinFormato) { const f = pool.filter((x) => formato.test(x.nombre + " " + x.texto)); if (f.length) pool = f; }
   }
+  if (/gym/.test(etq) && pool && pool.length) {  // «WOD / Gym» o «Gym»: que tenga gimnásticos (dominadas, T2B, MU, HSPU…)
+    const g = pool.filter(esGym);
+    if (g.length) pool = g;
+  }
   const actual = String(l.texto || "").trim().toLowerCase();
   const vistos = new Set();
   return (pool || []).filter((x) => {
@@ -1864,7 +1868,10 @@ const MOVS_BUSCA = [["T2B", ["t2b", "ttb", "toes to bar", "toes-to-bar"]], ["Pul
   ["Squat", ["squat", "sentadilla"]], ["Box", ["box jump", "box step", "box over"]], ["Lunges", ["lunge", "zancada", "fente"]],
   ["Push ups", ["push up", "push-up", "flexion"]], ["Rope climb", ["rope climb", "cuerda"]], ["Row", ["row", "remo", "rameur"]],
   ["Bike", ["bike", "aab", "assault", "echo", "vélo"]], ["Ski", ["ski"]], ["Run", ["run ", " run", "correr", "carrera", "course", " m run"]],
-  ["Sit ups", ["sit up", "situp", "abmat"]], ["Farmer carry", ["farmer", "carry"]]];
+  ["Sit ups", ["sit up", "situp", "abmat"]], ["Farmer carry", ["farmer", "carry"]], ["Dips", ["dip"]],
+  ["Pistols", ["pistol"]], ["L-sit", ["l-sit", "l sit", "lsit"]], ["Ring rows", ["ring row"]]];
+const MOVS_GYM = ["T2B", "Pull ups", "C2B", "Muscle ups", "HSPU", "Handstand", "Rope climb", "Push ups", "Dips", "Pistols", "L-sit"];
+const esGym = (x) => MOVS_GYM.some((m) => tieneMov(x, m));
 const textoBusca = (x) => ` ${(x.nombre || "")} ${(x.texto || "")} `.toLowerCase().replace(/\s+/g, " ");
 function tieneMov(x, mov) {
   const tx = textoBusca(x), m = MOVS_BUSCA.find((y) => y[0] === mov);
