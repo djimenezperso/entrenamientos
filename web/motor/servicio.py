@@ -570,7 +570,7 @@ def _igual(a: str, b: str) -> bool:
     return bool(a) and bool(b) and hmac.compare_digest(a.encode(), b.encode())
 
 
-VERSION = "11.25"
+VERSION = "11.26"
 CLAVES_NECESARIAS = ["CONTRASENA_DIEGO", "SUPABASE_URL", "SUPABASE_KEY", "APP_PASSWORD", "CONTRASENA_ARCHCHANA", "CONTRASENA_INVITADOS", "COACH_PIN",
                      "APP_ANTIGUA_URL", "CONTRASENA_DEMO"]
 
@@ -901,6 +901,34 @@ def borrar_cuenta(sesion: dict, c: dict) -> dict:
     if x.get("stripe_estado") in ("trialing", "active", "past_due"):
         raise Error("Primero cancela tu abono en «Gestionar mi abono» y luego borra la cuenta · "
                     "Annule d'abord ton abonnement dans « Gérer mon abonnement »", 409)
+    _borrar_perfil(quien)
+    notificar(f"🗑️ {quien} ha borrado su cuenta y sus datos (RGPD).")
+    return {"ok": True}
+
+
+# perfiles de prueba que Diego ha pedido borrar (se borran una vez, al abrir él la app)
+BORRAR_PERFILES = ["Cliente Prueba"]
+
+
+def _borrar_pedidos(inv: dict) -> dict:
+    hechos = []
+    for n in BORRAR_PERFILES:
+        x = inv.get(n)
+        if x is not None and x.get("stripe_estado") not in ESTADOS_PAGANDO:
+            try:
+                _borrar_perfil(n)
+                hechos.append(n)
+            except Exception:  # noqa: BLE001
+                pass
+    if hechos:
+        notificar(f"🗑️ Borrado: {', '.join(hechos)}")
+        return invitados()
+    return inv
+
+
+def _borrar_perfil(quien: str) -> None:
+    """Borra perfil, rutina, entrenos, chat y actividad de alguien."""
+    reg = dict(invitados())
     try:
         for w in datos().entrenos(quien, 5000):
             datos().borrar_entreno(w)
@@ -925,8 +953,6 @@ def borrar_cuenta(sesion: dict, c: dict) -> dict:
     _apuntar_actividad(cambio)
     reg.pop(quien, None)
     datos().guardar(CLAVE_INVITADOS, reg)
-    notificar(f"🗑️ {quien} ha borrado su cuenta y sus datos (RGPD).")
-    return {"ok": True}
 
 
 DIAS_PRUEBA = 7  # perfiles creados desde la demo: 7 días gratis y luego tienen que abonarse
@@ -2361,6 +2387,8 @@ def _rellenar_demo(partes: list[dict], dia_id: str, semana: int, nivel: str, num
 
 def vista(sesion: dict, atleta: str | None, semana: int | None, dia_id: str | None) -> dict:
     inv = invitados()
+    if es_coach(sesion) and not es_demo(sesion) and any(n in inv for n in BORRAR_PERFILES):
+        inv = _borrar_pedidos(inv)
     personas = demo_personas() if es_demo(sesion) else [sesion["u"]] if sesion.get("u") else todas_las_personas(inv)
     atleta = atleta if atleta in personas else personas[0]
     puede_ver(sesion, atleta)
@@ -2442,6 +2470,9 @@ def vista(sesion: dict, atleta: str | None, semana: int | None, dia_id: str | No
             base["prueba"] = prueba
             if prueba["bloqueado"]:
                 return {**base, "pago_requerido": True}
+            if not prueba["pagando"] and int((rut or {}).get("semana_actual") or 1) >= 2:
+                # la prueba gratis es solo la semana 1: la 2 se abre al abonarse
+                return {**base, "pago_requerido": True, "pago_motivo": "semana2"}
     if (not rut or not rut.get("dias")) and atleta in inv and not es_demo(sesion):
         try:  # perfil nuevo al que no se le llegó a guardar la rutina de inicio (p. ej. se cortó la conexión)
             rut = completar(_rutina_inicio(atleta, inv[atleta].get("plantilla")), atleta)
@@ -2467,6 +2498,8 @@ def vista(sesion: dict, atleta: str | None, semana: int | None, dia_id: str | No
         max_semana = actual
         while max_semana + 1 in listas:
             max_semana += 1
+        if (base.get("prueba") or {}).get("en_prueba"):
+            max_semana = min(max_semana, 1)  # sin pagar, solo la semana 1
         if semana > max_semana:
             semana = actual
     base["max_semana"] = max_semana
