@@ -328,6 +328,40 @@ def _cambios_puntuales(rut: dict | None, atleta: str) -> dict | None:
     return rut
 
 
+# versiones Inter / Scaled escritas para un WOD concreto (se busca por trozos de su texto en las semanas cercanas)
+NIVELES_PUNTUALES = [
+    {"id": "manu-every2-2026-10", "atleta": "Manu Anel", "busca": ("every 2", "devil press", "hspu", "hang clean"), "niveles": {
+        "Inter": "Every 2' x10\n\nRnd 1\n10 cals row\n3 pull ups\nMax DB devil press (17,5/12,5 kg)\n\n"
+                 "Rnd 2\n10 cals ski\n3 HSPU (con abmat)\nMax DB hang clean and jerk (17,5/12,5 kg)",
+        "Scaled": "Every 2' x10\n\nRnd 1\n8 cals row\n5 jumping pull ups\nMax DB devil press (15/10 kg)\n\n"
+                  "Rnd 2\n8 cals ski\n5 pike push ups\nMax DB hang clean and jerk (15/10 kg)"}},
+]
+
+
+def _niveles_puntuales(rut: dict | None, atleta: str) -> dict | None:
+    pend = [x for x in NIVELES_PUNTUALES if x["atleta"] == atleta and x["id"] not in (rut or {}).get("niveles_hechos", [])]
+    if not rut or not rut.get("dias") or not pend:
+        return rut
+    actual = int(rut.get("semana_actual") or 1)
+    rut = copy.deepcopy(rut)
+    ns = rut.setdefault("niveles_semana", {})
+    hechos = list(rut.get("niveles_hechos") or [])
+    for x in pend:
+        encontrado = False
+        for sem in range(max(1, actual - 2), actual + 5):
+            for d in rut["dias"]:
+                for l in d["lineas"]:
+                    txt = prescripcion_semana(l, sem, rut.get("ajustes"))[0] or ""
+                    if txt and all(b in norm_busqueda(txt).replace(" ", "") or b in txt.lower() for b in x["busca"]):
+                        ns.setdefault(str(sem), {})[l["id"]] = {"RX": txt, **x["niveles"]}
+                        encontrado = True
+        if encontrado:
+            hechos.append(x["id"])
+    rut["niveles_hechos"] = hechos
+    datos().guardar(atleta, rut)
+    return rut
+
+
 # nombres que se quedaron pegados a un WOD que ya no es ese (Al azar «solo esta semana» cambiaba el nombre para siempre)
 RENOMBRAR = {"Yo": {"Barbell cycling": "WOD"}}
 
@@ -348,7 +382,7 @@ def _renombrar(rut: dict | None, atleta: str) -> dict | None:
 
 def rutina(atleta: str, guardadas: dict | None = None) -> dict | None:
     guardadas = datos().rutinas([atleta]) if guardadas is None else guardadas
-    r = _cambios_puntuales(_renombrar(_limpiar_extra(guardadas.get(atleta), atleta), atleta), atleta)
+    r = _niveles_puntuales(_cambios_puntuales(_renombrar(_limpiar_extra(guardadas.get(atleta), atleta), atleta), atleta), atleta)
     return completar(r or rutinas_iniciales(ATLETAS).get(atleta), atleta)
 
 
@@ -439,7 +473,7 @@ def _igual(a: str, b: str) -> bool:
     return bool(a) and bool(b) and hmac.compare_digest(a.encode(), b.encode())
 
 
-VERSION = "11.20"
+VERSION = "11.21"
 CLAVES_NECESARIAS = ["CONTRASENA_DIEGO", "SUPABASE_URL", "SUPABASE_KEY", "APP_PASSWORD", "CONTRASENA_ARCHCHANA", "CONTRASENA_INVITADOS", "COACH_PIN",
                      "APP_ANTIGUA_URL", "CONTRASENA_DEMO"]
 
@@ -1982,7 +2016,9 @@ def _linea(rut: dict, l: dict, semana: int, parte: str, nivel: str, alumno: bool
         txt = tope_db_alumno(sug["texto"]) if alumno else sug["texto"]
         out["sugerencia"] = {"semana": sug["semana"], "dia": sug["dia"], "texto": sug["texto"]}
     escalable = norm_busqueda(_etiqueta_parte(parte)) != "gym"
-    a_mano = l.get("niveles_txt") if txt and isinstance(l.get("niveles_txt"), dict) else None
+    a_mano = ((rut.get("niveles_semana") or {}).get(str(semana)) or {}).get(l["id"]) or l.get("niveles_txt")
+    # versiones a mano: solo valen mientras el texto sea el mismo (si Diego cambia el WOD, desaparecen)
+    a_mano = a_mano if txt and isinstance(a_mano, dict) and norm_busqueda(a_mano.get("RX", "")) == norm_busqueda(txt) else None
     if a_mano:  # versiones por nivel escritas por Diego: salen en la pestaña y cada uno ve la suya
         nv_ = nivel if nivel in a_mano else "RX"
         out.update(visto=a_mano.get(nv_) or txt, nivel=nv_, versiones_nivel=a_mano, solo_bloque=False)
