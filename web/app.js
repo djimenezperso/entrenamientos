@@ -81,7 +81,10 @@ const FR = {
   "Escribir a Diego": "Écrire à Diego",
   "Te queda 1 día de prueba gratis": "Il te reste 1 jour d'essai gratuit",
   "Te quedan {n} días de prueba gratis": "Il te reste {n} jours d'essai gratuit",
-  "Estás progresando, no te quedes aquí": "Tu progresses, ne t'arrête pas là", "Abónate y desbloquea tu semana 2": "Abonne-toi et débloque ta semaine 2",
+  "Estás progresando, no te quedes aquí": "Tu progresses, ne t'arrête pas là",
+  "Abónate para desbloquear tu semana siguiente": "Abonne-toi pour débloquer ta semaine suivante", "No te quedes aquí": "Ne t'arrête pas là",
+  "Estás progresando. Abónate para desbloquear tu semana siguiente y seguir entrenando con Diego.": "Tu progresses. Abonne-toi pour débloquer ta semaine suivante et continuer avec Diego.",
+  "Más tarde": "Plus tard", "🔒 La semana siguiente se abre al abonarte": "🔒 La semaine suivante s'ouvre quand tu t'abonnes", "Abónate y desbloquea tu semana 2": "Abonne-toi et débloque ta semaine 2",
   "Desbloquear semana 2": "Débloquer la semaine 2", "🔒 La semana 2 se abre al abonarte": "🔒 La semaine 2 s'ouvre quand tu t'abonnes",
   "Has hecho toda la semana 1 💪 Abónate para abrir la semana 2 y no perder lo que has ganado.": "Tu as fait toute la semaine 1 💪 Abonne-toi pour ouvrir la semaine 2 et garder tout ce que tu as gagné.",
   "Abonarme": "M'abonner",
@@ -1073,6 +1076,9 @@ function cabecera(v) {
       <small>${esc(v.propuesta.titulo)}</small>
       <details><summary>${t("Ver la rutina")}</summary>${v.propuesta.dias.map((d) => `<div class="prop-dia"><b>${esc(trDia(d.nombre))}</b>${d.lineas.map((x) => `<div>${esc(x)}</div>`).join("")}</div>`).join("")}</details>
       <div class="prop-bot"><button id="b-prop-si">✅ ${t("Aplicar")}</button><button id="b-prop-no">${t("Descartar")}</button></div></div>` : ""}
+    ${v.pago_pendiente && !(v.prueba && v.prueba.en_prueba) ? `<div class="banda-abono banda-prueba banda-progreso"><span><b>🔥 ${t("Estás progresando, no te quedes aquí")}</b>
+      <small>${t("Abónate para desbloquear tu semana siguiente")}</small></span>
+      ${v.abono || v.contacto ? `<button id="b-prueba-abono">💳 ${t("Abonarme")}</button>` : ""}</div>` : ""}
     ${v.prueba && v.prueba.en_prueba ? `<div class="banda-abono banda-prueba banda-progreso"><span><b>🔥 ${t("Estás progresando, no te quedes aquí")}</b>
       <small>${t("Abónate y desbloquea tu semana 2")} · ${v.prueba.dias === 1 ? t("Te queda 1 día de prueba gratis") : t("Te quedan {n} días de prueba gratis").replace("{n}", v.prueba.dias)}</small></span>
       ${v.abono ? `<button id="b-prueba-abono">💳 ${t("Desbloquear semana 2")}</button>` : ""}</div>` : ""}
@@ -1082,7 +1088,7 @@ function cabecera(v) {
     ${v.semana && v.demo ? `<div class="pildora-semana"><span>${t("Semana")} ${v.semana} · <em>${t("de muestra")}</em></span></div>` : v.semana ? `<div class="pildora-semana">
       <button id="b-sem-menos" aria-label="Semana anterior" ${v.semana <= 1 ? "disabled style='opacity:.3'" : ""}>${ic.izq}</button>
       <span>${t("Semana")} ${v.semana} · <em>${v.semana === v.actual ? `🔥 ${t("actual")}` : `${t("actual")}: ${v.actual}`}</em>${v.coach && v.atleta !== "Yo" && v.semana > v.actual ? ` · ${(v.semanas_listas || []).includes(v.semana) ? "✅" : "📝"}` : ""}</span>
-      ${v.max_semana != null && v.semana >= v.max_semana ? (v.prueba && v.prueba.en_prueba && v.abono ? `<button aria-label="Semana siguiente" class="sem-cerrada" id="b-sem-pagar">🔒</button>` : `<button aria-label="Semana siguiente" class="sem-cerrada" disabled>${ic.der}</button>`) : `<button id="b-sem-mas" aria-label="Semana siguiente">${ic.der}</button>`}
+      ${v.max_semana != null && v.semana >= v.max_semana ? ((v.prueba && v.prueba.en_prueba || v.pago_pendiente) && (v.abono || v.contacto) ? `<button aria-label="Semana siguiente" class="sem-cerrada" id="b-sem-pagar">🔒</button>` : `<button aria-label="Semana siguiente" class="sem-cerrada" disabled>${ic.der}</button>`) : `<button id="b-sem-mas" aria-label="Semana siguiente">${ic.der}</button>`}
     </div>` : ""}
     ${v.dias ? `<div class="dias" role="tablist">${v.dias.map((d) => {
       const n = (d.nombre.match(/\d+/) || [d.nombre.slice(0, 2)])[0];
@@ -1341,7 +1347,8 @@ function enlazar() {
   if (bcp) bcp.onclick = () => hojaCrearPerfil({});
   const bcl = document.getElementById("b-clientes-demo"); if (bcl) bcl.onclick = hojaPersonas;
   const bpa = document.getElementById("b-prueba-abono"); if (bpa) bpa.onclick = abonarse;
-  const bsp = document.getElementById("b-sem-pagar"); if (bsp) bsp.onclick = () => { aviso(t("🔒 La semana 2 se abre al abonarte")); setTimeout(abonarse, 500); };
+  const bsp = document.getElementById("b-sem-pagar"); if (bsp) bsp.onclick = () => { aviso(t(v.pago_pendiente ? "🔒 La semana siguiente se abre al abonarte" : "🔒 La semana 2 se abre al abonarte")); setTimeout(abonarse, 500); };
+  if (v.pago_pendiente) recordarPago();
   const bpo = document.getElementById("b-prog-ok"); if (bpo) bpo.onclick = () => hacer({ tipo: "programa_visto" }, bpo);
   const bap = document.getElementById("b-aprobar"); if (bap) bap.onclick = () => hacer({ tipo: "aprobar_programa" }, bap);
   const bps = document.getElementById("b-prop-si"); if (bps) bps.onclick = () => { E.semana = null; E.dia = null; hacer({ tipo: "aplicar_propuesta" }, bps); };
@@ -1457,6 +1464,23 @@ function textoParte(p) {
     return l.solo_bloque || p.lineas.length === 1 ? txt : `• ${l.ejercicio}${txt ? ": " + txt : ""}`;
   }).filter(Boolean).join("\n");
   return { titulo: nombreTit, texto: `🔥 ${nombreTit}\n${lineas}` };
+}
+
+// De vez en cuando (cada 2 días como mucho) a quien tiene que abonarse le sale el recordatorio
+function recordarPago() {
+  let ultimo = 0;
+  try { ultimo = +(localStorage.getItem("recordar-pago") || 0); } catch { }
+  if (Date.now() - ultimo < 2 * 864e5 || !$hoja.hidden) return;
+  try { localStorage.setItem("recordar-pago", String(Date.now())); } catch { }
+  setTimeout(() => {
+    if (!$hoja.hidden) return;
+    abrirHoja(`${cabHoja("Djimenez Prog", "🔥 " + t("No te quedes aquí"))}
+      <p>${t("Estás progresando. Abónate para desbloquear tu semana siguiente y seguir entrenando con Diego.")}</p>
+      <button class="btn btn-fuego" id="rp-abono">💳 ${t("Abonarme")}</button>
+      <button class="btn" data-cerrar>${t("Más tarde")}</button>`, (h) => {
+      h.querySelector("#rp-abono").onclick = () => { cerrarHoja(); abonarse(); };
+    });
+  }, 1500);
 }
 
 // ---------- hojas ----------

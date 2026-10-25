@@ -570,7 +570,7 @@ def _igual(a: str, b: str) -> bool:
     return bool(a) and bool(b) and hmac.compare_digest(a.encode(), b.encode())
 
 
-VERSION = "11.28"
+VERSION = "11.29"
 CLAVES_NECESARIAS = ["CONTRASENA_DIEGO", "SUPABASE_URL", "SUPABASE_KEY", "APP_PASSWORD", "CONTRASENA_ARCHCHANA", "CONTRASENA_INVITADOS", "COACH_PIN",
                      "APP_ANTIGUA_URL", "CONTRASENA_DEMO"]
 
@@ -953,6 +953,16 @@ def _borrar_perfil(quien: str) -> None:
     _apuntar_actividad(cambio)
     reg.pop(quien, None)
     datos().guardar(CLAVE_INVITADOS, reg)
+
+
+# alumnas de siempre que tienen que abonarse: solo ven su semana actual (la siguiente con candado) y les sale «abónate»
+PAGO_OBLIGATORIO = ["Archchana"]
+
+
+def paga_fijo(atleta: str, cfg: dict | None = None) -> bool:
+    cfg = (datos().rutinas([CLAVE_CONFIG]).get(CLAVE_CONFIG) or {}) if cfg is None else cfg
+    x = (cfg.get("pagos_fijos") or {}).get(atleta) or {}
+    return x.get("stripe_estado") in ESTADOS_PAGANDO or bool(x.get("manual"))
 
 
 DIAS_PRUEBA = 7  # perfiles creados desde la demo: 7 días gratis y luego tienen que abonarse
@@ -1350,6 +1360,11 @@ def datos_pago(sesion: dict | None, c: dict) -> dict:
                               "stripe_estado": stripe["estado"], "stripe_mirado": time.time(),
                               "abonado": reg_inv[quien].get("abonado") or dt.date.today().isoformat()}
             datos().guardar(CLAVE_INVITADOS, reg_inv)
+    if stripe and stripe["ok"] and quien and quien in PAGO_OBLIGATORIO:  # alumna de siempre (sin perfil de invitado)
+        reg = dict(datos().rutinas([CLAVE_CONFIG]).get(CLAVE_CONFIG) or {})
+        reg.setdefault("pagos_fijos", {})[quien] = {"stripe_customer": stripe["customer"], "stripe_sub": stripe["sub"],
+                                                    "stripe_estado": stripe["estado"], "fecha": dt.date.today().isoformat()}
+        datos().guardar(CLAVE_CONFIG, reg)
     verif = ("\n✅ Stripe lo confirma: " + ESTADOS_ABONO.get(stripe["estado"], str(stripe["estado"]))) if stripe and stripe["ok"] else \
         ("\n⚠️ Stripe NO confirma este pago: revísalo" if stripe else "")
     notificar(f"💳 {'Nuevo abonado (semana gratis)' if respuesta.get('nuevo_abonado') else ('Pago nuevo' if stripe and stripe['ok'] else 'Pago nuevo por comprobar')}{verif}\n"
@@ -2514,6 +2529,9 @@ def vista(sesion: dict, atleta: str | None, semana: int | None, dia_id: str | No
             max_semana += 1
         if (base.get("prueba") or {}).get("en_prueba"):
             max_semana = min(max_semana, 1)  # sin pagar, solo la semana 1
+        if atleta in PAGO_OBLIGATORIO and not paga_fijo(atleta, guardadas.get(CLAVE_CONFIG) or {}):
+            max_semana = actual  # solo su semana actual; la siguiente con candado hasta que se abone
+            base["pago_pendiente"] = True
         if semana > max_semana:
             semana = actual
     base["max_semana"] = max_semana
