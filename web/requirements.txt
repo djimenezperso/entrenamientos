@@ -1,0 +1,2 @@
+# La app web no necesita paquetes externos (solo librería estándar de Python).
+# Este archivo vacío evita que Vercel instale el requirements.txt de la app antigua (streamlit, pandas…).
