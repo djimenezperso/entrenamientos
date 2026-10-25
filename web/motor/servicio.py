@@ -35,7 +35,7 @@ import urllib.request
 from pathlib import Path
 
 from logica import (
-    NIVELES, NUM_PESO, _etiqueta_parte, agrupar_por_parte, quitar_parte, cambiar_pesos, copiar_rutina, destino_dia_siguiente,
+    NIVELES, NUM_PESO, _etiqueta_parte, agrupar_por_parte, quitar_parte, renombrar_parte, cambiar_pesos, copiar_rutina, destino_dia_siguiente,
     destino_semana_siguiente, editar_texto_linea, es_metcon, escalar, estado_parte, fmt_num, historial_parte,
     letra_visible, linea_activa, linea_no_hecha, marcar_linea, marcar_parte, no_hechas_en, norm, norm_busqueda,
     parametros_semana, partes_del_dia, pendientes_para, poner_pesos, prescripcion_semana, referencias_elite,
@@ -362,6 +362,57 @@ def _niveles_puntuales(rut: dict | None, atleta: str) -> dict | None:
     return rut
 
 
+# partes fijas nuevas: se meten al PRINCIPIO de un día desde la semana siguiente a la actual (las demás bajan una letra).
+# semanas: texto RX por semana relativa (1 = la siguiente a la actual); base: lo que queda después. Cada texto con sus niveles.
+_GYM_SALATTI = [
+    {"RX": "EMOM 12': 4 pull ups + 3 toes to bar", "Inter": "EMOM 12': 3 pull ups + 2 toes to bar",
+     "Scaled": "EMOM 12': 3 jumping pull ups + 3 hanging knee raises"},
+    {"RX": "E2MOM 12' (6 vueltas): 6 pull ups + 6 toes to bar + 20\" hollow hold",
+     "Inter": "E2MOM 12' (6 vueltas): 4 pull ups + 4 toes to bar + 20\" hollow hold",
+     "Scaled": "E2MOM 12' (6 vueltas): 5 jumping pull ups + 5 hanging knee raises + 20\" hollow hold"},
+    {"RX": "EMOM 14':\nimpares: 5 pull ups + 4 toes to bar\npares: 8 push ups + 20\" tuck L-sit",
+     "Inter": "EMOM 14':\nimpares: 3 pull ups + 3 toes to bar\npares: 8 push ups + 20\" tuck L-sit",
+     "Scaled": "EMOM 14':\nimpares: 4 jumping pull ups + 4 hanging knee raises\npares: 6 push ups (rodillas si hace falta) + 20\" tuck hold"},
+    {"RX": "Test: 3 intentos de max pull ups seguidos + 3 de max toes to bar · 2' de descanso entre intentos",
+     "Inter": "Test: 3 intentos de max pull ups seguidos + 3 de max toes to bar · 2' de descanso entre intentos",
+     "Scaled": "Test: 3 intentos de max jumping pull ups + 3 de max hanging knee raises · 2' de descanso entre intentos"},
+]
+PARTES_FIJAS = [
+    {"id": "salatti-d3-gym-fija", "atleta": "Salatti", "dia": 2, "etiqueta": "Gym", "nombre": "Gym",
+     "semanas": _GYM_SALATTI, "base": _GYM_SALATTI[0]},
+]
+
+
+def _partes_fijas(rut: dict | None, atleta: str) -> dict | None:
+    pend = [x for x in PARTES_FIJAS if x["atleta"] == atleta and x["id"] not in (rut or {}).get("fijas_hechas", [])]
+    if not rut or not rut.get("dias") or not pend:
+        return rut
+    import uuid
+    desde = int(rut.get("semana_actual") or 1) + 1
+    for x in pend:
+        if x["dia"] >= len(rut["dias"]):
+            continue
+        dia_id = rut["dias"][x["dia"]]["id"]
+        dia = next(d for d in rut["dias"] if d["id"] == dia_id)
+        partes = [p for p, _ in agrupar_por_parte(dia, desde)]
+        if not (partes and norm_busqueda(_etiqueta_parte(partes[0])) == norm_busqueda(x["etiqueta"])):
+            for p in reversed(partes):  # todas bajan una letra: A→B, B→C…
+                rut = renombrar_parte(rut, dia_id, p, f"{chr(ord(p[:1].upper()) + 1)}{p[1:]}")
+            rut = copy.deepcopy(rut)
+            dia = next(d for d in rut["dias"] if d["id"] == dia_id)
+            lid = uuid.uuid4().hex[:8]
+            dia["lineas"].insert(0, {"id": lid, "ejercicio": x["nombre"], "prescripcion": x["base"]["RX"], "sube": 0.0,
+                                     "base": desde, "nota": "", "parte": f"A) {x['etiqueta']}", "desde": desde,
+                                     "niveles_txt": x["base"]})
+            aj, ns = rut.setdefault("ajustes", {}), rut.setdefault("niveles_semana", {})
+            for i, niveles in enumerate(x["semanas"]):
+                aj.setdefault(str(desde + i), {})[lid] = niveles["RX"]
+                ns.setdefault(str(desde + i), {})[lid] = niveles
+        rut = dict(rut, fijas_hechas=list(rut.get("fijas_hechas") or []) + [x["id"]])
+    datos().guardar(atleta, rut)
+    return rut
+
+
 # nombres que se quedaron pegados a un WOD que ya no es ese (Al azar «solo esta semana» cambiaba el nombre para siempre)
 RENOMBRAR = {"Yo": {"Barbell cycling": "WOD"}}
 
@@ -382,7 +433,7 @@ def _renombrar(rut: dict | None, atleta: str) -> dict | None:
 
 def rutina(atleta: str, guardadas: dict | None = None) -> dict | None:
     guardadas = datos().rutinas([atleta]) if guardadas is None else guardadas
-    r = _niveles_puntuales(_cambios_puntuales(_renombrar(_limpiar_extra(guardadas.get(atleta), atleta), atleta), atleta), atleta)
+    r = _partes_fijas(_niveles_puntuales(_cambios_puntuales(_renombrar(_limpiar_extra(guardadas.get(atleta), atleta), atleta), atleta), atleta), atleta)
     return completar(r or rutinas_iniciales(ATLETAS).get(atleta), atleta)
 
 
@@ -473,7 +524,7 @@ def _igual(a: str, b: str) -> bool:
     return bool(a) and bool(b) and hmac.compare_digest(a.encode(), b.encode())
 
 
-VERSION = "11.21"
+VERSION = "11.22"
 CLAVES_NECESARIAS = ["CONTRASENA_DIEGO", "SUPABASE_URL", "SUPABASE_KEY", "APP_PASSWORD", "CONTRASENA_ARCHCHANA", "CONTRASENA_INVITADOS", "COACH_PIN",
                      "APP_ANTIGUA_URL", "CONTRASENA_DEMO"]
 
