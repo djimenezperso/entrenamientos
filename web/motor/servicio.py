@@ -377,9 +377,15 @@ _GYM_SALATTI = [
      "Inter": "Test: 3 intentos de max pull ups seguidos + 3 de max toes to bar · 2' de descanso entre intentos",
      "Scaled": "Test: 3 intentos de max jumping pull ups + 3 de max hanging knee raises · 2' de descanso entre intentos"},
 ]
+_BRAZOS = {"RX": "4x: 12 DB hammer curl + 12 DB triceps extension (superserie) · 1' descanso · peso que te deje 2 reps en reserva"}
 PARTES_FIJAS = [
     {"id": "salatti-d3-gym-fija", "atleta": "Salatti", "dia": 2, "etiqueta": "Gym", "nombre": "Gym",
      "semanas": _GYM_SALATTI, "base": _GYM_SALATTI[0]},
+    # viernes: C) Accessory de brazos, al final del día, desde la semana actual
+    {"id": "manu-viernes-brazos", "atleta": "Manu Anel", "dia": 2, "dia_nombre": "viernes", "etiqueta": "Accessory",
+     "nombre": "Brazos", "semanas": [], "base": _BRAZOS, "final": True, "desde_rel": 0},
+    {"id": "salatti-viernes-brazos", "atleta": "Salatti", "dia": 3, "dia_nombre": "viernes", "etiqueta": "Accessory",
+     "nombre": "Brazos", "semanas": [], "base": _BRAZOS, "final": True, "desde_rel": 0},
 ]
 
 
@@ -388,14 +394,22 @@ def _partes_fijas(rut: dict | None, atleta: str) -> dict | None:
     if not rut or not rut.get("dias") or not pend:
         return rut
     import uuid
-    desde = int(rut.get("semana_actual") or 1) + 1
     for x in pend:
-        if x["dia"] >= len(rut["dias"]):
+        desde = int(rut.get("semana_actual") or 1) + x.get("desde_rel", 1)
+        por_nombre = [d for d in rut["dias"] if x.get("dia_nombre") and norm_busqueda(x["dia_nombre"]) in norm_busqueda(d.get("nombre", ""))]
+        if not por_nombre and x["dia"] >= len(rut["dias"]):
             continue
-        dia_id = rut["dias"][x["dia"]]["id"]
+        dia_id = (por_nombre or [rut["dias"][x["dia"]]])[0]["id"]
         dia = next(d for d in rut["dias"] if d["id"] == dia_id)
         partes = [p for p, _ in agrupar_por_parte(dia, desde)]
-        if not (partes and norm_busqueda(_etiqueta_parte(partes[0])) == norm_busqueda(x["etiqueta"])):
+        if x.get("final"):
+            rut = copy.deepcopy(rut)
+            dia = next(d for d in rut["dias"] if d["id"] == dia_id)
+            letras = [p[:1].upper() for p in partes if p[1:2] == ")"]
+            letra = chr(ord(max(letras)) + 1) if letras else "A"
+            dia["lineas"].append({"id": uuid.uuid4().hex[:8], "ejercicio": x["nombre"], "prescripcion": x["base"]["RX"],
+                                  "sube": 0.0, "base": desde, "nota": "", "parte": f"{letra}) {x['etiqueta']}", "desde": desde})
+        elif not (partes and norm_busqueda(_etiqueta_parte(partes[0])) == norm_busqueda(x["etiqueta"])):
             for p in reversed(partes):  # todas bajan una letra: A→B, B→C…
                 rut = renombrar_parte(rut, dia_id, p, f"{chr(ord(p[:1].upper()) + 1)}{p[1:]}")
             rut = copy.deepcopy(rut)
@@ -524,7 +538,7 @@ def _igual(a: str, b: str) -> bool:
     return bool(a) and bool(b) and hmac.compare_digest(a.encode(), b.encode())
 
 
-VERSION = "11.22"
+VERSION = "11.23"
 CLAVES_NECESARIAS = ["CONTRASENA_DIEGO", "SUPABASE_URL", "SUPABASE_KEY", "APP_PASSWORD", "CONTRASENA_ARCHCHANA", "CONTRASENA_INVITADOS", "COACH_PIN",
                      "APP_ANTIGUA_URL", "CONTRASENA_DEMO"]
 
