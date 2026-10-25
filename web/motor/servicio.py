@@ -570,7 +570,7 @@ def _igual(a: str, b: str) -> bool:
     return bool(a) and bool(b) and hmac.compare_digest(a.encode(), b.encode())
 
 
-VERSION = "11.26"
+VERSION = "11.27"
 CLAVES_NECESARIAS = ["CONTRASENA_DIEGO", "SUPABASE_URL", "SUPABASE_KEY", "APP_PASSWORD", "CONTRASENA_ARCHCHANA", "CONTRASENA_INVITADOS", "COACH_PIN",
                      "APP_ANTIGUA_URL", "CONTRASENA_DEMO"]
 
@@ -2473,6 +2473,9 @@ def vista(sesion: dict, atleta: str | None, semana: int | None, dia_id: str | No
             if not prueba["pagando"] and int((rut or {}).get("semana_actual") or 1) >= 2:
                 # la prueba gratis es solo la semana 1: la 2 se abre al abonarse
                 return {**base, "pago_requerido": True, "pago_motivo": "semana2"}
+            if not prueba["pagando"] and rut and rut.get("dias") and semana_completa(rut, int(rut.get("semana_actual") or 1)):
+                # toda la semana 1 marcada aunque no le haya dado a «Terminé la semana»: ya toca abonarse
+                return {**base, "pago_requerido": True, "pago_motivo": "semana2", "pago_auto": True}
     if (not rut or not rut.get("dias")) and atleta in inv and not es_demo(sesion):
         try:  # perfil nuevo al que no se le llegó a guardar la rutina de inicio (p. ej. se cortó la conexión)
             rut = completar(_rutina_inicio(atleta, inv[atleta].get("plantilla")), atleta)

@@ -81,6 +81,9 @@ const FR = {
   "Escribir a Diego": "Écrire à Diego",
   "Te queda 1 día de prueba gratis": "Il te reste 1 jour d'essai gratuit",
   "Te quedan {n} días de prueba gratis": "Il te reste {n} jours d'essai gratuit",
+  "Estás progresando, no te quedes aquí": "Tu progresses, ne t'arrête pas là", "Abónate y desbloquea tu semana 2": "Abonne-toi et débloque ta semaine 2",
+  "Desbloquear semana 2": "Débloquer la semaine 2", "🔒 La semana 2 se abre al abonarte": "🔒 La semaine 2 s'ouvre quand tu t'abonnes",
+  "Has hecho toda la semana 1 💪 Abónate para abrir la semana 2 y no perder lo que has ganado.": "Tu as fait toute la semaine 1 💪 Abonne-toi pour ouvrir la semaine 2 et garder tout ce que tu as gagné.",
   "Abonarme": "M'abonner",
   "Quitar gratis": "Retirer la gratuité",
   "Dejar gratis": "Laisser gratuit",
@@ -989,7 +992,7 @@ function pintar() {
     $app.innerHTML = cabecera(v) + `<main><div class="muro-pago">
       <div class="pago-ok">🔒</div>
       <h2>${t(v.pago_motivo === "semana2" ? "¡Semana 1 completada! 🔥" : "Tu semana gratis ha terminado")}</h2>
-      <p>${t(v.pago_motivo === "semana2" ? "La semana gratis incluye la semana 1. Abónate para abrir la semana 2 y seguir con Diego." : "Tu rutina sigue aquí, hecha para ti. Abónate para seguir entrenando con Diego.")}</p>
+      <p>${t(v.pago_motivo === "semana2" ? (v.pago_auto ? "Has hecho toda la semana 1 💪 Abónate para abrir la semana 2 y no perder lo que has ganado." : "La semana gratis incluye la semana 1. Abónate para abrir la semana 2 y seguir con Diego.") : "Tu rutina sigue aquí, hecha para ti. Abónate para seguir entrenando con Diego.")}</p>
       ${v.abono ? `<button class="btn btn-abono" id="mp-abono" style="height:58px">💳 ${t("Abonarme y seguir")}</button>
         <p class="promo-fundador">🎟️ ${t("Código FUNDADOR: 19 €/mes para siempre · solo 20 plazas")}</p>` : ""}
       ${v.chat_activo ? `<button class="btn" id="mp-chat">💬 ${t("Escribir a Diego")}</button>` : ""}
@@ -1070,15 +1073,16 @@ function cabecera(v) {
       <small>${esc(v.propuesta.titulo)}</small>
       <details><summary>${t("Ver la rutina")}</summary>${v.propuesta.dias.map((d) => `<div class="prop-dia"><b>${esc(trDia(d.nombre))}</b>${d.lineas.map((x) => `<div>${esc(x)}</div>`).join("")}</div>`).join("")}</details>
       <div class="prop-bot"><button id="b-prop-si">✅ ${t("Aplicar")}</button><button id="b-prop-no">${t("Descartar")}</button></div></div>` : ""}
-    ${v.prueba && v.prueba.en_prueba ? `<div class="banda-abono banda-prueba"><span>🎁 ${v.prueba.dias === 1 ? t("Te queda 1 día de prueba gratis") : t("Te quedan {n} días de prueba gratis").replace("{n}", v.prueba.dias)}</span>
-      ${v.abono ? `<button id="b-prueba-abono">💳 ${t("Abonarme")}</button>` : ""}</div>` : ""}
+    ${v.prueba && v.prueba.en_prueba ? `<div class="banda-abono banda-prueba banda-progreso"><span><b>🔥 ${t("Estás progresando, no te quedes aquí")}</b>
+      <small>${t("Abónate y desbloquea tu semana 2")} · ${v.prueba.dias === 1 ? t("Te queda 1 día de prueba gratis") : t("Te quedan {n} días de prueba gratis").replace("{n}", v.prueba.dias)}</small></span>
+      ${v.abono ? `<button id="b-prueba-abono">💳 ${t("Desbloquear semana 2")}</button>` : ""}</div>` : ""}
     ${v.abono_problema ? `<div class="banda-abono"><span>⚠️ ${t("Tu abono está")} <b>${esc(t(v.abono_estado_txt || ""))}</b>.</span>
       ${v.abono_gestion ? `<button id="b-abono-arreglar">${t(v.abono_estado === "canceled" || v.abono_estado === "incomplete_expired" ? "Volver a abonarme" : "Actualizar mi tarjeta")}</button>` : ""}</div>` : ""}
     ${v.demo ? `<div class="banda-demo">👀 ${t("Modo demo · solo para mirar")} <button id="b-crear-demo">✨ ${t("Crear mi perfil")}</button>${v.abono ? `<button id="b-abono-demo">💳 ${t("Abonarse")}</button>` : v.contacto ? `<button id="b-abono-demo">💬 ${t("Contacto")}</button>` : ""}<button id="b-compartir-demo">${ic.compartir} ${t("Compartir")}</button>${varias ? `<button id="b-clientes-demo" class="clientes-demo">👥 ${t("Ver programas")}</button>` : ""}</div>` : ""}
     ${v.semana && v.demo ? `<div class="pildora-semana"><span>${t("Semana")} ${v.semana} · <em>${t("de muestra")}</em></span></div>` : v.semana ? `<div class="pildora-semana">
       <button id="b-sem-menos" aria-label="Semana anterior" ${v.semana <= 1 ? "disabled style='opacity:.3'" : ""}>${ic.izq}</button>
       <span>${t("Semana")} ${v.semana} · <em>${v.semana === v.actual ? `🔥 ${t("actual")}` : `${t("actual")}: ${v.actual}`}</em>${v.coach && v.atleta !== "Yo" && v.semana > v.actual ? ` · ${(v.semanas_listas || []).includes(v.semana) ? "✅" : "📝"}` : ""}</span>
-      ${v.max_semana != null && v.semana >= v.max_semana ? `<button aria-label="Semana siguiente" class="sem-cerrada" disabled>${ic.der}</button>` : `<button id="b-sem-mas" aria-label="Semana siguiente">${ic.der}</button>`}
+      ${v.max_semana != null && v.semana >= v.max_semana ? (v.prueba && v.prueba.en_prueba && v.abono ? `<button aria-label="Semana siguiente" class="sem-cerrada" id="b-sem-pagar">🔒</button>` : `<button aria-label="Semana siguiente" class="sem-cerrada" disabled>${ic.der}</button>`) : `<button id="b-sem-mas" aria-label="Semana siguiente">${ic.der}</button>`}
     </div>` : ""}
     ${v.dias ? `<div class="dias" role="tablist">${v.dias.map((d) => {
       const n = (d.nombre.match(/\d+/) || [d.nombre.slice(0, 2)])[0];
@@ -1337,6 +1341,7 @@ function enlazar() {
   if (bcp) bcp.onclick = () => hojaCrearPerfil({});
   const bcl = document.getElementById("b-clientes-demo"); if (bcl) bcl.onclick = hojaPersonas;
   const bpa = document.getElementById("b-prueba-abono"); if (bpa) bpa.onclick = abonarse;
+  const bsp = document.getElementById("b-sem-pagar"); if (bsp) bsp.onclick = () => { aviso(t("🔒 La semana 2 se abre al abonarte")); setTimeout(abonarse, 500); };
   const bpo = document.getElementById("b-prog-ok"); if (bpo) bpo.onclick = () => hacer({ tipo: "programa_visto" }, bpo);
   const bap = document.getElementById("b-aprobar"); if (bap) bap.onclick = () => hacer({ tipo: "aprobar_programa" }, bap);
   const bps = document.getElementById("b-prop-si"); if (bps) bps.onclick = () => { E.semana = null; E.dia = null; hacer({ tipo: "aplicar_propuesta" }, bps); };
