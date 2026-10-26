@@ -459,6 +459,37 @@ def _partes_fijas(rut: dict | None, atleta: str) -> dict | None:
     return rut
 
 
+# pasar a alguien de semana llevándose los WODs/conditionings que Diego preparó en la semana anterior
+# (la fuerza se queda la de la semana nueva, con su progresión). Se hace una vez, si sigue en la semana «de».
+PASAR_SEMANA = [
+    {"id": "esposa-s2-a-s3-2026-10", "atleta": "Mi esposa", "de": 2, "a": 3, "tipos": ("wod", "conditioning")},
+]
+
+
+def _pasar_semana(rut: dict | None, atleta: str) -> dict | None:
+    pend = [x for x in PASAR_SEMANA if x["atleta"] == atleta and x["id"] not in (rut or {}).get("pasados", [])]
+    if not rut or not rut.get("dias") or not pend:
+        return rut
+    rut = copy.deepcopy(rut)
+    for x in pend:
+        if int(rut.get("semana_actual") or 1) == x["de"]:
+            aj = rut.setdefault("ajustes", {})
+            de, a = str(x["de"]), str(x["a"])
+            for d in rut["dias"]:
+                for l, p in zip(d["lineas"], partes_del_dia(d)):
+                    if tipo_de_linea(p, l["ejercicio"]) in x["tipos"]:
+                        txt = prescripcion_semana(l, x["de"], rut.get("ajustes"))[0]
+                        if txt:
+                            aj.setdefault(a, {})[l["id"]] = txt
+            for clave in ("nombres_semana", "niveles_semana"):
+                if (rut.get(clave) or {}).get(de):
+                    rut[clave] = {**rut[clave], a: {**(rut[clave].get(a) or {}), **rut[clave][de]}}
+            rut["semana_actual"] = x["a"]
+        rut["pasados"] = list(rut.get("pasados") or []) + [x["id"]]
+    datos().guardar(atleta, rut)
+    return rut
+
+
 # nombres que se quedaron pegados a un WOD que ya no es ese (Al azar «solo esta semana» cambiaba el nombre para siempre)
 RENOMBRAR = {"Yo": {"Barbell cycling": "WOD"}}
 
@@ -479,7 +510,7 @@ def _renombrar(rut: dict | None, atleta: str) -> dict | None:
 
 def rutina(atleta: str, guardadas: dict | None = None) -> dict | None:
     guardadas = datos().rutinas([atleta]) if guardadas is None else guardadas
-    r = _partes_fijas(_niveles_puntuales(_cambios_puntuales(_renombrar(_limpiar_extra(guardadas.get(atleta), atleta), atleta), atleta), atleta), atleta)
+    r = _pasar_semana(_partes_fijas(_niveles_puntuales(_cambios_puntuales(_renombrar(_limpiar_extra(guardadas.get(atleta), atleta), atleta), atleta), atleta), atleta), atleta)
     return completar(r or rutinas_iniciales(ATLETAS).get(atleta), atleta)
 
 
@@ -570,7 +601,7 @@ def _igual(a: str, b: str) -> bool:
     return bool(a) and bool(b) and hmac.compare_digest(a.encode(), b.encode())
 
 
-VERSION = "11.30"
+VERSION = "11.31"
 CLAVES_NECESARIAS = ["CONTRASENA_DIEGO", "SUPABASE_URL", "SUPABASE_KEY", "APP_PASSWORD", "CONTRASENA_ARCHCHANA", "CONTRASENA_INVITADOS", "COACH_PIN",
                      "APP_ANTIGUA_URL", "CONTRASENA_DEMO"]
 
