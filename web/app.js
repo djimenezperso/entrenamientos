@@ -352,7 +352,7 @@ const FR = {
   "Tu nombre": "Ton prénom", "Tu PIN (4 cifras o más)": "Ton code (4 chiffres ou plus)", "¿Con qué rutina empiezas?": "Quel programme ?",
   "Empezar": "Commencer", "Bienvenida": "Bienvenue", "Bienvenido": "Bienvenue", "Fijar": "Fixer",
   "WOD de Diego · semana": "WOD de Diego · semaine", "Ciclo · semana": "Cycle · semaine",
-  "Registrar resultados": "Enregistrer les résultats", "Tipo": "Type", "Partes que has hecho": "Parties faites",
+  "Registrar resultados": "Enregistrer les résultats", "Apuntar tiempo o comentario": "Noter le temps ou un commentaire", "Apuntar comentario": "Noter un commentaire", "Tipo": "Type", "Partes que has hecho": "Parties faites",
   "Se marcan como hechas al guardar.": "Elles seront marquées comme faites.", "Título": "Titre", "Fecha": "Date",
   "Duración total": "Durée totale", "Resultados": "Résultats", "Ejercicio": "Exercice", "Resultado": "Résultat",
   "Añadir resultado": "Ajouter un résultat", "Notas": "Notes", "Foto": "Photo", "Añadir": "Ajouter", "Cambiar": "Changer",
@@ -1132,6 +1132,7 @@ function tarjeta(p, k) {
     <div class="lineas">${p.lineas.map((l, j) => linea(l, p, k + "_" + j)).join("")}</div>
     ${p.no_hechas ? `<div class="nota-estado no_hecho" style="padding-left:48px">${p.no_hechas} sin hacer · repiten peso</div>` : ""}
     ${p.registro ? `<button class="btn btn-negro" data-reg="${k}" style="height:42px">${t("Registrar resultados")}</button>` : ""}
+    ${!p.registro && !E.vista.demo && !p.calentamiento && E.vista.registro ? `<button class="mini-btn reg-parte" data-regp="${k}">✍️ ${t(p.lineas.some((l) => l.kind === "texto") ? "Apuntar tiempo o comentario" : "Apuntar comentario")}</button>` : ""}
     <div class="estado" data-k="${k}">${p.opciones.map((o) =>
       `<button class="${p.actual === o.clave ? "on " + o.estado : ""}" data-op="${o.clave}" title="${esc(o.texto)}">${esc(corto(o))}</button>`).join("")}</div>
   </section>`;
@@ -1331,6 +1332,13 @@ function enlazar() {
     else { E.pantalla = "rutina"; pintar(); window.scrollTo(0, 0); }
   });
   on("b-registrar-dia", () => abrirRegistrar(v.registro, v.partes.filter((p) => p.estado !== "hecho").map((p) => p.parte)));
+  $app.querySelectorAll("[data-regp]").forEach((b) => b.onclick = () => {  // solo lo de esa parte
+    const p = parteDe(b.dataset.regp), ids = new Set(p.lineas.map((l) => l.id));
+    const filas = (v.registro.filas || []).filter((f) => ids.has(f.id));
+    const wod = p.lineas.some((l) => l.kind === "texto");
+    abrirRegistrar({ ...v.registro, tipo: wod ? (/gym/i.test(p.etiqueta) ? "gym" : "wod") : "fuerza",
+      titulo: `${v.registro.titulo || ""} · ${p.letra} ${p.etiqueta}`.replace(/^ · /, ""), filas: filas.length ? filas : v.registro.filas }, [p.parte]);
+  });
   $app.querySelectorAll("[data-reg]").forEach((b) => b.onclick = () => {
     const p = parteDe(b.dataset.reg); abrirRegistrar(p.registro, [p.parte]);
   });
