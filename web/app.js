@@ -1041,7 +1041,7 @@ function pintar() {
     ${v.partes.length ? v.partes.map((p, i) => tarjeta(p, "p" + i)).join("") : `<div class="vacio">${t("Sin ejercicios este día.")}</div>`}
     ${v.pendientes.length ? `<div class="seccion">${ic.ciclo} ${t("Pendiente de")}…</div>` + v.pendientes.map((p, i) => tarjeta(p, "q" + i)).join("") : ""}
     <button class="btn btn-punteado" id="b-anadir-parte">+ ${t("Añadir parte")}</button>
-    ${v.partes.length ? `<button class="btn btn-fuego" id="b-registrar-dia">${ic.mas} ${t("Registrar resultados")}</button>` : ""}
+    ${v.partes.length && (v.atleta === "Yo" || v.coach) ? `<button class="btn btn-fuego" id="b-registrar-dia">${ic.mas} ${t("Registrar resultados")}</button>` : ""}
     ${finSemana(v)}
   </main>` + nav();
   enlazar();

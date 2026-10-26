@@ -601,7 +601,7 @@ def _igual(a: str, b: str) -> bool:
     return bool(a) and bool(b) and hmac.compare_digest(a.encode(), b.encode())
 
 
-VERSION = "11.31"
+VERSION = "11.32"
 CLAVES_NECESARIAS = ["CONTRASENA_DIEGO", "SUPABASE_URL", "SUPABASE_KEY", "APP_PASSWORD", "CONTRASENA_ARCHCHANA", "CONTRASENA_INVITADOS", "COACH_PIN",
                      "APP_ANTIGUA_URL", "CONTRASENA_DEMO"]
 
@@ -3113,6 +3113,48 @@ def _resumen_cambio(tipo: str, c: dict, rut: dict) -> str:
     return f"{'Cambiar' if tipo == 'cambiar_parte' else 'Añadir'} {c.get('etiqueta', '')}: {c.get('texto', '')}"
 
 
+def _al_marcar(sesion: dict, atleta: str, rut: dict, semana: int, dia_id: str, parte: str, estado: str | None) -> None:
+    """Al darle a Hecho / No hecho: aviso a Diego por Telegram con lo que tocaba, y la fuerza se apunta sola
+    en el historial (para el «Último: … kg»). Si quita la marca, se borra ese apunte. Nunca rompe nada."""
+    try:
+        dia = next(d for d in rut["dias"] if d["id"] == dia_id)
+        lineas = next((ls for p, ls in agrupar_por_parte(dia, semana) if p == parte), [])
+        clave = f"auto|{semana}|{dia_id}|{parte}"
+        try:
+            previos = [w for w in datos().entrenos(atleta, 60) if (w.get("notes") or "") == clave]
+        except Exception:  # noqa: BLE001
+            previos = []
+        if estado != "hecho":
+            for w in previos:
+                datos().borrar_entreno(w)
+        elif not previos:
+            filas = []
+            for l in lineas:
+                if tipo_de_linea(parte, l["ejercicio"]) is None:
+                    txt = prescripcion_semana(l, semana, rut.get("ajustes"))[0]
+                    kgs = [float(x.replace(",", ".")) for x in NUM_PESO.findall(txt or "")]
+                    if kgs:
+                        filas.append({"name": l["ejercicio"], "value": max(kgs), "unit": "kg"})
+            if filas:
+                import uuid
+                datos().insertar_entreno({"id": str(uuid.uuid4()), "athlete": atleta, "date": dt.date.today().isoformat(),
+                                          "type": "fuerza", "title": f"{_etiqueta_parte(parte) or parte} · S{semana}",
+                                          "duration_sec": None, "entries": filas, "notes": clave, "photo_path": None,
+                                          "created_at": dt.datetime.now(dt.timezone.utc).isoformat()})
+        if atleta == "Yo" or es_coach(sesion) or estado not in ("hecho", "no_hecho") or previos and estado == "hecho":
+            return
+        lin = []
+        for l in lineas:
+            txt = (prescripcion_semana(l, semana, rut.get("ajustes"))[0] or "").strip()
+            if txt:
+                nombre = l["ejercicio"] if norm_busqueda(l["ejercicio"]) != norm_busqueda(_etiqueta_parte(parte)) else ""
+                lin.append(f"• {nombre + ': ' if nombre else ''}{txt[:300]}")
+        marca = "✅ hecho" if estado == "hecho" else "❌ no hecho"
+        notificar(f"{marca} · {nv(atleta)} · Semana {semana} · {dia.get('nombre', '')}\n{parte}\n" + "\n".join(lin))
+    except Exception:  # noqa: BLE001
+        pass
+
+
 # ===== acciones =====
 def accion(sesion: dict, c: dict) -> dict:
     atleta = c.get("atleta")
@@ -3132,6 +3174,8 @@ def accion(sesion: dict, c: dict) -> dict:
         if estado not in ("hecho", "no_hecho", "pospuesto", None):
             raise Error("Estado no válido")
         rut = marcar_parte(rut, semana, c["dia"], c["parte"], estado, c.get("destino"))
+        if not es_demo(sesion):
+            _al_marcar(sesion, atleta, rut, semana, c["dia"], c["parte"], estado)
         aviso = {"hecho": "¡Hecho!", "no_hecho": "Apuntado: la semana que viene repite peso",
                  "pospuesto": "Pasado a otro día", None: "Quitada la marca"}[estado]
     elif tipo == "peso":
