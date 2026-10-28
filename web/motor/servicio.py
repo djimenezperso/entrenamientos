@@ -490,6 +490,34 @@ def _pasar_semana(rut: dict | None, atleta: str) -> dict | None:
     return rut
 
 
+# quitar ejercicios de la rutina de alguien desde su semana actual (las semanas anteriores se quedan como estaban)
+QUITAR_LINEAS = [
+    {"id": "yo-sin-bench-2026-10", "atleta": "Yo", "ejercicios": ("bench press", "press banca", "press de banca")},
+]
+
+
+def _quitar_lineas(rut: dict | None, atleta: str) -> dict | None:
+    pend = [x for x in QUITAR_LINEAS if x["atleta"] == atleta and x["id"] not in (rut or {}).get("quitados", [])]
+    if not rut or not rut.get("dias") or not pend:
+        return rut
+    rut = copy.deepcopy(rut)
+    sem = int(rut.get("semana_actual") or 1)
+    for x in pend:
+        for d in rut["dias"]:
+            nuevas = []
+            for l in d["lineas"]:
+                if any(norm_busqueda(e) in norm_busqueda(l["ejercicio"]) for e in x["ejercicios"]):
+                    if int(l.get("desde") or 1) < sem:
+                        l["hasta"] = min(int(l.get("hasta") or 10 ** 6), sem - 1)
+                        nuevas.append(l)
+                    continue
+                nuevas.append(l)
+            d["lineas"] = nuevas
+        rut["quitados"] = list(rut.get("quitados") or []) + [x["id"]]
+    datos().guardar(atleta, rut)
+    return rut
+
+
 # cambiar el orden de ejercicios dentro de una parte (se hace una vez)
 REORDENAR = [
     {"id": "esposa-fs-antes-cleanpull", "atleta": "Mi esposa", "mover": "front squat", "antes_de": "clean pull"},
@@ -533,7 +561,7 @@ def _renombrar(rut: dict | None, atleta: str) -> dict | None:
 
 def rutina(atleta: str, guardadas: dict | None = None) -> dict | None:
     guardadas = datos().rutinas([atleta]) if guardadas is None else guardadas
-    r = _reordenar(_pasar_semana(_partes_fijas(_niveles_puntuales(_cambios_puntuales(_renombrar(_limpiar_extra(guardadas.get(atleta), atleta), atleta), atleta), atleta), atleta), atleta), atleta)
+    r = _quitar_lineas(_reordenar(_pasar_semana(_partes_fijas(_niveles_puntuales(_cambios_puntuales(_renombrar(_limpiar_extra(guardadas.get(atleta), atleta), atleta), atleta), atleta), atleta), atleta), atleta), atleta)
     return completar(r or rutinas_iniciales(ATLETAS).get(atleta), atleta)
 
 
@@ -624,7 +652,7 @@ def _igual(a: str, b: str) -> bool:
     return bool(a) and bool(b) and hmac.compare_digest(a.encode(), b.encode())
 
 
-VERSION = "11.33"
+VERSION = "11.34"
 CLAVES_NECESARIAS = ["CONTRASENA_DIEGO", "SUPABASE_URL", "SUPABASE_KEY", "APP_PASSWORD", "CONTRASENA_ARCHCHANA", "CONTRASENA_INVITADOS", "COACH_PIN",
                      "APP_ANTIGUA_URL", "CONTRASENA_DEMO"]
 
