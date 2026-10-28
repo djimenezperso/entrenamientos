@@ -490,6 +490,29 @@ def _pasar_semana(rut: dict | None, atleta: str) -> dict | None:
     return rut
 
 
+# cambiar el orden de ejercicios dentro de una parte (se hace una vez)
+REORDENAR = [
+    {"id": "esposa-fs-antes-cleanpull", "atleta": "Mi esposa", "mover": "front squat", "antes_de": "clean pull"},
+]
+
+
+def _reordenar(rut: dict | None, atleta: str) -> dict | None:
+    pend = [x for x in REORDENAR if x["atleta"] == atleta and x["id"] not in (rut or {}).get("reordenados", [])]
+    if not rut or not rut.get("dias") or not pend:
+        return rut
+    rut = copy.deepcopy(rut)
+    for x in pend:
+        for d in rut["dias"]:
+            ls = d["lineas"]
+            i = next((k for k, l in enumerate(ls) if norm_busqueda(l["ejercicio"]) == norm_busqueda(x["antes_de"])), None)
+            j = next((k for k, l in enumerate(ls) if norm_busqueda(l["ejercicio"]) == norm_busqueda(x["mover"])), None)
+            if i is not None and j is not None and j > i and ls[i].get("parte") == ls[j].get("parte"):
+                ls.insert(i, ls.pop(j))
+        rut["reordenados"] = list(rut.get("reordenados") or []) + [x["id"]]
+    datos().guardar(atleta, rut)
+    return rut
+
+
 # nombres que se quedaron pegados a un WOD que ya no es ese (Al azar «solo esta semana» cambiaba el nombre para siempre)
 RENOMBRAR = {"Yo": {"Barbell cycling": "WOD"}}
 
@@ -510,7 +533,7 @@ def _renombrar(rut: dict | None, atleta: str) -> dict | None:
 
 def rutina(atleta: str, guardadas: dict | None = None) -> dict | None:
     guardadas = datos().rutinas([atleta]) if guardadas is None else guardadas
-    r = _pasar_semana(_partes_fijas(_niveles_puntuales(_cambios_puntuales(_renombrar(_limpiar_extra(guardadas.get(atleta), atleta), atleta), atleta), atleta), atleta), atleta)
+    r = _reordenar(_pasar_semana(_partes_fijas(_niveles_puntuales(_cambios_puntuales(_renombrar(_limpiar_extra(guardadas.get(atleta), atleta), atleta), atleta), atleta), atleta), atleta), atleta)
     return completar(r or rutinas_iniciales(ATLETAS).get(atleta), atleta)
 
 
@@ -601,7 +624,7 @@ def _igual(a: str, b: str) -> bool:
     return bool(a) and bool(b) and hmac.compare_digest(a.encode(), b.encode())
 
 
-VERSION = "11.32"
+VERSION = "11.33"
 CLAVES_NECESARIAS = ["CONTRASENA_DIEGO", "SUPABASE_URL", "SUPABASE_KEY", "APP_PASSWORD", "CONTRASENA_ARCHCHANA", "CONTRASENA_INVITADOS", "COACH_PIN",
                      "APP_ANTIGUA_URL", "CONTRASENA_DEMO"]
 
