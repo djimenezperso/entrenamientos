@@ -652,7 +652,7 @@ def _igual(a: str, b: str) -> bool:
     return bool(a) and bool(b) and hmac.compare_digest(a.encode(), b.encode())
 
 
-VERSION = "11.34"
+VERSION = "11.35"
 CLAVES_NECESARIAS = ["CONTRASENA_DIEGO", "SUPABASE_URL", "SUPABASE_KEY", "APP_PASSWORD", "CONTRASENA_ARCHCHANA", "CONTRASENA_INVITADOS", "COACH_PIN",
                      "APP_ANTIGUA_URL", "CONTRASENA_DEMO"]
 
@@ -708,8 +708,8 @@ def nuevo_codigo(sesion: dict, c: dict) -> dict:
         inv[atleta] = {**inv[atleta], "pin": _hash(atleta, codigo)}
         datos().guardar(CLAVE_INVITADOS, inv)
         return {"ok": True, "aviso": f"PIN nuevo para {nv(atleta)} ✅ (entra con su nombre y este PIN)"}
-    if atleta not in accesos_personales():
-        raise Error("Esa persona no entra con código propio")
+    if atleta not in accesos_personales() and atleta not in ATLETAS or atleta in ("Yo", "Mi esposa"):
+        raise Error("A esa persona no se le puede poner código")
     usados = [env(k) for k in ("CONTRASENA_DIEGO", "APP_PASSWORD", "CONTRASENA_DEMO", "CONTRASENA_INVITADOS", "COACH_PIN")]
     if any(u and _igual(codigo, u) for u in usados):
         raise Error("Ese código ya se usa para otra cosa. Elige otro.")
@@ -2605,7 +2605,7 @@ def vista(sesion: dict, atleta: str | None, semana: int | None, dia_id: str | No
             "puede_pesos": coach or bool((rut or {}).get("permiso_pesos")),
             "permiso_pesos": bool((rut or {}).get("permiso_pesos")),
             "solicitudes": [x for x in todas_sol if coach and (not sesion.get("u") or x["atleta"] == sesion["u"])],
-            "codigo_propio": coach and not es_demo(sesion) and atleta != "Yo" and (atleta in inv or atleta in accesos_personales()),
+            "codigo_propio": coach and not es_demo(sesion) and atleta not in ("Yo", "Mi esposa") and (atleta in inv or atleta in ATLETAS or atleta in accesos_personales()),
             "semanas_listas": sorted(int(x) for x in (rut or {}).get("semanas_listas") or []) if coach else [],
             "mis_solicitudes": {x["linea"]: x for x in todas_sol if x["atleta"] == atleta}}
     if coach and not es_demo(sesion) and not sesion.get("u"):
