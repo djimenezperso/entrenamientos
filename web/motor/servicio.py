@@ -490,6 +490,38 @@ def _pasar_semana(rut: dict | None, atleta: str) -> dict | None:
     return rut
 
 
+# progresiones semana a semana escritas a mano: (texto) desde la semana actual; luego +kg por semana
+def _thr(reps: int, kg: float) -> str:
+    return f"{reps} thrusters + 5 burpees @{fmt_num(kg)}kg"
+
+
+PROGRESIONES = [
+    {"id": "yo-thrusters-burpees-2026-10", "atleta": "Yo", "busca": ("thruster", "burpee"),
+     "semanas": [_thr(9, 40), _thr(10, 40)] + [_thr(10, 40 + 2.5 * k) for k in range(1, 11)]},
+]
+
+
+def _progresiones(rut: dict | None, atleta: str) -> dict | None:
+    pend = [x for x in PROGRESIONES if x["atleta"] == atleta and x["id"] not in (rut or {}).get("progresiones", [])]
+    if not rut or not rut.get("dias") or not pend:
+        return rut
+    rut = copy.deepcopy(rut)
+    sem = int(rut.get("semana_actual") or 1)
+    aj = rut.setdefault("ajustes", {})
+    for x in pend:
+        for d in rut["dias"]:
+            for l in d["lineas"]:
+                textos = " ".join(prescripcion_semana(l, w, rut.get("ajustes"))[0] or "" for w in (sem - 1, sem, sem + 1)).lower()
+                if all(b in textos for b in x["busca"]):
+                    for k, txt in enumerate(x["semanas"]):
+                        aj.setdefault(str(sem + k), {})[l["id"]] = txt
+                    if l.get("hasta") is not None:
+                        l["hasta"] = max(int(l["hasta"]), sem + len(x["semanas"]) - 1)
+        rut["progresiones"] = list(rut.get("progresiones") or []) + [x["id"]]
+    datos().guardar(atleta, rut)
+    return rut
+
+
 # quitar ejercicios de la rutina de alguien desde su semana actual (las semanas anteriores se quedan como estaban)
 QUITAR_LINEAS = [
     {"id": "yo-sin-bench-2026-10", "atleta": "Yo", "ejercicios": ("bench press", "press banca", "press de banca")},
@@ -561,7 +593,7 @@ def _renombrar(rut: dict | None, atleta: str) -> dict | None:
 
 def rutina(atleta: str, guardadas: dict | None = None) -> dict | None:
     guardadas = datos().rutinas([atleta]) if guardadas is None else guardadas
-    r = _quitar_lineas(_reordenar(_pasar_semana(_partes_fijas(_niveles_puntuales(_cambios_puntuales(_renombrar(_limpiar_extra(guardadas.get(atleta), atleta), atleta), atleta), atleta), atleta), atleta), atleta), atleta)
+    r = _progresiones(_quitar_lineas(_reordenar(_pasar_semana(_partes_fijas(_niveles_puntuales(_cambios_puntuales(_renombrar(_limpiar_extra(guardadas.get(atleta), atleta), atleta), atleta), atleta), atleta), atleta), atleta), atleta), atleta)
     return completar(r or rutinas_iniciales(ATLETAS).get(atleta), atleta)
 
 
@@ -652,7 +684,7 @@ def _igual(a: str, b: str) -> bool:
     return bool(a) and bool(b) and hmac.compare_digest(a.encode(), b.encode())
 
 
-VERSION = "11.35"
+VERSION = "11.36"
 CLAVES_NECESARIAS = ["CONTRASENA_DIEGO", "SUPABASE_URL", "SUPABASE_KEY", "APP_PASSWORD", "CONTRASENA_ARCHCHANA", "CONTRASENA_INVITADOS", "COACH_PIN",
                      "APP_ANTIGUA_URL", "CONTRASENA_DEMO"]
 
