@@ -684,7 +684,7 @@ def _igual(a: str, b: str) -> bool:
     return bool(a) and bool(b) and hmac.compare_digest(a.encode(), b.encode())
 
 
-VERSION = "11.36"
+VERSION = "11.37"
 CLAVES_NECESARIAS = ["CONTRASENA_DIEGO", "SUPABASE_URL", "SUPABASE_KEY", "APP_PASSWORD", "CONTRASENA_ARCHCHANA", "CONTRASENA_INVITADOS", "COACH_PIN",
                      "APP_ANTIGUA_URL", "CONTRASENA_DEMO"]
 
@@ -1066,6 +1066,27 @@ def borrar_cuenta(sesion: dict, c: dict) -> dict:
     _borrar_perfil(quien)
     notificar(f"🗑️ {quien} ha borrado su cuenta y sus datos (RGPD).")
     return {"ok": True}
+
+
+# perfiles que Diego ha pedido crear (se crean una vez, al abrir él la app). Sin PIN: Diego se lo pone con 🔑.
+CREAR_PERFILES = [{"nombre": "Manu Villalobos", "rutina": "manu_villalobos", "lang": "es"}]
+
+
+def _crear_pedidos(inv: dict) -> dict:
+    hechos = []
+    reg = dict(inv)
+    for x in CREAR_PERFILES:
+        if x["nombre"] in reg or norm_busqueda(x["nombre"]) in {norm_busqueda(n) for n in reg}:
+            continue
+        rut = getattr(_propuestas, x["rutina"])()
+        reg[x["nombre"]] = {"pin": "", "alta": dt.date.today().isoformat(), "aprobado": dt.date.today().isoformat(),
+                            "origen": "coach", "lang": x.get("lang", "es")}
+        datos().guardar(x["nombre"], rut)
+        hechos.append(x["nombre"])
+    if hechos:
+        datos().guardar(CLAVE_INVITADOS, reg)
+        notificar(f"👤 Perfil creado: {', '.join(hechos)}. Ponle su PIN en la app (⚙️ → 🔑) y pásale el enlace.")
+    return reg
 
 
 # perfiles de prueba que Diego ha pedido borrar (se borran una vez, al abrir él la app)
@@ -2577,6 +2598,8 @@ def vista(sesion: dict, atleta: str | None, semana: int | None, dia_id: str | No
     inv = invitados()
     if es_coach(sesion) and not es_demo(sesion) and any(n in inv for n in BORRAR_PERFILES):
         inv = _borrar_pedidos(inv)
+    if es_coach(sesion) and not es_demo(sesion) and any(x["nombre"] not in inv for x in CREAR_PERFILES):
+        inv = _crear_pedidos(inv)
     personas = demo_personas() if es_demo(sesion) else [sesion["u"]] if sesion.get("u") else todas_las_personas(inv)
     atleta = atleta if atleta in personas else personas[0]
     puede_ver(sesion, atleta)
@@ -2623,7 +2646,8 @@ def vista(sesion: dict, atleta: str | None, semana: int | None, dia_id: str | No
             "consentimiento": (inv.get(atleta) or {}).get("consentimiento") if sesion.get("u") == atleta and not es_demo(sesion) else None,
             "objetivos_pendientes": bool(sesion.get("u") == atleta and atleta in inv and not es_demo(sesion)
                                          and ((inv.get(atleta) or {}).get("abonado") or (inv.get(atleta) or {}).get("alta", "") >= CUESTIONARIO_DESDE)
-                                         and not (inv.get(atleta) or {}).get("cuestionario")),
+                                         and not (inv.get(atleta) or {}).get("cuestionario")
+                                         and (inv.get(atleta) or {}).get("origen") != "coach"),  # su rutina la hizo Diego
             "objetivos": (inv.get(atleta) or {}).get("cuestionario") if sesion.get("u") == atleta else None,
             **_info_abono(sesion, atleta, inv),
             "propuesta": _propuesta_pendiente(atleta, rut) if es_coach(sesion) and not es_demo(sesion) else None,

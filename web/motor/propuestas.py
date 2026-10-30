@@ -38,6 +38,40 @@ def _ruchama():
     }
 
 
+def manu_villalobos():
+    """Manu Villalobos (perfil nuevo que crea Diego). 3 días:
+    1) back + front + push press, WOD de halterofilia, accessory · 2) snatch, clean & jerk, conditioning, accessory
+    3) back + front + push press, WOD de mancuernas, accessory. Pesos de partida orientativos: Diego los ajusta."""
+    return {
+        "semana_actual": 1, "ajustes": {}, "nivel": "Inter",
+        "dias": [
+            {"id": "v1", "nombre": "Día 1", "por_ejercicio": True, "lineas": [
+                _l("v11", "Back squat", "5x5 @80", 2.5),
+                _l("v12", "Front squat", "3x5 @65", 2.5),
+                _l("v13", "Push press", "4x5 @50", 2.5),
+                _l("v14", "WOD haltero", "AMRAP 12': 5 power cleans 61/43 kg, 7 front squats 61/43 kg, 9 bar-facing burpees",
+                   parte="B) WOD"),
+                _l("v15", "Back extension", "4x12 lentas · 1' descanso", parte="C) Accessory"),
+            ]},
+            {"id": "v2", "nombre": "Día 2", "por_ejercicio": True, "lineas": [
+                _l("v21", "Snatch", "5x2 @50", 2.5),
+                _l("v22", "Clean and jerk", "5x1+1 @70", 2.5),
+                _l("v23", "Conditioning", "5 rondas: 500 m row, 15 cal bike · descanso 1:30 (ritmo que aguantes hasta el final)",
+                   parte="B) Conditioning"),
+                _l("v24", "Bulgarian split squat DB", "4x10 por pierna @15", parte="C) Accessory"),
+            ]},
+            {"id": "v3", "nombre": "Día 3", "por_ejercicio": True, "lineas": [
+                _l("v31", "Back squat", "3x8 @70", 2.5),
+                _l("v32", "Front squat", "4x3 @70", 2.5),
+                _l("v33", "Push press", "5x3 @55", 2.5),
+                _l("v34", "WOD mancuernas", "AMRAP 14': 10 DB snatch alternos 22,5/15 kg, 10 DB box step-overs 22,5/15 kg, "
+                                            "10 DB push press 22,5/15 kg", parte="B) WOD"),
+                _l("v35", "Plank con disco", "4x40\" · 1' descanso", parte="C) Accessory"),
+            ]},
+        ],
+    }
+
+
 PROPUESTAS = {"ruchama": _ruchama}
 
 
