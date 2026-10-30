@@ -46,9 +46,9 @@ def manu_villalobos():
         "semana_actual": 1, "ajustes": {}, "nivel": "Inter",
         "dias": [
             {"id": "v1", "nombre": "Día 1", "por_ejercicio": True, "lineas": [
-                _l("v11", "Back squat", "1x10 dinámico @60", 2.5),
-                _l("v12", "Front squat", "1x10 dinámico @50", 2.5),
-                _l("v13", "Push press", "1x10 dinámico @40", 2.5),
+                _l("v11", "Back squat", "1x10 dinámico @120", 2.5),
+                _l("v12", "Front squat", "1x10 dinámico @100", 2.5),
+                _l("v13", "Push press", "1x10 dinámico @60", 2.5),
                 _l("v14", "WOD haltero", "AMRAP 12': 5 power cleans 61/43 kg, 7 front squats 61/43 kg, 9 bar-facing burpees",
                    parte="B) WOD"),
                 _l("v15", "Back extension", "4x12 lentas · 1' descanso", parte="C) Accessory"),
@@ -61,9 +61,9 @@ def manu_villalobos():
                 _l("v24", "Bulgarian split squat DB", "4x10 por pierna @15", parte="C) Accessory"),
             ]},
             {"id": "v3", "nombre": "Día 3", "por_ejercicio": True, "lineas": [
-                _l("v31", "Back squat", "1x10 dinámico @60", 2.5),
-                _l("v32", "Front squat", "1x10 dinámico @50", 2.5),
-                _l("v33", "Push press", "1x10 dinámico @40", 2.5),
+                _l("v31", "Back squat", "1x10 dinámico @120", 2.5),
+                _l("v32", "Front squat", "1x10 dinámico @100", 2.5),
+                _l("v33", "Push press", "1x10 dinámico @60", 2.5),
                 _l("v34", "WOD mancuernas", "AMRAP 14': 10 DB snatch alternos 22,5/15 kg, 10 DB box step-overs 22,5/15 kg, "
                                             "10 DB push press 22,5/15 kg", parte="B) WOD"),
                 _l("v35", "Plank con disco", "4x40\" · 1' descanso", parte="C) Accessory"),

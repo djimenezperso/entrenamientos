@@ -492,9 +492,9 @@ def _pasar_semana(rut: dict | None, atleta: str) -> dict | None:
 
 # cambiar la prescripción base de líneas concretas (por id) de un perfil, desde su semana actual
 TEXTOS_FIJOS = [
-    {"id": "villalobos-dinamico", "atleta": "Manu Villalobos", "lineas": {
-        "v11": "1x10 dinámico @60", "v12": "1x10 dinámico @50", "v13": "1x10 dinámico @40",
-        "v31": "1x10 dinámico @60", "v32": "1x10 dinámico @50", "v33": "1x10 dinámico @40"}},
+    {"id": "villalobos-dinamico-v2", "atleta": "Manu Villalobos", "lineas": {
+        "v11": "1x10 dinámico @120", "v12": "1x10 dinámico @100", "v13": "1x10 dinámico @60",
+        "v31": "1x10 dinámico @120", "v32": "1x10 dinámico @100", "v33": "1x10 dinámico @60"}},
 ]
 
 
@@ -712,7 +712,7 @@ def _igual(a: str, b: str) -> bool:
     return bool(a) and bool(b) and hmac.compare_digest(a.encode(), b.encode())
 
 
-VERSION = "11.38"
+VERSION = "11.39"
 CLAVES_NECESARIAS = ["CONTRASENA_DIEGO", "SUPABASE_URL", "SUPABASE_KEY", "APP_PASSWORD", "CONTRASENA_ARCHCHANA", "CONTRASENA_INVITADOS", "COACH_PIN",
                      "APP_ANTIGUA_URL", "CONTRASENA_DEMO"]
 
