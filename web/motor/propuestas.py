@@ -60,7 +60,7 @@ def manu_villalobos():
                 _l("v25", "Clean pull", "3x3 @90", 2.5),
                 _l("v23", "Conditioning", "5 rondas: 500 m row, 15 cal bike · descanso 1:30 (ritmo que aguantes hasta el final)",
                    parte="B) Conditioning"),
-                _l("v24", "Back extension", "4x12 lentas · 1' descanso", parte="C) Accessory"),
+                _l("v24", "Back extension", "4x12 explosivas + 30\" de hold al final · 1' descanso", parte="C) Accessory"),
             ]},
             {"id": "v3", "nombre": "Día 3", "por_ejercicio": True, "lineas": [
                 _l("v31", "Back squat", "1x10 dinámico @120", 2.5),

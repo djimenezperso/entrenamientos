@@ -529,6 +529,8 @@ TEXTOS_FIJOS = [
     {"id": "villalobos-halterofilia", "atleta": "Manu Villalobos", "lineas": {
         "v21": "3x3 @50",
         "v22": {"ejercicio": "Power clean + squat clean & jerk", "prescripcion": "5x(1+1) @70"}}},
+    {"id": "villalobos-backext-v2", "atleta": "Manu Villalobos", "lineas": {
+        "v24": {"ejercicio": "Back extension", "prescripcion": "4x12 explosivas + 30\" de hold al final · 1' descanso"}}},
     {"id": "villalobos-cj-v2", "atleta": "Manu Villalobos", "lineas": {
         "v22": {"ejercicio": "Clean and jerk", "prescripcion": "3x (1 power clean + 1 C&J) @70"}}},
     {"id": "villalobos-accessories", "atleta": "Manu Villalobos", "lineas": {
@@ -757,7 +759,7 @@ def _igual(a: str, b: str) -> bool:
     return bool(a) and bool(b) and hmac.compare_digest(a.encode(), b.encode())
 
 
-VERSION = "11.44"
+VERSION = "11.45"
 CLAVES_NECESARIAS = ["CONTRASENA_DIEGO", "SUPABASE_URL", "SUPABASE_KEY", "APP_PASSWORD", "CONTRASENA_ARCHCHANA", "CONTRASENA_INVITADOS", "COACH_PIN",
                      "APP_ANTIGUA_URL", "CONTRASENA_DEMO"]
 
