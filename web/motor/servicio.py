@@ -495,6 +495,8 @@ ANADIR_LINEAS = [
     {"id": "villalobos-dl-bench", "atleta": "Manu Villalobos", "lineas": [
         {"dia": 0, "parte": "A) Fuerza", "id": "v16", "ejercicio": "Deadlift", "prescripcion": "3x6 @150"},
         {"dia": 2, "parte": "A) Fuerza", "id": "v36", "ejercicio": "Bench press", "prescripcion": "1x10 dinámico @100"}]},
+    {"id": "villalobos-clean-pull", "atleta": "Manu Villalobos", "lineas": [
+        {"dia": 1, "parte": "A) Fuerza", "id": "v25", "ejercicio": "Clean pull", "prescripcion": "3x3 @90"}]},
 ]
 
 
@@ -755,7 +757,7 @@ def _igual(a: str, b: str) -> bool:
     return bool(a) and bool(b) and hmac.compare_digest(a.encode(), b.encode())
 
 
-VERSION = "11.43"
+VERSION = "11.44"
 CLAVES_NECESARIAS = ["CONTRASENA_DIEGO", "SUPABASE_URL", "SUPABASE_KEY", "APP_PASSWORD", "CONTRASENA_ARCHCHANA", "CONTRASENA_INVITADOS", "COACH_PIN",
                      "APP_ANTIGUA_URL", "CONTRASENA_DEMO"]
 
