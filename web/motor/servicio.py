@@ -490,6 +490,35 @@ def _pasar_semana(rut: dict | None, atleta: str) -> dict | None:
     return rut
 
 
+# añadir ejercicios a una parte de un día (al final de esa parte), desde la semana actual
+ANADIR_LINEAS = [
+    {"id": "villalobos-dl-bench", "atleta": "Manu Villalobos", "lineas": [
+        {"dia": 0, "parte": "A) Fuerza", "id": "v16", "ejercicio": "Deadlift", "prescripcion": "3x6 @150"},
+        {"dia": 2, "parte": "A) Fuerza", "id": "v36", "ejercicio": "Bench press", "prescripcion": "1x10 dinámico @100"}]},
+]
+
+
+def _anadir_lineas(rut: dict | None, atleta: str) -> dict | None:
+    pend = [x for x in ANADIR_LINEAS if x["atleta"] == atleta and x["id"] not in (rut or {}).get("anadidas", [])]
+    if not rut or not rut.get("dias") or not pend:
+        return rut
+    rut = copy.deepcopy(rut)
+    sem = int(rut.get("semana_actual") or 1)
+    for x in pend:
+        for n in x["lineas"]:
+            if n["dia"] >= len(rut["dias"]):
+                continue
+            d = rut["dias"][n["dia"]]
+            if any(l["id"] == n["id"] or norm_busqueda(l["ejercicio"]) == norm_busqueda(n["ejercicio"]) for l in d["lineas"]):
+                continue  # ya lo tiene
+            pos = max((k for k, l in enumerate(d["lineas"]) if l.get("parte") == n["parte"]), default=len(d["lineas"]) - 1) + 1
+            d["lineas"].insert(pos, {"id": n["id"], "ejercicio": n["ejercicio"], "prescripcion": n["prescripcion"], "sube": 2.5,
+                                     "base": sem, "nota": "", "parte": n["parte"], **({"desde": sem} if sem > 1 else {})})
+        rut["anadidas"] = list(rut.get("anadidas") or []) + [x["id"]]
+    datos().guardar(atleta, rut)
+    return rut
+
+
 # cambiar la prescripción base de líneas concretas (por id) de un perfil, desde su semana actual
 TEXTOS_FIJOS = [
     {"id": "villalobos-dinamico-v2", "atleta": "Manu Villalobos", "lineas": {
@@ -621,7 +650,7 @@ def _renombrar(rut: dict | None, atleta: str) -> dict | None:
 
 def rutina(atleta: str, guardadas: dict | None = None) -> dict | None:
     guardadas = datos().rutinas([atleta]) if guardadas is None else guardadas
-    r = _textos_fijos(_progresiones(_quitar_lineas(_reordenar(_pasar_semana(_partes_fijas(_niveles_puntuales(_cambios_puntuales(_renombrar(_limpiar_extra(guardadas.get(atleta), atleta), atleta), atleta), atleta), atleta), atleta), atleta), atleta), atleta), atleta)
+    r = _anadir_lineas(_textos_fijos(_progresiones(_quitar_lineas(_reordenar(_pasar_semana(_partes_fijas(_niveles_puntuales(_cambios_puntuales(_renombrar(_limpiar_extra(guardadas.get(atleta), atleta), atleta), atleta), atleta), atleta), atleta), atleta), atleta), atleta), atleta), atleta)
     return completar(r or rutinas_iniciales(ATLETAS).get(atleta), atleta)
 
 
@@ -712,7 +741,7 @@ def _igual(a: str, b: str) -> bool:
     return bool(a) and bool(b) and hmac.compare_digest(a.encode(), b.encode())
 
 
-VERSION = "11.39"
+VERSION = "11.40"
 CLAVES_NECESARIAS = ["CONTRASENA_DIEGO", "SUPABASE_URL", "SUPABASE_KEY", "APP_PASSWORD", "CONTRASENA_ARCHCHANA", "CONTRASENA_INVITADOS", "COACH_PIN",
                      "APP_ANTIGUA_URL", "CONTRASENA_DEMO"]
 
