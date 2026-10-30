@@ -36,7 +36,7 @@ from pathlib import Path
 
 from logica import (
     NIVELES, NUM_PESO, _etiqueta_parte, agrupar_por_parte, quitar_parte, renombrar_parte, cambiar_pesos, copiar_rutina, destino_dia_siguiente,
-    destino_semana_siguiente, editar_texto_linea, es_metcon, escalar, estado_parte, fmt_num, historial_parte,
+    destino_semana_siguiente, editar_texto_linea, rebasar, es_metcon, escalar, estado_parte, fmt_num, historial_parte,
     letra_visible, linea_activa, linea_no_hecha, marcar_linea, marcar_parte, no_hechas_en, norm, norm_busqueda,
     parametros_semana, partes_del_dia, pendientes_para, poner_pesos, prescripcion_semana, referencias_elite,
     resumen_dia, se_repite, semanas_que_sube, sin_validar, tipo_de_linea, versiones_por_movimiento,
@@ -490,6 +490,34 @@ def _pasar_semana(rut: dict | None, atleta: str) -> dict | None:
     return rut
 
 
+# cambiar la prescripción base de líneas concretas (por id) de un perfil, desde su semana actual
+TEXTOS_FIJOS = [
+    {"id": "villalobos-dinamico", "atleta": "Manu Villalobos", "lineas": {
+        "v11": "1x10 dinámico @60", "v12": "1x10 dinámico @50", "v13": "1x10 dinámico @40",
+        "v31": "1x10 dinámico @60", "v32": "1x10 dinámico @50", "v33": "1x10 dinámico @40"}},
+]
+
+
+def _textos_fijos(rut: dict | None, atleta: str) -> dict | None:
+    pend = [x for x in TEXTOS_FIJOS if x["atleta"] == atleta and x["id"] not in (rut or {}).get("textos_fijos", [])]
+    if not rut or not rut.get("dias") or not pend:
+        return rut
+    rut = copy.deepcopy(rut)
+    sem = int(rut.get("semana_actual") or 1)
+    for x in pend:
+        for d in rut["dias"]:
+            for l in d["lineas"]:
+                nuevo = x["lineas"].get(l["id"])
+                if nuevo and prescripcion_semana(l, sem, rut.get("ajustes"))[0] != nuevo:
+                    if sem <= int(l.get("base") or 1) and not l.get("historial"):
+                        l["prescripcion"], l["base"] = nuevo, sem
+                    else:
+                        rebasar(l, sem, nuevo)
+        rut["textos_fijos"] = list(rut.get("textos_fijos") or []) + [x["id"]]
+    datos().guardar(atleta, rut)
+    return rut
+
+
 # progresiones semana a semana escritas a mano: (texto) desde la semana actual; luego +kg por semana
 def _thr(reps: int, kg: float) -> str:
     return f"{reps} thrusters + 5 burpees @{fmt_num(kg)}kg"
@@ -593,7 +621,7 @@ def _renombrar(rut: dict | None, atleta: str) -> dict | None:
 
 def rutina(atleta: str, guardadas: dict | None = None) -> dict | None:
     guardadas = datos().rutinas([atleta]) if guardadas is None else guardadas
-    r = _progresiones(_quitar_lineas(_reordenar(_pasar_semana(_partes_fijas(_niveles_puntuales(_cambios_puntuales(_renombrar(_limpiar_extra(guardadas.get(atleta), atleta), atleta), atleta), atleta), atleta), atleta), atleta), atleta), atleta)
+    r = _textos_fijos(_progresiones(_quitar_lineas(_reordenar(_pasar_semana(_partes_fijas(_niveles_puntuales(_cambios_puntuales(_renombrar(_limpiar_extra(guardadas.get(atleta), atleta), atleta), atleta), atleta), atleta), atleta), atleta), atleta), atleta), atleta)
     return completar(r or rutinas_iniciales(ATLETAS).get(atleta), atleta)
 
 
@@ -684,7 +712,7 @@ def _igual(a: str, b: str) -> bool:
     return bool(a) and bool(b) and hmac.compare_digest(a.encode(), b.encode())
 
 
-VERSION = "11.37"
+VERSION = "11.38"
 CLAVES_NECESARIAS = ["CONTRASENA_DIEGO", "SUPABASE_URL", "SUPABASE_KEY", "APP_PASSWORD", "CONTRASENA_ARCHCHANA", "CONTRASENA_INVITADOS", "COACH_PIN",
                      "APP_ANTIGUA_URL", "CONTRASENA_DEMO"]
 
