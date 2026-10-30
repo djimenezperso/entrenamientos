@@ -524,6 +524,10 @@ TEXTOS_FIJOS = [
     {"id": "villalobos-dinamico-v2", "atleta": "Manu Villalobos", "lineas": {
         "v11": "1x10 dinámico @120", "v12": "1x10 dinámico @100", "v13": "1x10 dinámico @60",
         "v31": "1x10 dinámico @120", "v32": "1x10 dinámico @100", "v33": "1x10 dinámico @60"}},
+    {"id": "villalobos-accessories", "atleta": "Manu Villalobos", "lineas": {
+        "v15": {"ejercicio": "GHD sit ups", "prescripcion": "4x12 · 1' descanso (refuerzo abdominal)"},
+        "v24": {"ejercicio": "Back extension", "prescripcion": "4x12 lentas · 1' descanso"},
+        "v35": {"ejercicio": "Brazos", "prescripcion": _BRAZOS_ROT[0], "rotacion": _BRAZOS_ROT}}},
 ]
 
 
@@ -537,6 +541,11 @@ def _textos_fijos(rut: dict | None, atleta: str) -> dict | None:
         for d in rut["dias"]:
             for l in d["lineas"]:
                 nuevo = x["lineas"].get(l["id"])
+                if isinstance(nuevo, dict):  # cambio de ejercicio entero (nombre, texto y, si toca, rotación semanal)
+                    l["ejercicio"] = nuevo["ejercicio"]
+                    if nuevo.get("rotacion"):
+                        l["rotacion"] = list(nuevo["rotacion"])
+                    nuevo = nuevo["prescripcion"]
                 if nuevo and prescripcion_semana(l, sem, rut.get("ajustes"))[0] != nuevo:
                     if sem <= int(l.get("base") or 1) and not l.get("historial"):
                         l["prescripcion"], l["base"] = nuevo, sem
@@ -741,7 +750,7 @@ def _igual(a: str, b: str) -> bool:
     return bool(a) and bool(b) and hmac.compare_digest(a.encode(), b.encode())
 
 
-VERSION = "11.40"
+VERSION = "11.41"
 CLAVES_NECESARIAS = ["CONTRASENA_DIEGO", "SUPABASE_URL", "SUPABASE_KEY", "APP_PASSWORD", "CONTRASENA_ARCHCHANA", "CONTRASENA_INVITADOS", "COACH_PIN",
                      "APP_ANTIGUA_URL", "CONTRASENA_DEMO"]
 
