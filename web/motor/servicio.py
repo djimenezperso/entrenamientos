@@ -535,7 +535,7 @@ TEXTOS_FIJOS = [
         "v22": {"ejercicio": "Clean and jerk", "prescripcion": "3x (1 power clean + 1 C&J) @70"}}},
     {"id": "villalobos-accessories", "atleta": "Manu Villalobos", "lineas": {
         "v15": {"ejercicio": "GHD sit ups", "prescripcion": "4x12 · 1' descanso (refuerzo abdominal)"},
-        "v24": {"ejercicio": "Back extension", "prescripcion": "4x12 lentas · 1' descanso"},
+        "v24": {"ejercicio": "Back extension", "prescripcion": "4x12 explosivas + 30\" de hold al final · 1' descanso"},
         "v35": {"ejercicio": "Brazos", "prescripcion": _BRAZOS_ROT[0], "rotacion": _BRAZOS_ROT}}},
 ]
 
