@@ -56,7 +56,7 @@ def manu_villalobos():
             ]},
             {"id": "v2", "nombre": "Día 2", "por_ejercicio": True, "lineas": [
                 _l("v21", "Snatch", "3x3 @50", 2.5),
-                _l("v22", "Power clean + squat clean & jerk", "5x(1+1) @70", 2.5),
+                _l("v22", "Clean and jerk", "3x (1 power clean + 1 C&J) @70", 2.5),
                 _l("v23", "Conditioning", "5 rondas: 500 m row, 15 cal bike · descanso 1:30 (ritmo que aguantes hasta el final)",
                    parte="B) Conditioning"),
                 _l("v24", "Back extension", "4x12 lentas · 1' descanso", parte="C) Accessory"),
