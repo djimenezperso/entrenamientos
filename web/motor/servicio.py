@@ -759,7 +759,7 @@ def _igual(a: str, b: str) -> bool:
     return bool(a) and bool(b) and hmac.compare_digest(a.encode(), b.encode())
 
 
-VERSION = "11.48"
+VERSION = "11.49"
 CLAVES_NECESARIAS = ["CONTRASENA_DIEGO", "SUPABASE_URL", "SUPABASE_KEY", "APP_PASSWORD", "CONTRASENA_ARCHCHANA", "CONTRASENA_INVITADOS", "COACH_PIN",
                      "APP_ANTIGUA_URL", "CONTRASENA_DEMO"]
 
@@ -798,7 +798,7 @@ def _hash_clave_diego(clave: str) -> str:
 
 def cambiar_clave(sesion: dict, c: dict) -> dict:
     """Diego, ya dentro, se pone una contraseña nueva (sin tocar Vercel). La de Vercel sigue valiendo de reserva."""
-    if not sesion.get("y") or es_demo(sesion):
+    if es_demo(sesion) or not (sesion.get("y") or (es_coach(sesion) and not sesion.get("u"))):
         raise Error("Solo Diego", 403)
     clave = str(c.get("clave") or "").strip()
     if len(clave) < 6 or " " in clave:

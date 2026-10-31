@@ -1637,6 +1637,7 @@ function hojaAjustes() {
             <button class="btn btn-negro" id="b-tg">${t("Conectar")}</button></div>`}</div>
         <button class="btn btn-fuego" id="b-actividad" style="width:100%;margin-top:10px;height:50px">📊 ${t("Quién usa la app")}</button>
         ${v.codigo_propio ? `<button class="btn" id="b-codigo" style="width:100%;margin-top:10px">🔑 ${t("Poner código / PIN nuevo a")} ${esc(v.nombre)}</button>` : ""}
+        <button class="btn" id="b-clave" style="width:100%;margin-top:10px">🔐 ${t("Cambiar mi contraseña")}</button>
         <button class="btn" id="b-limpiar" style="width:100%;margin-top:10px">🧹 ${t("Limpiar la biblioteca")}</button>
         <div id="limpiar-res"></div>
         <button class="btn" id="b-coach-salir" style="width:100%;margin-top:10px">${t("Quitar el modo coach en este móvil")}</button>`
@@ -1659,7 +1660,6 @@ function hojaAjustes() {
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px">
         <button class="btn" id="b-mis-datos">⬇️ ${t("Descargar mis datos")}</button>
         <button class="btn" id="b-borrar-cuenta" style="color:#C0392B">🗑️ ${t("Borrar mi cuenta")}</button></div></div>` : ""}
-    ${v.es_diego && !v.demo ? `<button class="btn" id="b-clave">🔐 ${t("Cambiar mi contraseña")}</button>` : ""}
     <button class="btn btn-negro" id="b-salir">${t("Salir")}</button>
     ${pieLegal()}`, (h) => {
     const bo = h.querySelector("#b-objetivos"); if (bo) bo.onclick = () => hojaObjetivos(null, v.objetivos);
