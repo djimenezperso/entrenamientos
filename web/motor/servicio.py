@@ -576,6 +576,42 @@ PROGRESIONES = [
 ]
 
 
+def _emom_wb(n: int) -> str:
+    return f"EMOM 40' alternando:\nmin impares: {n} cal AAB\nmin pares: {n} wall balls 9/6 kg"
+
+
+# conditionings con progresión: en un día concreto, desde la primera semana en que esa parte aún no está hecha
+PROGRESIONES_DIA = [
+    {"id": "yo-emom-wb-aab-2026-11", "atleta": "Yo", "dia": 2, "parte_contiene": "conditioning",
+     "semanas": [_emom_wb(n) for n in (12, 14, 16, 18, 20)]},
+]
+
+
+def _progresiones_dia(rut: dict | None, atleta: str) -> dict | None:
+    pend = [x for x in PROGRESIONES_DIA if x["atleta"] == atleta and x["id"] not in (rut or {}).get("progresiones", [])]
+    if not rut or not rut.get("dias") or not pend:
+        return rut
+    rut = copy.deepcopy(rut)
+    sem = int(rut.get("semana_actual") or 1)
+    aj = rut.setdefault("ajustes", {})
+    for x in pend:
+        if x["dia"] < len(rut["dias"]):
+            d = rut["dias"][x["dia"]]
+            partes = [p for p, _ in agrupar_por_parte(d, sem) if x["parte_contiene"] in norm_busqueda(p)]
+            if partes:
+                inicio = sem if estado_parte(rut, sem, d["id"], partes[0])["estado"] == "pendiente" else sem + 1
+                lineas = next(ls for p, ls in agrupar_por_parte(d, sem) if p == partes[0])
+                for k, txt in enumerate(x["semanas"]):
+                    aj.setdefault(str(inicio + k), {})[lineas[0]["id"]] = txt
+                    for l in lineas[1:]:  # una sola línea con el conditioning entero
+                        aj.setdefault(str(inicio + k), {})[l["id"]] = ""
+                if lineas[0].get("hasta") is not None:
+                    lineas[0]["hasta"] = max(int(lineas[0]["hasta"]), inicio + len(x["semanas"]) - 1)
+        rut["progresiones"] = list(rut.get("progresiones") or []) + [x["id"]]
+    datos().guardar(atleta, rut)
+    return rut
+
+
 def _progresiones(rut: dict | None, atleta: str) -> dict | None:
     pend = [x for x in PROGRESIONES if x["atleta"] == atleta and x["id"] not in (rut or {}).get("progresiones", [])]
     if not rut or not rut.get("dias") or not pend:
@@ -668,7 +704,7 @@ def _renombrar(rut: dict | None, atleta: str) -> dict | None:
 
 def rutina(atleta: str, guardadas: dict | None = None) -> dict | None:
     guardadas = datos().rutinas([atleta]) if guardadas is None else guardadas
-    r = _anadir_lineas(_textos_fijos(_progresiones(_quitar_lineas(_reordenar(_pasar_semana(_partes_fijas(_niveles_puntuales(_cambios_puntuales(_renombrar(_limpiar_extra(guardadas.get(atleta), atleta), atleta), atleta), atleta), atleta), atleta), atleta), atleta), atleta), atleta), atleta)
+    r = _progresiones_dia(_anadir_lineas(_textos_fijos(_progresiones(_quitar_lineas(_reordenar(_pasar_semana(_partes_fijas(_niveles_puntuales(_cambios_puntuales(_renombrar(_limpiar_extra(guardadas.get(atleta), atleta), atleta), atleta), atleta), atleta), atleta), atleta), atleta), atleta), atleta), atleta), atleta)
     return completar(r or rutinas_iniciales(ATLETAS).get(atleta), atleta)
 
 
@@ -759,7 +795,7 @@ def _igual(a: str, b: str) -> bool:
     return bool(a) and bool(b) and hmac.compare_digest(a.encode(), b.encode())
 
 
-VERSION = "11.50"
+VERSION = "11.51"
 CLAVES_NECESARIAS = ["CONTRASENA_DIEGO", "SUPABASE_URL", "SUPABASE_KEY", "APP_PASSWORD", "CONTRASENA_ARCHCHANA", "CONTRASENA_INVITADOS", "COACH_PIN",
                      "APP_ANTIGUA_URL", "CONTRASENA_DEMO"]
 
