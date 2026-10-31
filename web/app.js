@@ -1069,6 +1069,7 @@ function cabecera(v) {
     ${v.revision_pendiente ? `<div class="propuesta"><b>🕐 ${esc(v.nombre)} ${t("espera que apruebes su programa")}</b>
       <small>${t("Revísalo abajo y ajusta lo que quieras. Hasta que lo apruebes no lo ve.")}</small>
       <div class="prop-bot"><button id="b-aprobar">✅ ${t("Aprobar y activárselo")}</button></div></div>` : ""}
+    ${v.por_preparar && !v.por_preparar.length ? `<div class="plan-ok">✅ ${t("Planificación al día: tienes listas las 2 semanas siguientes de todos")}</div>` : ""}
     ${v.por_preparar && v.por_preparar.length ? `<div class="propuesta plan-pend"><b>📝 ${t("Te queda por preparar")}</b>
       <div class="fila-chips">${Object.values(v.por_preparar.reduce((m, x) => { (m[x.atleta] = m[x.atleta] || []).push(x); return m; }, {})).map((g) => `<button class="chip ${g[0].urgente ? "urgente" : ""}" data-preparar="${esc(g[0].atleta)}|${g[0].semana}">${esc(g[0].nombre)} · S${g.map((x) => x.semana).join("-")}</button>`).join("")}</div>
       <small>${t("Prepárala y dale a ✅ Semana lista. Si no, sale la progresión automática.")}</small></div>` : ""}

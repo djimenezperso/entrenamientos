@@ -759,7 +759,7 @@ def _igual(a: str, b: str) -> bool:
     return bool(a) and bool(b) and hmac.compare_digest(a.encode(), b.encode())
 
 
-VERSION = "11.49"
+VERSION = "11.50"
 CLAVES_NECESARIAS = ["CONTRASENA_DIEGO", "SUPABASE_URL", "SUPABASE_KEY", "APP_PASSWORD", "CONTRASENA_ARCHCHANA", "CONTRASENA_INVITADOS", "COACH_PIN",
                      "APP_ANTIGUA_URL", "CONTRASENA_DEMO"]
 
@@ -1890,7 +1890,7 @@ def _avisar_semana_sin_preparar(atleta: str, antes: int, despues: int, rut: dict
 
 
 def resumen_planificacion(forzar: bool = False) -> dict:
-    """Resumen de lo que queda por preparar (lo lanza el cron del domingo). Como mucho uno al día."""
+    """Resumen de lo que queda por preparar (lo lanza el cron cada mañana). Como mucho uno al día."""
     reg = dict(datos().rutinas([CLAVE_CONFIG]).get(CLAVE_CONFIG) or {})
     hoy = _ahora().date().isoformat()
     if reg.get("resumen_plan") == hoy and not forzar:
@@ -1901,7 +1901,7 @@ def resumen_planificacion(forzar: bool = False) -> dict:
         notificar_botones("📝 Te queda por preparar:\n" + "\n".join(lineas) +
                           "\n\nToca cuando tengas una lista ✅ (si no, sale la progresión automática).",
                           [[_boton_lista(x["atleta"], x["semana"])] for x in lista[:20]] + [[{"text": "📲 Abrir la app", "url": URL_APP}]])
-    else:
+    elif _ahora().weekday() == 6:  # al día: solo se lo digo los domingos (el resto de días, silencio)
         notificar("✅ Planificación al día: tienes listas las 2 semanas siguientes de todos. 🔥")
     reg["resumen_plan"] = hoy
     datos().guardar(CLAVE_CONFIG, reg)

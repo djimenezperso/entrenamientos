@@ -663,3 +663,4 @@ main { padding: 4px 16px 0; display: flex; flex-direction: column; gap: 12px; }
 .banda-progreso button { background: var(--fuego); color: #fff; }
 .pildora-semana button#b-sem-pagar { opacity: .8; font-size: 14px; }
 .reg-parte { margin: 4px 0 8px 48px; align-self: flex-start; }
+.plan-ok { margin: 0 0 4px; padding: 10px 14px; border-radius: 14px; background: #E9F8F0; color: #146c4c; font-size: 13.5px; font-weight: 600; }

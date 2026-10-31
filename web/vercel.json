@@ -43,7 +43,7 @@
   "crons": [
     {
       "path": "/api/resumen_plan",
-      "schedule": "0 17 * * 0"
+      "schedule": "0 7 * * *"
     }
   ]
 }
