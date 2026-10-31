@@ -759,7 +759,7 @@ def _igual(a: str, b: str) -> bool:
     return bool(a) and bool(b) and hmac.compare_digest(a.encode(), b.encode())
 
 
-VERSION = "11.46"
+VERSION = "11.47"
 CLAVES_NECESARIAS = ["CONTRASENA_DIEGO", "SUPABASE_URL", "SUPABASE_KEY", "APP_PASSWORD", "CONTRASENA_ARCHCHANA", "CONTRASENA_INVITADOS", "COACH_PIN",
                      "APP_ANTIGUA_URL", "CONTRASENA_DEMO"]
 
@@ -2291,6 +2291,20 @@ def avanzar_si_completa(atleta: str, rut: dict) -> tuple[dict, str | None]:
     return rut, None
 
 
+_FORMATO_FIJO = re.compile(r"\b(e\d*mom|emom|every|cada \d|amrap|tabata|intervalos?)\b", re.I)
+_NOMBRE_GENERICO = re.compile(r"^\s*(wod|metcon|gym|conditioning|for time|emom|e\d+mom|amrap|every|tabata)\b[\s\d'’:x]*", re.I)
+
+
+def _ultimo_sin_sentido(l: dict, u: dict) -> bool:
+    """«Último: 12:32» no pinta nada en un EMOM o un AMRAP (duran lo que duran), ni en un WOD que solo se llama «WOD»:
+    con ese nombre genérico el último registrado era otro entreno."""
+    if l.get("kind") != "texto":
+        return False
+    if _NOMBRE_GENERICO.fullmatch(l.get("ejercicio") or ""):
+        return True
+    return bool(_FORMATO_FIJO.search(f"{l.get('ejercicio', '')} {l.get('texto', '')}")) and ":" in str(u.get("valor", ""))
+
+
 def ultimos_resultados(atleta: str) -> dict:
     """{ejercicio normalizado: {valor, fecha}} con lo último que registró de cada ejercicio."""
     try:
@@ -2851,7 +2865,7 @@ def vista(sesion: dict, atleta: str | None, semana: int | None, dia_id: str | No
     for p_ in partes + pendientes:
         for l in p_["lineas"]:
             u = ultimos.get(norm(l["ejercicio"]))
-            if u:
+            if u and not _ultimo_sin_sentido(l, u):
                 l["ultimo"] = u
             vid = videos.get(norm(l["ejercicio"]))
             if vid and vid.get("url"):
