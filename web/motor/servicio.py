@@ -759,7 +759,7 @@ def _igual(a: str, b: str) -> bool:
     return bool(a) and bool(b) and hmac.compare_digest(a.encode(), b.encode())
 
 
-VERSION = "11.45"
+VERSION = "11.46"
 CLAVES_NECESARIAS = ["CONTRASENA_DIEGO", "SUPABASE_URL", "SUPABASE_KEY", "APP_PASSWORD", "CONTRASENA_ARCHCHANA", "CONTRASENA_INVITADOS", "COACH_PIN",
                      "APP_ANTIGUA_URL", "CONTRASENA_DEMO"]
 
@@ -1545,7 +1545,7 @@ def portal_abono(sesion: dict) -> dict:
     if not x.get("stripe_customer"):
         raise Error("No encuentro tu abono. Escríbele a Diego.", 404)
     r = _stripe("POST", "billing_portal/sessions", {"customer": x["stripe_customer"],
-                                                   "return_url": "https://entrenamientos-web-two.vercel.app/"})
+                                                   "return_url": "https://djimenezprog.vercel.app/"})
     if not r or r.get("error") or not r.get("url"):
         raise Error("Ahora mismo no se puede abrir la gestión del abono. Prueba en un rato.", 502)
     try:
@@ -1927,7 +1927,7 @@ def telegram(sesion: dict, c: dict) -> dict:
 
 # ===== chat con Diego (llega por Telegram; si Diego responde al mensaje, le sale al alumno en la app) =====
 CLAVE_CHAT = "__chat__"
-URL_APP = "https://entrenamientos-web-two.vercel.app"
+URL_APP = "https://djimenezprog.vercel.app"
 
 
 def _secreto_tg() -> str:
