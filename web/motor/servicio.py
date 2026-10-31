@@ -759,7 +759,7 @@ def _igual(a: str, b: str) -> bool:
     return bool(a) and bool(b) and hmac.compare_digest(a.encode(), b.encode())
 
 
-VERSION = "11.47"
+VERSION = "11.48"
 CLAVES_NECESARIAS = ["CONTRASENA_DIEGO", "SUPABASE_URL", "SUPABASE_KEY", "APP_PASSWORD", "CONTRASENA_ARCHCHANA", "CONTRASENA_INVITADOS", "COACH_PIN",
                      "APP_ANTIGUA_URL", "CONTRASENA_DEMO"]
 
@@ -790,6 +790,28 @@ def estado() -> dict:
 
 def _hash_codigo(codigo: str) -> str:
     return hmac.new(_secreto(), f"codigo-personal|{codigo.strip()}".encode(), hashlib.sha256).hexdigest()
+
+
+def _hash_clave_diego(clave: str) -> str:
+    return hmac.new(_secreto(), f"clave-diego|{clave.strip()}".encode(), hashlib.sha256).hexdigest()
+
+
+def cambiar_clave(sesion: dict, c: dict) -> dict:
+    """Diego, ya dentro, se pone una contraseña nueva (sin tocar Vercel). La de Vercel sigue valiendo de reserva."""
+    if not sesion.get("y") or es_demo(sesion):
+        raise Error("Solo Diego", 403)
+    clave = str(c.get("clave") or "").strip()
+    if len(clave) < 6 or " " in clave:
+        raise Error("Mínimo 6 caracteres, sin espacios")
+    if clave != str(c.get("repite") or "").strip():
+        raise Error("Las dos no coinciden")
+    otras = [env(k) for k in ("APP_PASSWORD", "CONTRASENA_DEMO", "CONTRASENA_INVITADOS", "CONTRASENA_ARCHCHANA", "COACH_PIN")]
+    reg = dict(datos().rutinas([CLAVE_CONFIG]).get(CLAVE_CONFIG) or {})
+    if any(o and _igual(clave, o) for o in otras) or _hash_codigo(clave) in (reg.get("codigos") or {}).values():
+        raise Error("Esa ya se usa para otra cosa. Elige otra.")
+    reg["clave_diego"] = _hash_clave_diego(clave)
+    datos().guardar(CLAVE_CONFIG, reg)
+    return {"ok": True, "aviso": "Contraseña nueva guardada ✅ Entra con ella la próxima vez."}
 
 
 def accesos_personales() -> list[str]:
@@ -861,6 +883,9 @@ def login(cuerpo: dict) -> dict:
     for n in codigos:
         personales.pop(n, None)  # Diego le puso un código nuevo desde la app: el de antes ya no vale
     if _igual(intento, env("CONTRASENA_DIEGO")):
+        return _sesion_para(None, diego=True)
+    clave_nueva = (datos().rutinas([CLAVE_CONFIG]).get(CLAVE_CONFIG) or {}).get("clave_diego")
+    if clave_nueva and _igual(_hash_clave_diego(intento), clave_nueva):
         return _sesion_para(None, diego=True)
     if _igual(intento, general):
         return _sesion_para(None)

@@ -1659,6 +1659,7 @@ function hojaAjustes() {
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px">
         <button class="btn" id="b-mis-datos">⬇️ ${t("Descargar mis datos")}</button>
         <button class="btn" id="b-borrar-cuenta" style="color:#C0392B">🗑️ ${t("Borrar mi cuenta")}</button></div></div>` : ""}
+    ${v.es_diego && !v.demo ? `<button class="btn" id="b-clave">🔐 ${t("Cambiar mi contraseña")}</button>` : ""}
     <button class="btn btn-negro" id="b-salir">${t("Salir")}</button>
     ${pieLegal()}`, (h) => {
     const bo = h.querySelector("#b-objetivos"); if (bo) bo.onclick = () => hojaObjetivos(null, v.objetivos);
@@ -1708,6 +1709,8 @@ function hojaAjustes() {
     if (ba) ba.onclick = () => hojaActividad();
     const bcod = h.querySelector("#b-codigo");
     if (bcod) bcod.onclick = () => hojaCodigo(v);
+    const bclave = h.querySelector("#b-clave");
+    if (bclave) bclave.onclick = hojaClave;
     const bl = h.querySelector("#b-limpiar");
     if (bl) bl.onclick = async () => {
       bl.disabled = true;
@@ -1978,6 +1981,24 @@ async function hojaAzar(k) {
       ev.currentTarget.disabled = true; cerrarHoja();
       hacer({ tipo: "editar_texto", semana: p.semana, linea: l.id, nombre: x.nombre || l.ejercicio, texto: x.texto,
         solo_esta: est.solo, mensaje: (h.querySelector("#c-msg") || {}).value });
+    };
+  });
+}
+
+function hojaClave() {
+  abrirHoja(`${cabHoja(t("Solo para ti"), "🔐 " + t("Contraseña nueva"))}
+    <p>${t("La que usas para entrar como Diego. Mínimo 6 caracteres.")}</p>
+    <input class="campo" id="cl-1" type="password" autocomplete="new-password" placeholder="${t("Contraseña nueva")}">
+    <input class="campo" id="cl-2" type="password" autocomplete="new-password" placeholder="${t("Repítela")}">
+    <label class="interruptor"><span>${t("Ver lo que escribo")}</span><input type="checkbox" id="cl-ver"></label>
+    <button class="btn btn-fuego" id="cl-guardar">${t("Guardar")}</button>`, (h) => {
+    h.querySelector("#cl-ver").onchange = (ev) => h.querySelectorAll("#cl-1,#cl-2").forEach((i) => i.type = ev.target.checked ? "text" : "password");
+    h.querySelector("#cl-guardar").onclick = async (ev) => {
+      ev.currentTarget.disabled = true;
+      try {
+        const r = await api("cambiar_clave", { metodo: "POST", cuerpo: { clave: h.querySelector("#cl-1").value, repite: h.querySelector("#cl-2").value } });
+        cerrarHoja(); aviso(r.aviso);
+      } catch (e) { ev.currentTarget.disabled = false; aviso(e.message, true); }
     };
   });
 }
