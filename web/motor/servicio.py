@@ -795,7 +795,7 @@ def _igual(a: str, b: str) -> bool:
     return bool(a) and bool(b) and hmac.compare_digest(a.encode(), b.encode())
 
 
-VERSION = "11.51"
+VERSION = "11.52"
 CLAVES_NECESARIAS = ["CONTRASENA_DIEGO", "SUPABASE_URL", "SUPABASE_KEY", "APP_PASSWORD", "CONTRASENA_ARCHCHANA", "CONTRASENA_INVITADOS", "COACH_PIN",
                      "APP_ANTIGUA_URL", "CONTRASENA_DEMO"]
 
@@ -2935,6 +2935,33 @@ def vista(sesion: dict, atleta: str | None, semana: int | None, dia_id: str | No
         _rellenar_demo(partes, dia["id"], semana, nivel, 1 + [d["id"] for d in rut["dias"]].index(dia["id"]), atleta)
     if aviso_semana:
         base["aviso"] = aviso_semana
+    if coach and not demo and semana > 1:  # al coach: avisar si un WOD/conditioning es igual que la semana anterior
+        try:
+            previos = {}
+            for d_ in rut["dias"]:
+                for l_, p_ in zip(d_["lineas"], partes_del_dia(d_)):
+                    if tipo_de_linea(p_, l_["ejercicio"]) in ("wod", "conditioning"):
+                        t_ = norm_busqueda(prescripcion_semana(l_, semana - 1, rut.get("ajustes"))[0] or "")
+                        if len(t_) > 12:
+                            previos[t_] = d_["nombre"]
+            repes = 0
+            for p in partes:
+                for l in p.get("lineas") or []:
+                    t_ = norm_busqueda(l.get("texto") or "")
+                    if l.get("kind") == "texto" and len(t_) > 12 and t_ in previos:
+                        l["repetido"] = previos[t_]
+                        repes += 1
+            dias_rep = []
+            for d_ in rut["dias"]:
+                for l_, p_ in zip(d_["lineas"], partes_del_dia(d_)):
+                    if tipo_de_linea(p_, l_["ejercicio"]) in ("wod", "conditioning"):
+                        t_ = norm_busqueda(prescripcion_semana(l_, semana, rut.get("ajustes"))[0] or "")
+                        if len(t_) > 12 and t_ in previos:
+                            dias_rep.append(d_["nombre"])
+            if dias_rep:
+                base["wods_repetidos"] = sorted(set(dias_rep), key=dias_rep.index)
+        except Exception:  # noqa: BLE001
+            pass
     if max_semana is not None and semana + 1 > max_semana:  # «Semana que viene: …» solo si ya está aprobada
         for p in partes:
             for l in p.get("lineas") or []:

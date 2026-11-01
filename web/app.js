@@ -1069,6 +1069,7 @@ function cabecera(v) {
     ${v.revision_pendiente ? `<div class="propuesta"><b>🕐 ${esc(v.nombre)} ${t("espera que apruebes su programa")}</b>
       <small>${t("Revísalo abajo y ajusta lo que quieras. Hasta que lo apruebes no lo ve.")}</small>
       <div class="prop-bot"><button id="b-aprobar">✅ ${t("Aprobar y activárselo")}</button></div></div>` : ""}
+    ${v.wods_repetidos && v.wods_repetidos.length ? `<div class="banda-abono" style="background:#FFF1D6"><span>🔁 <b>${t("WODs repetidos de la semana anterior")}</b>: ${v.wods_repetidos.map((d) => esc(trDia(d))).join(" · ")}</span></div>` : ""}
     ${v.por_preparar && !v.por_preparar.length ? `<div class="plan-ok">✅ ${t("Planificación al día: tienes listas las 2 semanas siguientes de todos")}</div>` : ""}
     ${v.por_preparar && v.por_preparar.length ? `<div class="propuesta plan-pend"><b>📝 ${t("Te queda por preparar")}</b>
       <div class="fila-chips">${Object.values(v.por_preparar.reduce((m, x) => { (m[x.atleta] = m[x.atleta] || []).push(x); return m; }, {})).map((g) => `<button class="chip ${g[0].urgente ? "urgente" : ""}" data-preparar="${esc(g[0].atleta)}|${g[0].semana}">${esc(g[0].nombre)} · S${g.map((x) => x.semana).join("-")}</button>`).join("")}</div>
@@ -1192,7 +1193,7 @@ function linea(l, p, k) {
   const nombre = l.solo_bloque || (p.lineas.length === 1) ? "" : `<b>${esc(l.ejercicio)}</b>`;
   let html = `<div class="linea" data-l="${k}">
     ${nombre || extra || (l.nivel && l.nivel !== "RX") ? `<div class="linea-cab">${nombre}<span>${extra}${l.nivel && l.nivel !== "RX" && visto ? ` <span class="etq nivel">${esc(l.nivel)}</span>` : ""}</span></div>` : ""}
-    <div class="texto-wod">${visto ? esc(trWod(visto)) : `<span class="mini">${t("por definir")}</span>`}</div>${conPesoDoble(visto) ? `<div class="pesos-hm">${t("Pesos: hombre / mujer")} <span>♂ / ♀</span></div>` : ""}${nota}${ultimoHtml(l)}${videoHtml(l, k)}`;
+    ${l.repetido ? `<div class="etq-repetido">🔁 ${t("Igual que la semana pasada")} (${esc(trDia(l.repetido))})</div>` : ""}<div class="texto-wod">${visto ? esc(trWod(visto)) : `<span class="mini">${t("por definir")}</span>`}</div>${conPesoDoble(visto) ? `<div class="pesos-hm">${t("Pesos: hombre / mujer")} <span>♂ / ♀</span></div>` : ""}${nota}${ultimoHtml(l)}${videoHtml(l, k)}`;
   if (l.sugerencia) html += `<div class="sug">${ic.llama("#8A5E00", 20)}<span>${t("WOD de Diego · semana")} ${l.sugerencia.semana}, ${esc(l.sugerencia.dia)}</span>
     <button data-fijar="${k}">${t("Fijar")}</button></div>`;
   if (l.tabla) html += `<details class="desplegable"><summary>${t("RX · Inter · Scaled por movimiento")} ${ic.abajo}</summary>
