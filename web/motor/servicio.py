@@ -799,7 +799,7 @@ def _igual(a: str, b: str) -> bool:
     return bool(a) and bool(b) and hmac.compare_digest(a.encode(), b.encode())
 
 
-VERSION = "11.53"
+VERSION = "11.54"
 CLAVES_NECESARIAS = ["CONTRASENA_DIEGO", "SUPABASE_URL", "SUPABASE_KEY", "APP_PASSWORD", "CONTRASENA_ARCHCHANA", "CONTRASENA_INVITADOS", "COACH_PIN",
                      "APP_ANTIGUA_URL", "CONTRASENA_DEMO"]
 
@@ -2861,6 +2861,8 @@ def vista(sesion: dict, atleta: str | None, semana: int | None, dia_id: str | No
         aviso_semana = f"¡Semana {actual} completada! Empiezas la {actual + 1} 🔥"
         actual += 1
     semana = int(semana or actual)
+    if not es_demo(sesion) and atleta != "Yo" and semana >= actual:
+        rut = _sin_repetir(rut, atleta, semana)
     demo = es_demo(sesion)
     # los clientes solo ven semanas futuras que Diego ha aprobado (✅ Semana lista), seguidas desde la actual
     cliente = not coach and not demo and atleta != "Yo"
@@ -3199,6 +3201,61 @@ def limpiar_biblioteca(sesion: dict, c: dict) -> dict:
     if not c.get("probar") and quitados:
         datos().guardar(CLAVE_BIBLIOTECA, nuevo)
     return {"quitados": len(quitados), "ejemplos": quitados[:8], "hecho": not c.get("probar")}
+
+
+_FORMATOS_WOD = {"emom": re.compile(r"\b(e\d?mom|every|cada \d)", re.I), "amrap": re.compile(r"\bamrap\b", re.I),
+                 "fortime": re.compile(r"for time|\brft\b|por tiempo|\d+-\d+-\d+", re.I)}
+_GYM_MOVS = re.compile(r"pull ?ups?|t2b|toes to bar|c2b|chest to bar|muscle ?ups?|\bhspu\b|handstand|rope climb|push ?ups?|dips?\b|pistols?|l-?sit", re.I)
+
+
+def _sin_repetir(rut: dict, atleta: str, semana: int) -> dict:
+    """Ningún WOD ni conditioning de una semana igual que el de la semana anterior: si Diego no lo ha cambiado,
+    se pone otro del mismo tipo (y formato) de su biblioteca o del repertorio, que no haya salido en las 4 últimas
+    semanas. Se guarda como «solo esa semana», así Diego lo ve y lo puede cambiar. Nunca rompe nada."""
+    if semana < 2 or not rut or not rut.get("dias"):
+        return rut
+    if any(k.split("|", 1)[0] == str(semana) for k in (rut.get("estados") or {})):
+        return rut  # ya ha empezado esa semana: no se le cambia nada a mitad
+    try:
+        aj = (rut.get("ajustes") or {}).get(str(semana)) or {}
+        usados, cambios, pool = set(), {}, None
+        for w in range(max(1, semana - 4), semana):
+            for d in rut["dias"]:
+                for l in d["lineas"]:
+                    usados.add(norm_busqueda(prescripcion_semana(l, w, rut.get("ajustes"))[0] or ""))
+        for d in rut["dias"]:
+            for l, p in zip(d["lineas"], partes_del_dia(d)):
+                tipo = tipo_de_linea(p, l["ejercicio"])
+                if tipo not in ("wod", "conditioning") or l["id"] in aj or l.get("rotacion") or l.get("niveles_txt"):
+                    continue
+                if l.get("plan") is not None and str(semana) in l["plan"]:
+                    continue  # ciclo: cada semana ya trae lo suyo
+                ahora = prescripcion_semana(l, semana, rut.get("ajustes"))[0] or ""
+                antes = prescripcion_semana(l, semana - 1, rut.get("ajustes"))[0] or ""
+                if len(norm_busqueda(ahora)) < 10 or norm_busqueda(ahora) != norm_busqueda(antes):
+                    continue
+                if pool is None:
+                    pool = ideas()
+                opciones = [x["texto"] for x in pool.get("conditioning" if tipo == "conditioning" else "wod") or []
+                            if norm_busqueda(x["texto"]) not in usados and len(x["texto"]) < 400]
+                if tipo == "wod" and "gym" in norm_busqueda(p):
+                    opciones = [t for t in opciones if _GYM_MOVS.search(t)] or opciones
+                fmt = next((f for f, rx in _FORMATOS_WOD.items() if rx.search(f"{l['ejercicio']} {ahora}")), None)
+                if fmt:
+                    opciones = [t for t in opciones if _FORMATOS_WOD[fmt].search(t)] or opciones
+                if not opciones:
+                    continue
+                k = int(hashlib.sha256(f"{atleta}|{l['id']}|{semana}".encode()).hexdigest(), 16) % len(opciones)
+                cambios[l["id"]] = opciones[k]
+                usados.add(norm_busqueda(opciones[k]))
+        if not cambios:
+            return rut
+        rut = copy.deepcopy(rut)
+        rut.setdefault("ajustes", {}).setdefault(str(semana), {}).update(cambios)
+        datos().guardar(atleta, rut)
+        return rut
+    except Exception:  # noqa: BLE001
+        return rut
 
 
 def ideas() -> dict:
