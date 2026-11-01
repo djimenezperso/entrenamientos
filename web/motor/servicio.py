@@ -799,7 +799,7 @@ def _igual(a: str, b: str) -> bool:
     return bool(a) and bool(b) and hmac.compare_digest(a.encode(), b.encode())
 
 
-VERSION = "11.55"
+VERSION = "11.56"
 CLAVES_NECESARIAS = ["CONTRASENA_DIEGO", "SUPABASE_URL", "SUPABASE_KEY", "APP_PASSWORD", "CONTRASENA_ARCHCHANA", "CONTRASENA_INVITADOS", "COACH_PIN",
                      "APP_ANTIGUA_URL", "CONTRASENA_DEMO"]
 
@@ -2500,7 +2500,7 @@ def _linea(rut: dict, l: dict, semana: int, parte: str, nivel: str, alumno: bool
         return out
     out["kind"] = "texto"
     if not txt and sug:
-        txt = tope_db_alumno(sug["texto"]) if alumno else sug["texto"]
+        txt = sin_material(tope_db_alumno(sug["texto"]) if alumno else sug["texto"], rut.get("_atleta", ""))
         out["sugerencia"] = {"semana": sug["semana"], "dia": sug["dia"], "texto": sug["texto"]}
     escalable = norm_busqueda(_etiqueta_parte(parte)) != "gym"
     a_mano = ((rut.get("niveles_semana") or {}).get(str(semana)) or {}).get(l["id"]) or l.get("niveles_txt")
@@ -2632,9 +2632,9 @@ def _demo_accessory(partes: list[dict], semilla: int, acc: list | None = None, c
     partes.append(p)
 
 
-def _novedad_a_su_nivel(x: dict, nivel: str) -> dict:
+def _novedad_a_su_nivel(x: dict, nivel: str, atleta: str = "") -> dict:
     """La novedad de Diego, adaptada al alumno: mancuerna como mucho 22,5/15 y escalada a su nivel."""
-    txt = tope_db_alumno(str(x.get("texto") or ""))
+    txt = sin_material(tope_db_alumno(str(x.get("texto") or "")), atleta)
     return {**x, "texto": escalar(txt, nivel) if nivel != "RX" else txt}
 
 
@@ -2818,6 +2818,7 @@ def vista(sesion: dict, atleta: str | None, semana: int | None, dia_id: str | No
             "permiso_pesos": bool((rut or {}).get("permiso_pesos")),
             "solicitudes": [x for x in todas_sol if coach and (not sesion.get("u") or x["atleta"] == sesion["u"])],
             "codigo_propio": coach and not es_demo(sesion) and atleta not in ("Yo", "Mi esposa") and (atleta in inv or atleta in ATLETAS or atleta in accesos_personales()),
+            "sin_material": list(SIN_MATERIAL.get(atleta, ())),
             "semanas_listas": sorted(int(x) for x in (rut or {}).get("semanas_listas") or []) if coach else [],
             "mis_solicitudes": {x["linea"]: x for x in todas_sol if x["atleta"] == atleta}}
     if coach and not es_demo(sesion) and not sesion.get("u"):
@@ -2987,7 +2988,7 @@ def vista(sesion: dict, atleta: str | None, semana: int | None, dia_id: str | No
             "dias": dias, "dia": {"id": dia["id"], "nombre": dia["nombre"], "estado": resumen_dia(rut, semana, dia),
                                   "por_ejercicio": bool(dia.get("por_ejercicio"))},
             "partes": partes, "pendientes": pendientes,
-            "novedades": [_novedad_a_su_nivel(x, nivel) for x in novedades_para(
+            "novedades": [_novedad_a_su_nivel(x, nivel, atleta) for x in novedades_para(
                 rut, (guardadas.get(CLAVE_NOVEDADES) or {}).get("lista") or [], rutina("Yo", guardadas))]
                 if alumno and not demo else [],
             "retests": [_retest_ui(x) for x in rut.get("retests") or []

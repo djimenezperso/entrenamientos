@@ -1895,6 +1895,9 @@ function poolAzar(p, l, sinFormato = false) {
     const g = pool.filter(esGym);
     if (g.length) pool = g;
   }
+  const falta = (E.vista && E.vista.sin_material) || [];  // material que no tiene: fuera las ideas que lo usan
+  const SIN = { "wall ball": /wall[ -]?balls?|\bwbs?\b/i, comba: /double[ -]?unders?|\bdu'?s?\b|single[ -]?unders?|comba/i };
+  if (falta.length && pool) pool = pool.filter((x) => !falta.some((f) => SIN[f] && SIN[f].test(`${x.nombre || ""} ${x.texto || ""}`)));
   const actual = String(l.texto || "").trim().toLowerCase();
   const vistos = new Set();
   return (pool || []).filter((x) => {
