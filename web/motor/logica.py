@@ -1361,7 +1361,7 @@ def tope_db_alumno(texto: str) -> str:
         trozo = re.sub(r"(?P<a>\d+(?:[.,]\d+)?)\s*/\s*(?P<b>\d+(?:[.,]\d+)?)(?![\d.,])(?!\s*(?:cal|m\b|''|\"))",
                        lambda m: (f"{fmt_num(min(float(m['a'].replace(',', '.')), 22.5))}/{fmt_num(min(float(m['b'].replace(',', '.')), 15))}"
                                   if float(m['a'].replace(',', '.')) >= 12 else m.group(0)), trozo)
-        trozo = re.sub(r"@\s*(\d+(?:[.,]\d+)?)(?![\d.,/])(?!\s*%)", lambda m: "@" + fmt_num(min(float(m.group(1).replace(",", ".")), 22.5)), trozo)
+        trozo = re.sub(r"@\s*(\d+(?:[.,]\d+)?)(?![\d.,/])(?!\s*(?:%|'|’|′|\"|min|bpm|cal|:|spm|rpm|seg|s\b|zon[ae]|rpe))", lambda m: "@" + fmt_num(min(float(m.group(1).replace(",", ".")), 22.5)), trozo)
         trozo = re.sub(r"(?<![\d.,/@])(\d+(?:[.,]\d+)?)(?=\s*kg)", lambda m: fmt_num(min(float(m.group(1).replace(",", ".")), 22.5)), trozo)
         return trozo
     return "\n".join("".join(una(t) if i % 2 == 0 else t for i, t in enumerate(re.split(r"(,\s+|\s\+\s|;\s*)", l)))
@@ -1376,6 +1376,7 @@ _SUSTITUCIONES = {
         (r"\bpistols?(?: squats?)?\b", "pistols a caja"),
         (r"\bc2b\b|chest to bar(?: pull ups?)?", "pull ups"),
         (r"legless rope climbs?", "rope climbs"),
+        (r"\bt2b'?s?\b|\bttb\b|toes[ -]to[ -]bars?", "knees to elbows"),
     ],
     "Scaled": [
         (r"(?:ring |bar )?muscle[ -]?ups?(?: ring)?|(?<![a-z])[br]?mu'?s?\b(?: ring)?", "jumping pull ups"),
@@ -1433,8 +1434,9 @@ def _escalar_linea(linea: str, nivel: str) -> str:
     num = r"\d+(?:[.,]\d+)?"
     no_sigue = r"(?![\d.,])"
     patron = re.compile(
-        rf"@\s*(?P<arr>{num}(?:\s*-\s*{num})*){no_sigue}(?!\s*%)"            # @60 / @60-65-70 (no %)
-        rf"|(?P<a>{num})\s*/\s*(?P<b>{num}){no_sigue}(?!\s*(?:cal|''|\"|in\b|m\b|’’|%))"  # 43/30 (no cal/alturas)
+        rf"@\s*(?P<arr>{num}(?:\s*-\s*{num})*){no_sigue}"                    # @60 / @60-65-70
+        rf"(?!\s*(?:%|'|’|′|\"|min|bpm|ppm|cal|:|/\s*\d|spm|rpm|w\b|watts?|seg|s\b|zon[ae]|rpe))"  # no: @25' @130 bpm @2:05
+        rf"|(?<![:\d.,])(?P<a>{num})\s*/\s*(?P<b>{num}){no_sigue}(?!\s*(?:cal|''|\"|in\b|m\b|’’|%))"  # 43/30 (no cal/alturas/ritmos)
         rf"|(?P<kg>{num})(?=\s*kg)"                                              # 60kg
         rf"|(?<=\b2x )(?P<dos>{num}){no_sigue}(?!\s*/)",                         # dble db 2x 22,5
         re.I)

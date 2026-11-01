@@ -580,6 +580,10 @@ def _emom_wb(n: int) -> str:
     return f"EMOM 40' alternando:\nmin impares: {n} cal AAB\nmin pares: {n} wall balls 9/6 kg"
 
 
+# partes que alguien hace siempre a un nivel concreto, sea cual sea su nivel: (atleta, día ("ultimo" o id), tipo, nivel)
+NIVEL_FIJO_PARTE = [("Mi esposa", "ultimo", "conditioning", "RX")]
+
+
 # conditionings con progresión: en un día concreto, desde la primera semana en que esa parte aún no está hecha
 PROGRESIONES_DIA = [
     {"id": "yo-emom-wb-aab-2026-11", "atleta": "Yo", "dia": 2, "parte_contiene": "conditioning",
@@ -795,7 +799,7 @@ def _igual(a: str, b: str) -> bool:
     return bool(a) and bool(b) and hmac.compare_digest(a.encode(), b.encode())
 
 
-VERSION = "11.52"
+VERSION = "11.53"
 CLAVES_NECESARIAS = ["CONTRASENA_DIEGO", "SUPABASE_URL", "SUPABASE_KEY", "APP_PASSWORD", "CONTRASENA_ARCHCHANA", "CONTRASENA_INVITADOS", "COACH_PIN",
                      "APP_ANTIGUA_URL", "CONTRASENA_DEMO"]
 
@@ -2517,6 +2521,8 @@ def _linea(rut: dict, l: dict, semana: int, parte: str, nivel: str, alumno: bool
             if filas and not all(f["RX"] == f["Inter"] == f["Scaled"] for f in filas):
                 out["tabla"] = filas
         out["crono"] = crono_de(txt, parte, l["ejercicio"]) if tipo in TIPOS_WOD + ("conditioning",) else None
+        if tipo == "conditioning" and not re.search(r"zon[ae]\s*\d|sprint|all[ -]?out|\bmax\b|a tope|rpe", txt, re.I):
+            out["ritmo"] = "Zona 2"  # aparte del texto: el ritmo del conditioning
         refs = referencias_elite(f"{l['ejercicio']}\n{txt}", ELITE)
         if refs:
             out["elite"] = refs[0]
@@ -2962,6 +2968,13 @@ def vista(sesion: dict, atleta: str | None, semana: int | None, dia_id: str | No
                 base["wods_repetidos"] = sorted(set(dias_rep), key=dias_rep.index)
         except Exception:  # noqa: BLE001
             pass
+    for (quien, cual, tipo_p, nv_fijo) in NIVEL_FIJO_PARTE:  # p. ej. el conditioning del último día de su mujer, siempre RX
+        if atleta == quien and dia["id"] == (rut["dias"][-1]["id"] if cual == "ultimo" else cual):
+            for p in partes:
+                if tipo_p in norm_busqueda(p.get("parte") or ""):
+                    for l in p.get("lineas") or []:
+                        if l.get("kind") == "texto" and l.get("texto"):
+                            l.update(visto=(l.get("versiones_nivel") or {}).get(nv_fijo) or l["texto"], nivel=nv_fijo)
     if max_semana is not None and semana + 1 > max_semana:  # «Semana que viene: …» solo si ya está aprobada
         for p in partes:
             for l in p.get("lineas") or []:
