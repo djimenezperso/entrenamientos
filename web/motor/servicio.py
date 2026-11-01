@@ -799,7 +799,7 @@ def _igual(a: str, b: str) -> bool:
     return bool(a) and bool(b) and hmac.compare_digest(a.encode(), b.encode())
 
 
-VERSION = "11.54"
+VERSION = "11.55"
 CLAVES_NECESARIAS = ["CONTRASENA_DIEGO", "SUPABASE_URL", "SUPABASE_KEY", "APP_PASSWORD", "CONTRASENA_ARCHCHANA", "CONTRASENA_INVITADOS", "COACH_PIN",
                      "APP_ANTIGUA_URL", "CONTRASENA_DEMO"]
 
@@ -2484,7 +2484,7 @@ def registro_inicial(rut: dict, dia: dict, semana: int, lineas: list[dict] | Non
 def _linea(rut: dict, l: dict, semana: int, parte: str, nivel: str, alumno: bool, sug: dict | None,
            por_ejercicio: bool) -> dict:
     txt, subio, ajuste = prescripcion_semana(l, semana, rut.get("ajustes"))
-    txt = sin_restos_chat(txt)
+    txt = sin_material(sin_restos_chat(txt), rut.get("_atleta", ""))
     if alumno and tipo_de_linea(parte, l["ejercicio"]) is not None:
         txt = tope_db_alumno(txt)  # su RX de mancuerna es 22,5/15 (el 32,5 es del ciclo de Diego)
     tipo = _tipo_ui(parte, l["ejercicio"])
@@ -2863,6 +2863,8 @@ def vista(sesion: dict, atleta: str | None, semana: int | None, dia_id: str | No
     semana = int(semana or actual)
     if not es_demo(sesion) and atleta != "Yo" and semana >= actual:
         rut = _sin_repetir(rut, atleta, semana)
+    if atleta in SIN_MATERIAL and not es_demo(sesion):
+        rut = {**rut, "_atleta": atleta}  # para cambiarle los movimientos para los que no tiene material
     demo = es_demo(sesion)
     # los clientes solo ven semanas futuras que Diego ha aprobado (✅ Semana lista), seguidas desde la actual
     cliente = not coach and not demo and atleta != "Yo"
@@ -3203,6 +3205,23 @@ def limpiar_biblioteca(sesion: dict, c: dict) -> dict:
     return {"quitados": len(quitados), "ejemplos": quitados[:8], "hecho": not c.get("probar")}
 
 
+# material que alguien no tiene: se le cambia el movimiento al enseñarle el WOD (sea quien sea quien lo escriba)
+SIN_MATERIAL = {"Manu Anel": ("wall ball", "comba")}
+_CAMBIOS_MATERIAL = {
+    "wall ball": [(re.compile(r"(?:wall[ -]?balls?|\bwbs?\b)(?:\s*(?:@\s*)?\d+(?:[.,]\d+)?\s*/\s*\d+(?:[.,]\d+)?\s*(?:kg)?|\s*\d+(?:[.,]\d+)?\s*kg)?", re.I),
+                   "DB thrusters 15/10 kg")],
+    "comba": [(re.compile(r"double[ -]?unders?|\bdu'?s\b|\bdus?\b|single[ -]?unders?|saltos? (?:a|de|con) (?:la )?comba", re.I),
+               "lateral hops (sin comba)")],
+}
+
+
+def sin_material(texto: str, atleta: str) -> str:
+    for falta in SIN_MATERIAL.get(atleta, ()):
+        for rx, por in _CAMBIOS_MATERIAL.get(falta, []):
+            texto = rx.sub(por, texto or "")
+    return texto
+
+
 _FORMATOS_WOD = {"emom": re.compile(r"\b(e\d?mom|every|cada \d)", re.I), "amrap": re.compile(r"\bamrap\b", re.I),
                  "fortime": re.compile(r"for time|\brft\b|por tiempo|\d+-\d+-\d+", re.I)}
 _GYM_MOVS = re.compile(r"pull ?ups?|t2b|toes to bar|c2b|chest to bar|muscle ?ups?|\bhspu\b|handstand|rope climb|push ?ups?|dips?\b|pistols?|l-?sit", re.I)
@@ -3237,7 +3256,8 @@ def _sin_repetir(rut: dict, atleta: str, semana: int) -> dict:
                 if pool is None:
                     pool = ideas()
                 opciones = [x["texto"] for x in pool.get("conditioning" if tipo == "conditioning" else "wod") or []
-                            if norm_busqueda(x["texto"]) not in usados and len(x["texto"]) < 400]
+                            if norm_busqueda(x["texto"]) not in usados and len(x["texto"]) < 400
+                            and sin_material(x["texto"], atleta) == x["texto"]]
                 if tipo == "wod" and "gym" in norm_busqueda(p):
                     opciones = [t for t in opciones if _GYM_MOVS.search(t)] or opciones
                 fmt = next((f for f, rx in _FORMATOS_WOD.items() if rx.search(f"{l['ejercicio']} {ahora}")), None)
