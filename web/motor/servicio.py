@@ -799,7 +799,7 @@ def _igual(a: str, b: str) -> bool:
     return bool(a) and bool(b) and hmac.compare_digest(a.encode(), b.encode())
 
 
-VERSION = "11.56"
+VERSION = "11.57"
 CLAVES_NECESARIAS = ["CONTRASENA_DIEGO", "SUPABASE_URL", "SUPABASE_KEY", "APP_PASSWORD", "CONTRASENA_ARCHCHANA", "CONTRASENA_INVITADOS", "COACH_PIN",
                      "APP_ANTIGUA_URL", "CONTRASENA_DEMO"]
 
@@ -2883,6 +2883,10 @@ def vista(sesion: dict, atleta: str | None, semana: int | None, dia_id: str | No
         if semana > max_semana:
             semana = actual
     base["max_semana"] = max_semana
+    if cliente and max_semana and max_semana > actual:  # aviso: «tu semana siguiente ya está lista» (una vez por semana)
+        nueva = actual + 1
+        if nueva not in [int(x) for x in rut.get("listas_vistas") or []]:
+            base["semana_lista_nueva"] = nueva
     if demo:  # la demo solo enseña una semana: la actual, o la anterior si en la actual aún no hay ningún día completo
         def _completos(sem):
             return [d["id"] for d in rut["dias"] if resumen_dia(rut, sem, d) == "hecho"]
@@ -3729,6 +3733,9 @@ def accion(sesion: dict, c: dict) -> dict:
             raise Error("Esa semana aún no está lista")
         rut = dict(rut, semana_actual=nueva)
         aviso = f"Semana {nueva} es ahora la actual"
+    elif tipo == "visto_semana_lista":
+        rut = dict(rut, listas_vistas=sorted(set(int(x) for x in rut.get("listas_vistas") or []) | {int(c.get("semana") or 0)})[-20:])
+        aviso = "👍"
     elif tipo == "semana_lista":
         if not es_coach(sesion):
             raise Error("Solo el coach", 403)

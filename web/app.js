@@ -82,6 +82,8 @@ const FR = {
   "Te queda 1 día de prueba gratis": "Il te reste 1 jour d'essai gratuit",
   "Te quedan {n} días de prueba gratis": "Il te reste {n} jours d'essai gratuit",
   "Estás progresando, no te quedes aquí": "Tu progresses, ne t'arrête pas là",
+  "Tu semana {n} ya está lista": "Ta semaine {n} est prête", "Diego te la ha preparado. Échale un vistazo para saber lo que viene.": "Diego te l'a préparée. Jette un œil pour savoir ce qui t'attend.",
+  "Ver la semana": "Voir la semaine",
   "Abónate para desbloquear tu semana siguiente": "Abonne-toi pour débloquer ta semaine suivante", "No te quedes aquí": "Ne t'arrête pas là",
   "Estás progresando. Abónate para desbloquear tu semana siguiente y seguir entrenando con Diego.": "Tu progresses. Abonne-toi pour débloquer ta semaine suivante et continuer avec Diego.",
   "Más tarde": "Plus tard", "🔒 La semana siguiente se abre al abonarte": "🔒 La semaine suivante s'ouvre quand tu t'abonnes", "Abónate y desbloquea tu semana 2": "Abonne-toi et débloque ta semaine 2",
@@ -1063,6 +1065,9 @@ function cabecera(v) {
         <button class="redondo" id="b-ajustes" aria-label="${t("Ajustes")}">${ic.ajustes}</button>
       </div>
     </div>
+    ${v.semana_lista_nueva ? `<div class="propuesta sugerencia aviso-semana"><b>🔥 ${t("Tu semana {n} ya está lista").replace("{n}", v.semana_lista_nueva)}</b>
+      <small>${t("Diego te la ha preparado. Échale un vistazo para saber lo que viene.")}</small>
+      <div class="prop-bot"><button id="b-ver-semana">👀 ${t("Ver la semana")} ${v.semana_lista_nueva}</button><button id="b-semana-ok">${t("Vale")}</button></div></div>` : ""}
     ${v.programa_actualizado ? `<div class="propuesta sugerencia"><b>💡 ${t("Diego ha actualizado tu programa")}</b>
       <small>${t("Échale un vistazo a tus días: hay cambios nuevos hechos para ti.")}</small>
       <div class="prop-bot"><button id="b-prog-ok">👍 ${t("Vale")}</button></div></div>` : ""}
@@ -1297,6 +1302,8 @@ function enlazar() {
   on("b-sem-menos", () => cargar({ semana: v.semana - 1, dia: null }).then(() => window.scrollTo(0, 0)));
   on("b-sem-mas", () => cargar({ semana: v.semana + 1, dia: null }).then(() => window.scrollTo(0, 0)));
   on("b-fin", (ev) => hacer({ tipo: "semana", nueva: v.actual + 1, ver_semana: v.actual + 1, ver_dia: null }, ev.currentTarget).then(() => window.scrollTo(0, 0)));
+  on("b-ver-semana", () => { const n = v.semana_lista_nueva; hacer({ tipo: "visto_semana_lista", semana: n, ver_semana: n, ver_dia: null }).then(() => window.scrollTo(0, 0)); });
+  on("b-semana-ok", (ev) => hacer({ tipo: "visto_semana_lista", semana: v.semana_lista_nueva, ver_semana: v.semana, ver_dia: v.dia_id || E.dia }, ev.currentTarget));
   on("b-actual", (ev) => hacer({ tipo: "semana", nueva: v.semana }, ev.currentTarget));
   on("b-lista", (ev) => hacer({ tipo: "semana_lista", semana: v.semana, lista: ev.currentTarget.dataset.lista === "1", ver_semana: v.semana, ver_dia: v.dia_id || E.dia }, ev.currentTarget));
   $app.querySelectorAll("[data-preparar]").forEach((b) => b.onclick = () => {
