@@ -799,7 +799,7 @@ def _igual(a: str, b: str) -> bool:
     return bool(a) and bool(b) and hmac.compare_digest(a.encode(), b.encode())
 
 
-VERSION = "11.57"
+VERSION = "11.58"
 CLAVES_NECESARIAS = ["CONTRASENA_DIEGO", "SUPABASE_URL", "SUPABASE_KEY", "APP_PASSWORD", "CONTRASENA_ARCHCHANA", "CONTRASENA_INVITADOS", "COACH_PIN",
                      "APP_ANTIGUA_URL", "CONTRASENA_DEMO"]
 
@@ -2994,7 +2994,7 @@ def vista(sesion: dict, atleta: str | None, semana: int | None, dia_id: str | No
             "partes": partes, "pendientes": pendientes,
             "novedades": [_novedad_a_su_nivel(x, nivel, atleta) for x in novedades_para(
                 rut, (guardadas.get(CLAVE_NOVEDADES) or {}).get("lista") or [], rutina("Yo", guardadas))]
-                if alumno and not demo else [],
+                if alumno and not demo and atleta not in SIN_WODS else [],
             "retests": [_retest_ui(x) for x in rut.get("retests") or []
                         if x.get("estado") == "pendiente" and x.get("fecha", "9") <= dt.date.today().isoformat()],
             "retest_lineas": {x["linea"]: _fecha_corta(x["fecha"]) for x in rut.get("retests") or []
@@ -3208,6 +3208,10 @@ def limpiar_biblioteca(sesion: dict, c: dict) -> dict:
     if not c.get("probar") and quitados:
         datos().guardar(CLAVE_BIBLIOTECA, nuevo)
     return {"quitados": len(quitados), "ejemplos": quitados[:8], "hecho": not c.get("probar")}
+
+
+# gente que no hace WODs ni cardio (solo fuerza): no le salen novedades de WODs
+SIN_WODS = {"Manu Villalobos"}
 
 
 # material que alguien no tiene: se le cambia el movimiento al enseñarle el WOD (sea quien sea quien lo escriba)
