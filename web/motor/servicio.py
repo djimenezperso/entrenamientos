@@ -799,7 +799,7 @@ def _igual(a: str, b: str) -> bool:
     return bool(a) and bool(b) and hmac.compare_digest(a.encode(), b.encode())
 
 
-VERSION = "11.58"
+VERSION = "11.59"
 CLAVES_NECESARIAS = ["CONTRASENA_DIEGO", "SUPABASE_URL", "SUPABASE_KEY", "APP_PASSWORD", "CONTRASENA_ARCHCHANA", "CONTRASENA_INVITADOS", "COACH_PIN",
                      "APP_ANTIGUA_URL", "CONTRASENA_DEMO"]
 
@@ -2962,6 +2962,8 @@ def vista(sesion: dict, atleta: str | None, semana: int | None, dia_id: str | No
             repes = 0
             for p in partes:
                 for l in p.get("lineas") or []:
+                    if l.get("kind") == "texto" and _SOLO_MATERIAL.search(l.get("texto") or ""):
+                        l["falta_mov"] = True
                     t_ = norm_busqueda(l.get("texto") or "")
                     if l.get("kind") == "texto" and len(t_) > 12 and t_ in previos:
                         l["repetido"] = previos[t_]
@@ -3208,6 +3210,10 @@ def limpiar_biblioteca(sesion: dict, c: dict) -> dict:
     if not c.get("probar") and quitados:
         datos().guardar(CLAVE_BIBLIOTECA, nuevo)
     return {"quitados": len(quitados), "ejemplos": quitados[:8], "hecho": not c.get("probar")}
+
+
+# «10 dumbbell @32,5» sin decir qué movimiento: se avisa al coach para que lo escriba
+_SOLO_MATERIAL = re.compile(r"(?mi)^\W*\d+\s*(?:x\s*)?(?:db|dbs|dumbb?ells?|kb|kbs|kettlebells?|barbell|barra|mancuernas?|disco|plate)\s*(?:@\s*[\d.,]+\s*(?:kg)?)?\s*$")
 
 
 # gente que no hace WODs ni cardio (solo fuerza): no le salen novedades de WODs
