@@ -1358,7 +1358,7 @@ def tope_db_alumno(texto: str) -> str:
     def una(trozo):
         if not re.search(r"\bdb|dbs\b|dumbb?ell|mancuerna", trozo, re.I):
             return trozo
-        trozo = re.sub(r"(?P<a>\d+(?:[.,]\d+)?)\s*/\s*(?P<b>\d+(?:[.,]\d+)?)(?![\d.,])(?!\s*(?:cal|m\b|''|\"))",
+        trozo = re.sub(r"(?P<a>\d+(?:[.,]\d+)?)\s*/\s*(?P<b>\d+(?:[.,]\d+)?)(?![\d.,])(?!\s*(?:cal|m\b|''|\"|'|’|′|min|seg|s\b|h\b))",
                        lambda m: (f"{fmt_num(min(float(m['a'].replace(',', '.')), 22.5))}/{fmt_num(min(float(m['b'].replace(',', '.')), 15))}"
                                   if float(m['a'].replace(',', '.')) >= 12 else m.group(0)), trozo)
         trozo = re.sub(r"@\s*(\d+(?:[.,]\d+)?)(?![\d.,/])(?!\s*(?:%|'|’|′|\"|min|bpm|cal|:|spm|rpm|seg|s\b|zon[ae]|rpe))", lambda m: "@" + fmt_num(min(float(m.group(1).replace(",", ".")), 22.5)), trozo)
@@ -1436,7 +1436,7 @@ def _escalar_linea(linea: str, nivel: str) -> str:
     patron = re.compile(
         rf"@\s*(?P<arr>{num}(?:\s*-\s*{num})*){no_sigue}"                    # @60 / @60-65-70
         rf"(?!\s*(?:%|'|’|′|\"|min|bpm|ppm|cal|:|/\s*\d|spm|rpm|w\b|watts?|seg|s\b|zon[ae]|rpe))"  # no: @25' @130 bpm @2:05
-        rf"|(?<![:\d.,])(?P<a>{num})\s*/\s*(?P<b>{num}){no_sigue}(?!\s*(?:cal|''|\"|in\b|m\b|’’|%))"  # 43/30 (no cal/alturas/ritmos)
+        rf"|(?<![:\d.,])(?P<a>{num})\s*/\s*(?P<b>{num}){no_sigue}(?!\s*(?:cal|''|\"|in\b|m\b|’’|%|'|’|′|min|seg|s\b|h\b))"  # 43/30 (no cal/alturas/minutos)
         rf"|(?P<kg>{num})(?=\s*kg)"                                              # 60kg
         rf"|(?<=\b2x )(?P<dos>{num}){no_sigue}(?!\s*/)",                         # dble db 2x 22,5
         re.I)

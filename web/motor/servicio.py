@@ -799,7 +799,7 @@ def _igual(a: str, b: str) -> bool:
     return bool(a) and bool(b) and hmac.compare_digest(a.encode(), b.encode())
 
 
-VERSION = "11.59"
+VERSION = "11.60"
 CLAVES_NECESARIAS = ["CONTRASENA_DIEGO", "SUPABASE_URL", "SUPABASE_KEY", "APP_PASSWORD", "CONTRASENA_ARCHCHANA", "CONTRASENA_INVITADOS", "COACH_PIN",
                      "APP_ANTIGUA_URL", "CONTRASENA_DEMO"]
 
@@ -2454,7 +2454,7 @@ def crono_de(texto: str, parte: str, ejercicio: str) -> dict | None:
         if not total:
             n = re.search(r"\b(\d+)\s*x\b", t)
             mins = [int(x) for x in re.findall(r"\b(\d{2,3})\s*(?:'|min)", t)]
-            total = round(int(n.group(1)) * intervalo / 60) if n else (max(mins) if mins else None)
+            total = max(mins) if mins else (round(int(n.group(1)) * intervalo / 60) if n else None)  # «20/40'» manda sobre «2x T2B»
         return {"modo": "emom", "minutos": total or 12, "intervalo": intervalo}
     if "amrap" in fmts:
         m = re.search(r"\bamrap\s*(?:de\s*)?(\d+)", t) or re.search(r"(\d+)\s*(?:'|min)\s*amrap", t)
