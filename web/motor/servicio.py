@@ -584,6 +584,34 @@ def _emom_wb(n: int) -> str:
 NIVEL_FIJO_PARTE = [("Mi esposa", "ultimo", "conditioning", "RX")]
 
 
+def _pausar_saltadas(rut: dict | None, atleta: str) -> dict | None:
+    """Si alguien se salta una semana entera (no marca nada y pasa a la siguiente), esa semana no cuenta para subir
+    peso: la fuerza sube 2,5 sobre lo último que hizo, no 5. Solo semanas entre la primera que marcó y la actual."""
+    if not rut or not rut.get("dias") or not rut.get("estados"):
+        return rut
+    actual = int(rut.get("semana_actual") or 1)
+    marcadas = {int(k.split("|", 1)[0]) for k in rut["estados"] if k.split("|", 1)[0].isdigit()}
+    if not marcadas:
+        return rut
+    vacias = [w for w in range(min(marcadas) + 1, actual) if w not in marcadas]
+    if not vacias:
+        return rut
+    cambio = False
+    rut = copy.deepcopy(rut)
+    for d in rut["dias"]:
+        for l in d["lineas"]:
+            if float(l.get("sube") or 0) <= 0:
+                continue
+            pausas = {int(x) for x in l.get("pausas") or []}
+            nuevas = {w for w in vacias if int(l.get("base") or 1) <= w} - pausas
+            if nuevas:
+                l["pausas"] = sorted(pausas | nuevas)
+                cambio = True
+    if cambio:
+        datos().guardar(atleta, rut)
+    return rut
+
+
 # conditionings con progresión: en un día concreto, desde la primera semana en que esa parte aún no está hecha
 PROGRESIONES_DIA = [
     {"id": "yo-emom-wb-aab-2026-11", "atleta": "Yo", "dia": 2, "parte_contiene": "conditioning",
@@ -708,7 +736,7 @@ def _renombrar(rut: dict | None, atleta: str) -> dict | None:
 
 def rutina(atleta: str, guardadas: dict | None = None) -> dict | None:
     guardadas = datos().rutinas([atleta]) if guardadas is None else guardadas
-    r = _progresiones_dia(_anadir_lineas(_textos_fijos(_progresiones(_quitar_lineas(_reordenar(_pasar_semana(_partes_fijas(_niveles_puntuales(_cambios_puntuales(_renombrar(_limpiar_extra(guardadas.get(atleta), atleta), atleta), atleta), atleta), atleta), atleta), atleta), atleta), atleta), atleta), atleta), atleta)
+    r = _pausar_saltadas(_progresiones_dia(_anadir_lineas(_textos_fijos(_progresiones(_quitar_lineas(_reordenar(_pasar_semana(_partes_fijas(_niveles_puntuales(_cambios_puntuales(_renombrar(_limpiar_extra(guardadas.get(atleta), atleta), atleta), atleta), atleta), atleta), atleta), atleta), atleta), atleta), atleta), atleta), atleta), atleta)
     return completar(r or rutinas_iniciales(ATLETAS).get(atleta), atleta)
 
 
@@ -799,7 +827,7 @@ def _igual(a: str, b: str) -> bool:
     return bool(a) and bool(b) and hmac.compare_digest(a.encode(), b.encode())
 
 
-VERSION = "11.60"
+VERSION = "11.61"
 CLAVES_NECESARIAS = ["CONTRASENA_DIEGO", "SUPABASE_URL", "SUPABASE_KEY", "APP_PASSWORD", "CONTRASENA_ARCHCHANA", "CONTRASENA_INVITADOS", "COACH_PIN",
                      "APP_ANTIGUA_URL", "CONTRASENA_DEMO"]
 
