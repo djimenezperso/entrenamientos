@@ -373,7 +373,7 @@ main { padding: 4px 16px 0; display: flex; flex-direction: column; gap: 12px; }
 .sol-pesos b { color: var(--brasa); }
 .sol-msg { background: var(--crema); border-radius: 14px; padding: 10px 12px; font-size: 13.5px; color: var(--medio); font-style: italic; }
 
-.card.warmup { background: linear-gradient(135deg, #fff 60%, #FFF1E4); border: 1.5px dashed #FFB37A; box-shadow: none; }
+.card.warmup { background: linear-gradient(135deg, var(--carta) 60%, #2E1A10); border: 1.5px dashed #FFB37A; box-shadow: none; }
 .card.warmup .letra { background: var(--ambar); color: var(--texto); }
 .card.warmup .letra.hecho { background: var(--verde); color: #fff; }
 
