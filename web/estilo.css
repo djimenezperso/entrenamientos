@@ -666,3 +666,19 @@ main { padding: 4px 16px 0; display: flex; flex-direction: column; gap: 12px; }
 .plan-ok { margin: 0 0 4px; padding: 10px 14px; border-radius: 14px; background: #E9F8F0; color: #146c4c; font-size: 13.5px; font-weight: 600; }
 .etq-repetido { display: inline-block; margin: 2px 0 6px; padding: 4px 10px; border-radius: 999px; background: #FFE3B3; color: #8a4b00; font-size: 12.5px; font-weight: 700; }
 .etq-ritmo { display: inline-block; margin: 2px 6px 6px 0; padding: 4px 10px; border-radius: 999px; background: #FDE7E7; color: #9b2c2c; font-size: 12.5px; font-weight: 700; }
+
+/* ===== Diseño D (solo pantalla Rutina): fondo oscuro, cabecera crema, día en naranja ===== */
+#app:has(.titulo-dia) { background: #120A06; }
+#app:has(.titulo-dia) .cabecera { background: #FFF4EA; padding-bottom: 16px; margin-bottom: 12px; }
+#app:has(.titulo-dia) .cabecera .quien small, #app:has(.titulo-dia) .cabecera .quien strong { color: #1F1208; }
+#app:has(.titulo-dia) .cabecera .quien small { color: #8A6A52; }
+#app:has(.titulo-dia) .cabecera .quien strong span { color: #1F1208 !important; }
+#app:has(.titulo-dia) .avatar { background: #1F1208; color: #FFB400; box-shadow: none; }
+#app:has(.titulo-dia) .redondo:not(.campana) { background: #FFFFFF; color: #1F1208; box-shadow: 0 4px 12px rgba(150, 50, 0, .12); }
+#app:has(.titulo-dia) .titulo-dia { background: var(--grad); border-radius: 22px; padding: 16px 18px; align-items: center; box-shadow: 0 12px 30px -16px rgba(255, 106, 0, .6); }
+#app:has(.titulo-dia) .titulo-dia h2, #app:has(.titulo-dia) .titulo-dia span { color: #FFFFFF; }
+#app:has(.titulo-dia) .titulo-dia h2 { font-size: 40px; }
+#app:has(.titulo-dia) .barra { background: #3A2619; }
+#app:has(.titulo-dia) section.card .letra:not(.hecho) { background: #1F1208; color: #FFB400; }
+#app:has(.titulo-dia) .nav { background: #FFF4EA; box-shadow: 0 14px 34px rgba(0, 0, 0, .5); }
+#app:has(.titulo-dia) .nav button:not(.on) { color: #1F1208; }
