@@ -683,3 +683,18 @@ main { padding: 4px 16px 0; display: flex; flex-direction: column; gap: 12px; }
 .propuesta b, .novedad:not(.retest) b { color: #1A0A00; }
 .propuesta button, .novedad:not(.retest) button { color: #1A0A00; background: rgba(255, 244, 234, .22); border-color: rgba(26, 10, 0, .35); }
 .propuesta.sugerencia { border-color: #1A0A00; }
+
+/* ===== Bloques en naranja: semana, días y partes del entreno ===== */
+.pildora-semana { background: var(--grad); }
+.pildora-semana span, .pildora-semana span em, .pildora-semana button { color: #1A0A00; }
+.pildora-semana button:active { background: rgba(26, 10, 0, .12); }
+.dia { background: rgba(255, 106, 0, .18); }
+.dia small { color: #FFB37A; }
+.dia.on { background: var(--grad); }
+.dia.on small { color: #1A0A00; }
+section.card:not(.warmup) { background: var(--grad); color: #1A0A00; box-shadow: 0 12px 30px -16px rgba(255, 106, 0, .6); }
+section.card:not(.warmup) * { color: #1A0A00; border-color: rgba(26, 10, 0, .35); }
+section.card:not(.warmup) .letra { background: rgba(26, 10, 0, .16); }
+section.card:not(.warmup) button { background: rgba(255, 244, 234, .2); }
+section.card:not(.warmup) input, section.card:not(.warmup) textarea, section.card:not(.warmup) select { background: rgba(255, 244, 234, .92); color: #1A0A00; }
+section.card.hecha:not(.warmup) { opacity: .75; }
