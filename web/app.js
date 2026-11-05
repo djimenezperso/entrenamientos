@@ -646,15 +646,15 @@ function hojaPago(cs) {
       <p>${t("Estamos comprobando el pago. Déjanos tu teléfono y tu email para darte de alta y escribirte.")}</p></div>
     <form id="f-pago" novalidate style="display:flex;flex-direction:column;gap:10px">
       <label class="paso-etq" for="pg-nombre" style="margin:0 4px">${t("Tu nombre")}</label>
-      <input class="campo" id="pg-nombre" autocomplete="name" style="background:var(--carta)" value="${esc(v.demo ? "" : (v.nombre || ""))}" required>
+      <input class="campo" id="pg-nombre" autocomplete="name" style="background:#fff" value="${esc(v.demo ? "" : (v.nombre || ""))}" required>
       <label class="paso-etq" for="pg-tel" style="margin:0 4px">${t("Teléfono")}</label>
-      <input class="campo" id="pg-tel" type="tel" autocomplete="tel" inputmode="tel" value="${E.lang === "fr" ? "+33 " : "+34 "}" placeholder="${E.lang === "fr" ? "+33 6 12 34 56 78" : "+34 600 000 000"}" style="background:var(--carta)" required>
+      <input class="campo" id="pg-tel" type="tel" autocomplete="tel" inputmode="tel" value="${E.lang === "fr" ? "+33 " : "+34 "}" placeholder="${E.lang === "fr" ? "+33 6 12 34 56 78" : "+34 600 000 000"}" style="background:#fff" required>
       <p class="error-campo" id="pg-tel-e" hidden></p>
       <label class="paso-etq" for="pg-email" style="margin:0 4px">Email</label>
-      <input class="campo" id="pg-email" type="email" autocomplete="email" inputmode="email" placeholder="tu@email.com" style="background:var(--carta)" required>
+      <input class="campo" id="pg-email" type="email" autocomplete="email" inputmode="email" placeholder="tu@email.com" style="background:#fff" required>
       <p class="error-campo" id="pg-email-e" hidden></p>
       ${v.solo && !v.demo ? "" : `<label class="paso-etq" for="pg-pin" style="margin:0 4px">${t("Elige un PIN (4 cifras o más)")}</label>
-      <input class="campo" id="pg-pin" type="password" inputmode="numeric" autocomplete="new-password" style="background:var(--carta)" required>
+      <input class="campo" id="pg-pin" type="password" inputmode="numeric" autocomplete="new-password" style="background:#fff" required>
       <p class="error-campo" id="pg-pin-e" hidden></p>
       <p class="mini" style="margin:0 4px">${t("Con tu nombre y este PIN entrarás en tu perfil.")}</p>
       ${casillasLegales("pg")}`}
@@ -771,7 +771,7 @@ function hojaObjetivos(despues, previo) {
          ${paso.todo ? `<button type="button" class="chip obj-todo" id="ob-box">🏟️ ${t("Box de CrossFit completo")}</button>` : ""}
          <div class="${paso.ops[0][2] ? "obj-ops" : "fila-chips obj-fila"}">${chips(paso)}</div>
          ${paso.extra ? `<div class="paso-etq" style="margin:14px 2px 6px">${t(paso.extra.tit)}</div><div class="fila-chips obj-fila">${chips(paso.extra)}</div>` : ""}
-         ${paso.texto ? `<input class="campo" id="ob-otro" style="background:var(--carta);height:48px;margin-top:6px" placeholder="${t("Otro (escríbelo)")}" value="${esc(o[paso.texto] || "")}">` : ""}`;
+         ${paso.texto ? `<input class="campo" id="ob-otro" style="background:#fff;height:48px;margin-top:6px" placeholder="${t("Otro (escríbelo)")}" value="${esc(o[paso.texto] || "")}">` : ""}`;
     const html = `<div class="obj-prog">${OBJ_PASOS.map((_, j) => `<span class="${j <= i ? "on" : ""}"></span>`).join("")}</div>
       <div class="obj-cab"><small>🎯 ${t("Tu rutina a medida")} · ${i + 1}/${OBJ_PASOS.length}</small><h3>${t(paso.tit)}</h3></div>
       ${cuerpo}
@@ -839,7 +839,7 @@ function hojaBorrarCuenta() {
     <p style="margin:0 4px">${t("Se borrarán tu perfil, tu programa, tus entrenos, tus marcas y el chat. No se puede deshacer.")}</p>
     ${v.abono_gestion && !v.abono_problema ? `<p class="mini" style="margin:0 4px">⚠️ ${t("Primero cancela tu abono en «Gestionar mi abono» para que no se te cobre.")}</p>` : ""}
     <label class="paso-etq" for="bc-nombre" style="margin:4px 4px 0">${t("Para confirmar, escribe tu nombre:")} <b>${esc(v.nombre)}</b></label>
-    <input class="campo" id="bc-nombre" autocomplete="off" style="background:var(--carta)">
+    <input class="campo" id="bc-nombre" autocomplete="off" style="background:#fff">
     <p class="error" id="bc-error" hidden></p>
     <button class="btn" id="bc-si" style="background:#C0392B;color:#fff;height:54px">🗑️ ${t("Borrar todo para siempre")}</button>
     <button class="btn" data-cerrar>${t("Cancelar")}</button>`, (h) => {
@@ -861,7 +861,7 @@ function hojaChat() {
     : `<p class="mini" style="text-align:center;margin:18px 6px">${coach ? t("Aún no hay mensajes con esta persona.") : t("Escríbele lo que quieras: dudas del entreno, molestias, cambios… Diego te contesta aquí.")}</p>`;
   abrirHoja(`${cabHoja(coach ? v.nombre : "Djimenez Prog", coach ? t("Chat") : t("Chat con Diego"))}
     <div class="chat" id="ch-lista"><p class="mini" style="text-align:center">…</p></div>
-    ${v.demo ? `<input class="campo" id="ch-email" type="email" placeholder="${t("Tu email (para que Diego te pueda contestar)")}" value="${esc(mem.get("chat_email") || "")}" style="background:var(--carta);height:46px">` : ""}
+    ${v.demo ? `<input class="campo" id="ch-email" type="email" placeholder="${t("Tu email (para que Diego te pueda contestar)")}" value="${esc(mem.get("chat_email") || "")}" style="background:#fff;height:46px">` : ""}
     <form id="ch-form" class="chat-form"><textarea class="campo" id="ch-texto" rows="2" placeholder="${t("Escribe un mensaje…")}"></textarea>
       <button class="btn btn-fuego" type="submit" aria-label="${t("Enviar")}">➤</button></form>
     <p class="mini" id="ch-nota" style="margin:0 4px">${coach ? t("Lo que escribas aquí le sale en su app.") : t("Le llega a Diego al móvil al momento.")}</p>`, (h) => {
@@ -903,9 +903,9 @@ function hojaCrearPerfil(paso) {
   abrirHoja(`${cabHoja("Djimenez Prog", t("Crear mi perfil"))}
     <form id="f-perfil" novalidate style="display:flex;flex-direction:column;gap:10px">
       <label class="paso-etq" for="cp-nombre" style="margin:0 4px">${t("Tu nombre")}</label>
-      <input class="campo" id="cp-nombre" autocomplete="given-name" style="background:var(--carta)" value="${esc(paso.nombre || "")}" required>
+      <input class="campo" id="cp-nombre" autocomplete="given-name" style="background:#fff" value="${esc(paso.nombre || "")}" required>
       <label class="paso-etq" for="cp-pin" style="margin:0 4px">${t("Elige un PIN (4 cifras o más)")}</label>
-      <input class="campo" id="cp-pin" type="password" inputmode="numeric" autocomplete="new-password" style="background:var(--carta)" value="${esc(paso.pin || "")}" required>
+      <input class="campo" id="cp-pin" type="password" inputmode="numeric" autocomplete="new-password" style="background:#fff" value="${esc(paso.pin || "")}" required>
       <p class="mini" style="margin:0 4px">${t("Con tu nombre y este PIN entrarás la próxima vez.")}</p>
       ${paso.plantillas ? `<span class="paso-etq" style="margin:4px 4px 0">${t("¿Con qué rutina empiezas?")}</span>
         <div class="opciones-radio">${Object.entries(paso.plantillas).map(([k, v], i) =>
@@ -1165,7 +1165,7 @@ function hojaVideo(k) {
       : yt ? `<div class="video-tec yt"><iframe src="https://www.youtube-nocookie.com/embed/${esc(yt)}" title="${esc(l.ejercicio)}" allow="accelerometer; encrypted-media; picture-in-picture" allowfullscreen></iframe></div>`
       : v.url ? `<a class="btn btn-fuego" href="${esc(v.url)}" target="_blank" rel="noopener">▶️ ${t("Abrir el vídeo")}</a>` : `<p class="mini">${t("Este ejercicio aún no tiene vídeo.")}</p>`}
     ${E.vista.coach ? `<div class="caja-coach"><div class="paso-etq" style="margin:0 0 8px">🎥 ${t("Vídeo para todos en este ejercicio")}</div>
-      <input class="campo" id="v-url" placeholder="https://youtube.com/… · instagram.com/…" value="${esc(v.url && /^https?:/i.test(v.url) ? v.url : "")}" style="background:var(--carta)">
+      <input class="campo" id="v-url" placeholder="https://youtube.com/… · instagram.com/…" value="${esc(v.url && /^https?:/i.test(v.url) ? v.url : "")}" style="background:#fff">
       <p class="mini" style="margin:6px 2px">${t("Sube el vídeo a YouTube (oculto) o Instagram y pega aquí el enlace.")}</p>
       <div style="display:grid;grid-template-columns:1fr auto;gap:8px"><button class="btn btn-negro" id="v-guardar">${t("Guardar")}</button>
       ${v.url ? `<button class="btn" id="v-quitar">${t("Quitar")}</button>` : ""}</div></div>` : ""}`, (h) => {
@@ -1203,7 +1203,7 @@ function linea(l, p, k) {
     <button data-fijar="${k}">${t("Fijar")}</button></div>`;
   if (l.tabla) html += `<details class="desplegable"><summary>${t("RX · Inter · Scaled por movimiento")} ${ic.abajo}</summary>
     <table class="tabla"><thead><tr><th>RX</th><th>Inter</th><th>Scaled</th></tr></thead><tbody>${l.tabla.map((f) =>
-      f.RX === f.Inter && f.Inter === f.Scaled ? `<tr><td colspan="3" style="color:var(--texto);font-weight:500">${esc(f.RX)}</td></tr>`
+      f.RX === f.Inter && f.Inter === f.Scaled ? `<tr><td colspan="3" style="color:var(--tinta);font-weight:500">${esc(f.RX)}</td></tr>`
         : `<tr><td>${esc(f.RX)}</td><td>${esc(f.Inter)}</td><td>${esc(f.Scaled)}</td></tr>`).join("")}</tbody></table></details>`;
   else if (l.versiones_nivel) html += `<details class="desplegable"><summary>${t("Versiones")} RX · Inter · Scaled · Elite ${ic.abajo}</summary>
     <div class="versiones">${Object.entries(l.versiones_nivel).map(([n, txt]) => `<div><b>${esc(n)}</b><span class="texto-wod">${esc(trWod(txt))}</span></div>`).join("")}</div></details>`;
@@ -1419,7 +1419,7 @@ async function alternarGusta(p, b) {
 function hojaRetest(k) {
   const { p, l } = lineaDe(k);
   abrirHoja(`${cabHoja(`${p.letra ? p.letra + " · " : ""}${etqParte(p.etiqueta)}`, t("Repetir para comparar"))}
-    <div class="texto-wod" style="background:var(--carta);border-radius:14px;padding:12px">${esc(l.visto || l.texto || "")}</div>
+    <div class="texto-wod" style="background:#fff;border-radius:14px;padding:12px">${esc(l.visto || l.texto || "")}</div>
     <p class="mini" style="margin:0 4px">${l.ultimo ? `${t("Tu marca ahora")}: <b>${esc(l.ultimo.valor)}</b> (${esc(trFecha(l.ultimo.fecha))}). ` : `${t("Registra hoy tu resultado para poder comparar.")} `}${t("Te lo volvemos a poner en tu día y verás la otra marca al lado.")}</p>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
       <button class="btn btn-fuego" data-meses="1">${t("En 1 mes")}</button>
@@ -1464,7 +1464,7 @@ async function hojaQR() {
 }
 function hojaCompartir(msg, contar) {
   abrirHoja(`${cabHoja("Djimenez Prog", t("Compartir"))}
-    <div class="texto-wod" style="background:var(--carta);border-radius:14px;padding:12px;white-space:pre-wrap;overflow-wrap:anywhere;font-size:14px">${esc(msg)}</div>
+    <div class="texto-wod" style="background:#fff;border-radius:14px;padding:12px;white-space:pre-wrap;overflow-wrap:anywhere;font-size:14px">${esc(msg)}</div>
     <a class="btn btn-fuego" id="c-wa" href="https://wa.me/?text=${encodeURIComponent(msg)}" target="_blank" rel="noopener">WhatsApp</a>
     <button class="btn btn-negro" id="c-copiar">${t("Copiar el texto")}</button>`, (h) => {
     h.querySelector("#c-wa").onclick = () => { contar(); setTimeout(cerrarHoja, 300); };
@@ -1642,7 +1642,7 @@ function hojaAjustes() {
               <li>${t("En Telegram abre")} <a href="https://t.me/BotFather" target="_blank" rel="noopener">@BotFather</a>, ${t("escribe /newbot y ponle un nombre (p. ej. Djimenez Avisos).")}</li>
               <li>${t("Abre tu bot nuevo y pulsa INICIAR.")}</li>
               <li>${t("Copia el token que te da BotFather y pégalo aquí:")}</li></ol>
-            <div style="display:flex;gap:8px"><input class="campo" id="i-tg" placeholder="123456789:AAH…" autocomplete="off" style="height:46px;background:var(--carta)">
+            <div style="display:flex;gap:8px"><input class="campo" id="i-tg" placeholder="123456789:AAH…" autocomplete="off" style="height:46px;background:#fff">
             <button class="btn btn-negro" id="b-tg">${t("Conectar")}</button></div>`}</div>
         <button class="btn btn-fuego" id="b-actividad" style="width:100%;margin-top:10px;height:50px">📊 ${t("Quién usa la app")}</button>
         ${v.codigo_propio ? `<button class="btn" id="b-codigo" style="width:100%;margin-top:10px">🔑 ${t("Poner código / PIN nuevo a")} ${esc(v.nombre)}</button>` : ""}
@@ -1651,7 +1651,7 @@ function hojaAjustes() {
         <div id="limpiar-res"></div>
         <button class="btn" id="b-coach-salir" style="width:100%;margin-top:10px">${t("Quitar el modo coach en este móvil")}</button>`
       : `<div class="mini" style="margin-bottom:10px">${t("Solo para Diego: con el PIN del coach puedes cambiar los pesos y aprobar los cambios que te piden.")}</div>
-        <div style="display:flex;gap:8px"><input class="campo" id="i-pin-coach" type="password" autocapitalize="off" autocomplete="off" placeholder="PIN o clave" style="height:48px;background:var(--carta)">
+        <div style="display:flex;gap:8px"><input class="campo" id="i-pin-coach" type="password" autocapitalize="off" autocomplete="off" placeholder="PIN o clave" style="height:48px;background:#fff">
         <button class="btn btn-negro" id="b-coach">${t("Activar")}</button></div>`}
     </div>
     ${v.abono_gestion ? `<div class="caja-abono"><b>💳 ${t("Mi abono")}</b> · ${esc(t(v.abono_estado_txt || ""))}${v.abono_fin_prueba ? ` · ${t("prueba gratis hasta el")} ${esc(fechaCorta(v.abono_fin_prueba))}` : ""}${v.abono_cancela ? ` · ${t("se cancela al final del periodo")}` : ""}
@@ -1751,7 +1751,7 @@ function pinInline(v) {
   // Diego sin el modo coach activado: lo activa aquí mismo y sigue cambiando
   if (v.coach || v.solo) return "";
   return `<div class="pin-inline"><span>${t("¿Eres Diego? Mete tu PIN de coach y lo cambias directamente")}</span>
-    <div style="display:flex;gap:8px"><input class="campo" id="pin-in" type="password" autocapitalize="off" autocomplete="off" placeholder="PIN o clave" style="height:46px;background:var(--carta)">
+    <div style="display:flex;gap:8px"><input class="campo" id="pin-in" type="password" autocapitalize="off" autocomplete="off" placeholder="PIN o clave" style="height:46px;background:#fff">
     <button type="button" class="btn btn-negro" id="pin-ok">${t("Activar")}</button></div></div>`;
 }
 function enlazarPin(h, reabrir) {
@@ -1792,7 +1792,7 @@ function hojaTexto(k) {
     ${avisoCoach(v)}
     ${l.extra && l.extra.texto === "solo esta semana" ? `<button class="btn btn-negro" id="t-quitar">↩ ${t("Quitar el cambio de esta semana")}</button>` : ""}
     <div><label class="paso-etq" for="t-nombre" style="display:block;margin:0 4px 6px">${l.kind === "peso" ? t("Movimiento") : t("Nombre")}</label>
-      <input class="campo" id="t-nombre" value="${esc(l.ejercicio)}" style="background:var(--carta)">
+      <input class="campo" id="t-nombre" value="${esc(l.ejercicio)}" style="background:#fff">
       ${l.kind === "peso" ? `<p class="mini" style="margin:6px 4px 0">${t("Aquí puedes cambiar el movimiento (por ejemplo «Power clean + push jerk»). Los kilos van en el texto de abajo con @.")}</p>` : ""}</div>
     <div><label class="paso-etq" for="t-texto" style="display:block;margin:0 4px 6px">${t("Esta semana")} (S${p.semana})</label>
       <textarea class="campo area grande" id="t-texto">${esc(l.texto || "")}</textarea></div>
@@ -1850,7 +1850,7 @@ async function hojaParte(p) {
     <div><div class="paso-etq" style="margin:0 4px 8px">${t("Tipo")}</div>
       <div class="fila-chips">${tipos.map((x) => `<button type="button" class="chip ${x === est.tipo ? "on" : ""}" data-tp="${esc(x)}">${esc(x === "Fuerza" ? t("Fuerza") : x)}</button>`).join("")}</div></div>
     <div><label class="paso-etq" for="p-nombre" style="display:block;margin:0 4px 6px">${t("Nombre")} (${t("opcional")})</label>
-      <input class="campo" id="p-nombre" style="background:var(--carta)" placeholder="5 x 400 m"></div>
+      <input class="campo" id="p-nombre" style="background:#fff" placeholder="5 x 400 m"></div>
     <div><label class="paso-etq" for="p-texto" style="display:block;margin:0 4px 6px">${t("Qué toca")}</label>
       <textarea class="campo area grande" id="p-texto" placeholder="5 x 400 m run every 3'"></textarea></div>
     ${alcanceHtml(est.solo)}
@@ -2820,17 +2820,17 @@ function hojaNuevoPr() {
   abrirHoja(`${cabHoja(t("Récords"), t("Apuntar un PR"))}
     <div class="fila-chips">${cats.map((c) => `<button type="button" class="chip ${c === est.cat ? "on" : ""}" data-pc="${esc(c)}">${esc(c.replace(/^\S+\s/, ""))}</button>`).join("")}</div>
     <div><label class="paso-etq" for="pr-movs" style="display:block;margin:0 4px 6px">${t("Movimiento")}</label>
-      <select class="campo" id="pr-movs" style="background:var(--carta)"></select></div>
-    <div id="pr-otro-caja" hidden><input class="campo" id="pr-otro" placeholder="${t("¿Cuál?")}" style="background:var(--carta)"></div>
+      <select class="campo" id="pr-movs" style="background:#fff"></select></div>
+    <div id="pr-otro-caja" hidden><input class="campo" id="pr-otro" placeholder="${t("¿Cuál?")}" style="background:#fff"></div>
     <div class="dos">
       <div><label class="paso-etq" for="pr-valor" style="display:block;margin:0 4px 6px">${t("Marca")} (<span id="pr-unidad"></span>)</label>
-        <input class="campo campo-v" id="pr-valor" inputmode="decimal" style="background:var(--carta)"></div>
+        <input class="campo campo-v" id="pr-valor" inputmode="decimal" style="background:#fff"></div>
       <div id="pr-reps-caja"><label class="paso-etq" for="pr-reps" style="display:block;margin:0 4px 6px">${t("Reps (1 = 1RM)")}</label>
-        <input class="campo campo-v" id="pr-reps" type="number" min="1" max="20" value="1" style="background:var(--carta)"></div>
+        <input class="campo campo-v" id="pr-reps" type="number" min="1" max="20" value="1" style="background:#fff"></div>
     </div>
     <div class="dos">
-      <div><label class="paso-etq" for="pr-fecha" style="display:block;margin:0 4px 6px">${t("Fecha")}</label><input class="campo" type="date" id="pr-fecha" value="${hoyISO()}" max="${hoyISO()}" style="background:var(--carta)"></div>
-      <div><label class="paso-etq" for="pr-nota" style="display:block;margin:0 4px 6px">${t("Nota")}</label><input class="campo" id="pr-nota" placeholder="${t("con cinturón…")}" style="background:var(--carta)"></div>
+      <div><label class="paso-etq" for="pr-fecha" style="display:block;margin:0 4px 6px">${t("Fecha")}</label><input class="campo" type="date" id="pr-fecha" value="${hoyISO()}" max="${hoyISO()}" style="background:#fff"></div>
+      <div><label class="paso-etq" for="pr-nota" style="display:block;margin:0 4px 6px">${t("Nota")}</label><input class="campo" id="pr-nota" placeholder="${t("con cinturón…")}" style="background:#fff"></div>
     </div>
     <button class="btn btn-fuego" id="pr-guardar">${t("Guardar PR")}</button>`, (h) => {
     pintarForm(h);
