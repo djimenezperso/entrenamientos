@@ -34,7 +34,7 @@ svg { display: block; }
 
 #app {
   max-width: 480px; margin: 0 auto; min-height: 100vh; min-height: 100dvh; position: relative; overflow-x: clip;
-  background: linear-gradient(180deg, #FF6A00 0, #C24A0E 150px, #3A1A0A 300px, var(--fondo) 420px);
+  background: var(--fondo);
   padding-bottom: calc(110px + var(--seguro-abajo));
 }
 @media (min-width: 520px) {
@@ -676,3 +676,10 @@ main { padding: 4px 16px 0; display: flex; flex-direction: column; gap: 12px; }
 .plan-ok { margin: 0 0 4px; padding: 10px 14px; border-radius: 14px; background: #E9F8F0; color: #146c4c; font-size: 13.5px; font-weight: 600; }
 .etq-repetido { display: inline-block; margin: 2px 0 6px; padding: 4px 10px; border-radius: 999px; background: #FFE3B3; color: #8a4b00; font-size: 12.5px; font-weight: 700; }
 .etq-ritmo { display: inline-block; margin: 2px 6px 6px 0; padding: 4px 10px; border-radius: 999px; background: #FDE7E7; color: #9b2c2c; font-size: 12.5px; font-weight: 700; }
+
+/* ===== Cuadros destacados en naranja (como «Fuerza tren inferior») ===== */
+.propuesta, .novedad:not(.retest), .aviso-coach { background: var(--grad); color: #1A0A00; box-shadow: 0 10px 28px -14px rgba(255, 106, 0, .55); }
+.propuesta small, .propuesta summary, .novedad:not(.retest) .texto-wod, .aviso-coach b, .aviso-coach span, .aviso-coach svg { color: #1A0A00; }
+.propuesta b, .novedad:not(.retest) b { color: #1A0A00; }
+.propuesta button, .novedad:not(.retest) button { color: #1A0A00; background: rgba(255, 244, 234, .22); border-color: rgba(26, 10, 0, .35); }
+.propuesta.sugerencia { border-color: #1A0A00; }
