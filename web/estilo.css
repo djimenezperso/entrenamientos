@@ -684,17 +684,24 @@ main { padding: 4px 16px 0; display: flex; flex-direction: column; gap: 12px; }
 .propuesta button, .novedad:not(.retest) button { color: #1A0A00; background: rgba(255, 244, 234, .22); border-color: rgba(26, 10, 0, .35); }
 .propuesta.sugerencia { border-color: #1A0A00; }
 
-/* ===== Bloques en naranja: semana, días y partes del entreno ===== */
-.pildora-semana { background: var(--grad); }
-.pildora-semana span, .pildora-semana span em, .pildora-semana button { color: #1A0A00; }
-.pildora-semana button:active { background: rgba(26, 10, 0, .12); }
-.dia { background: rgba(255, 106, 0, .18); }
-.dia small { color: #FFB37A; }
-.dia.on { background: var(--grad); }
+/* ===== Rediseño v2: oscuro con acentos de fuego ===== */
+:root { --carta: #221711; --borde: #4A3122; }
+/* tarjetas oscuras que se separan del fondo */
+section.card:not(.warmup) { background: #221711; border: 1px solid #3A2619; box-shadow: 0 10px 30px -18px rgba(0,0,0,.8); }
+section.card .letra { background: #FF6A00; color: #1A0A00; }
+section.card .letra.hecho { background: #1E9E5A; color: #fff; }
+section.card .tag { color: #FF8A1F; }
+section.card .nombre { color: #FFF4EA; }
+section.card.hecha:not(.warmup) { opacity: .7; }
+/* semana: pastilla oscura con borde de fuego */
+.pildora-semana { background: #221711; border: 1.5px solid #FF6A00; }
+.pildora-semana span { color: #FFB400; }
+.pildora-semana span em { color: #FFF4EA; }
+.pildora-semana button { color: #FF8A1F; }
+/* días: oscuros; el elegido, naranja macizo */
+.dia { background: #221711; border: 1px solid #3A2619; }
+.dia small { color: #D9BFAA; }
+.dia.on { background: #FF6A00; border-color: #FF6A00; }
 .dia.on small { color: #1A0A00; }
-section.card:not(.warmup) { background: var(--grad); color: #1A0A00; box-shadow: 0 12px 30px -16px rgba(255, 106, 0, .6); }
-section.card:not(.warmup) * { color: #1A0A00; border-color: rgba(26, 10, 0, .35); }
-section.card:not(.warmup) .letra { background: rgba(26, 10, 0, .16); }
-section.card:not(.warmup) button { background: rgba(255, 244, 234, .2); }
-section.card:not(.warmup) input, section.card:not(.warmup) textarea, section.card:not(.warmup) select { background: rgba(255, 244, 234, .92); color: #1A0A00; }
-section.card.hecha:not(.warmup) { opacity: .75; }
+/* un único cuadro destacado en naranja macizo */
+.propuesta, .novedad:not(.retest), .aviso-coach { background: linear-gradient(135deg, #FF7A1F, #FF5200); }
