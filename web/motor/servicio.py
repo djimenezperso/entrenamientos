@@ -827,7 +827,7 @@ def _igual(a: str, b: str) -> bool:
     return bool(a) and bool(b) and hmac.compare_digest(a.encode(), b.encode())
 
 
-VERSION = "11.62"
+VERSION = "11.63"
 CLAVES_NECESARIAS = ["CONTRASENA_DIEGO", "SUPABASE_URL", "SUPABASE_KEY", "APP_PASSWORD", "CONTRASENA_ARCHCHANA", "CONTRASENA_INVITADOS", "COACH_PIN",
                      "APP_ANTIGUA_URL", "CONTRASENA_DEMO"]
 
@@ -2339,6 +2339,8 @@ def olvidadas(rut: dict, semana: int, dia_id: str, atleta: str) -> list[dict]:
         return []
     out = []
     for d in rut["dias"][:ids.index(dia_id)]:
+        if d.get("opcional"):
+            continue
         for p, ls in agrupar_por_parte(d, semana):
             if atleta not in MOVILIDAD_ES_PARTE and es_movilidad(p, ls):
                 continue  # el warm up no se recuerda
@@ -2373,7 +2375,8 @@ def semana_completa(rut: dict, semana: int) -> bool:
     """Todas las partes de la semana validadas (hechas, no hechas o pasadas) y sin pendientes por hacer en ella."""
     if not rut.get("dias") or not any(agrupar_por_parte(d, semana) for d in rut["dias"]):
         return False
-    return not sin_validar(rut, semana) and not any(pendientes_para(rut, semana, d["id"]) for d in rut["dias"])
+    return not sin_validar(rut, semana) and not any(pendientes_para(rut, semana, d["id"]) for d in rut["dias"]
+                                                     if not d.get("opcional"))
 
 
 def avanzar_si_completa(atleta: str, rut: dict) -> tuple[dict, str | None]:
@@ -2932,12 +2935,13 @@ def vista(sesion: dict, atleta: str | None, semana: int | None, dia_id: str | No
     visibles = [d for d in rut["dias"] if not d.get("lineas") or agrupar_por_parte(d, semana)] or rut["dias"][:1]
     for d in visibles:
         dias.append({"id": d["id"], "nombre": d["nombre"], "estado": resumen_dia(rut, semana, d),
-                     "pendientes": bool(pendientes_para(rut, semana, d["id"]))})
+                     "pendientes": bool(pendientes_para(rut, semana, d["id"])), "opcional": bool(d.get("opcional"))})
     ids = [d["id"] for d in visibles]
     # al abrir, el primer día que aún tenga alguna parte sin marcar (hecha, no hecha o movida cuenta como marcada)
     def _sin_marcar(d):
         return any(estado_parte(rut, semana, d["id"], p)["estado"] == "pendiente" for p, _ in agrupar_por_parte(d, semana))
-    por_hacer = next((d["id"] for d, x in zip(visibles, dias) if _sin_marcar(d) or x["pendientes"]), ids[-1])
+    por_hacer = next((d["id"] for d, x in zip(visibles, dias) if not d.get("opcional") and (_sin_marcar(d) or x["pendientes"])),
+                     next((d["id"] for d in visibles if d.get("opcional") and _sin_marcar(d)), ids[-1]))
     dia_id = dia_id if dia_id in ids else por_hacer
     if demo:  # en la demo solo se abren los días completos; el resto lleva candado
         for d in dias:
@@ -3038,7 +3042,7 @@ def vista(sesion: dict, atleta: str | None, semana: int | None, dia_id: str | No
             for l in p.get("lineas") or []:
                 l["texto_sig"] = None
     return {**base, "semana": semana, "actual": actual, "nivel": nivel, "niveles": NIVELES, "alumno": alumno,
-            "dias": dias, "dia": {"id": dia["id"], "nombre": dia["nombre"], "estado": resumen_dia(rut, semana, dia),
+            "dias": dias, "dia": {"id": dia["id"], "nombre": dia["nombre"], "opcional": bool(dia.get("opcional")), "estado": resumen_dia(rut, semana, dia),
                                   "por_ejercicio": bool(dia.get("por_ejercicio"))},
             "partes": partes, "pendientes": pendientes,
             "novedades": [_novedad_a_su_nivel(x, nivel, atleta) for x in novedades_para(

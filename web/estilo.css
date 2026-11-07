@@ -678,3 +678,4 @@ main { padding: 4px 16px 0; display: flex; flex-direction: column; gap: 12px; }
 #app:has(.titulo-dia) .titulo-dia h2 { font-size: 40px; }
 #app:has(.titulo-dia) .barra { background: #F0CDB0; }
 #app:has(.titulo-dia) section.card .letra:not(.hecho) { background: #FF6A00; color: #FFFFFF; }
+.aviso-opcional { margin: 0 0 10px; padding: 10px 14px; border-radius: 14px; background: #EEF3FF; color: #2b4a8a; font-size: 13.5px; font-weight: 600; }

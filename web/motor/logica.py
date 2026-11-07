@@ -449,6 +449,8 @@ def pendientes_para(rut: dict, semana: int, dia_id: str) -> list[tuple[int, str,
 def sin_validar(rut: dict, semana: int) -> list[str]:
     out = []
     for d in rut["dias"]:
+        if d.get("opcional"):
+            continue  # el día opcional no cuenta para cerrar la semana
         faltan = [p.split(")")[0] for p, _ in agrupar_por_parte(d, semana)
                   if estado_parte(rut, semana, d["id"], p)["estado"] == "pendiente"]
         if faltan:
