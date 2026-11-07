@@ -827,7 +827,7 @@ def _igual(a: str, b: str) -> bool:
     return bool(a) and bool(b) and hmac.compare_digest(a.encode(), b.encode())
 
 
-VERSION = "11.63"
+VERSION = "11.64"
 CLAVES_NECESARIAS = ["CONTRASENA_DIEGO", "SUPABASE_URL", "SUPABASE_KEY", "APP_PASSWORD", "CONTRASENA_ARCHCHANA", "CONTRASENA_INVITADOS", "COACH_PIN",
                      "APP_ANTIGUA_URL", "CONTRASENA_DEMO"]
 
@@ -3845,12 +3845,23 @@ def _autorregular(atleta: str, c: dict, resultados: list[dict]) -> list[str]:
         cambio = False
         for f, r in zip([f for f in c.get("filas") or [] if str(f.get("name") or f.get("valor") or "").strip()], resultados):
             l = por_id.get(f.get("id") or "")
-            if not l or r.get("unit") != "kg" or r.get("value") is None or float(l.get("sube") or 0) <= 0:
+            auto = bool(l and l.get("autorregula"))  # mismo peso hasta que sale bien: sube cuando apunta más
+            if not l or r.get("unit") != "kg" or r.get("value") is None or (float(l.get("sube") or 0) <= 0 and not auto):
                 continue
             if l["id"] in ((rut.get("ajustes") or {}).get(str(semana + 1)) or {}) or l.get("plan") or l.get("rotacion"):
                 continue
             tocaba = peso_principal(prescripcion_semana(l, semana, rut.get("ajustes"))[0])
-            if not tocaba or abs(float(r["value"]) - tocaba) < 2.5:
+            if not tocaba or abs(float(r["value"]) - tocaba) < 2.5 or (auto and float(r["value"]) < tocaba):
+                continue
+            if auto:  # sube él y las demás líneas del mismo ejercicio con «autorregula» (el otro día de la semana)
+                objetivo = int(float(r["value"]) / 2.5) * 2.5
+                for o in por_id.values():
+                    if o.get("autorregula") and o.get("ejercicio") == l.get("ejercicio"):
+                        txt = prescripcion_semana(o, semana + 1, rut.get("ajustes"))[0]
+                        if peso_principal(txt) and o["id"] not in ((rut.get("ajustes") or {}).get(str(semana + 1)) or {}):
+                            rebasar(o, semana + 1, progresar(txt, objetivo - peso_principal(txt)))
+                cambio = True
+                out.append(f"{l['ejercicio']}: tocaba {fmt_num(tocaba)}, hizo {fmt_num(float(r['value']))} → semana que viene {fmt_num(objetivo)}")
                 continue
             siguiente_txt = prescripcion_semana(l, semana + 1, rut.get("ajustes"))[0]
             siguiente = peso_principal(siguiente_txt)
