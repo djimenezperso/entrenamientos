@@ -1074,6 +1074,7 @@ function cabecera(v) {
     ${v.revision_pendiente ? `<div class="propuesta"><b>🕐 ${esc(v.nombre)} ${t("espera que apruebes su programa")}</b>
       <small>${t("Revísalo abajo y ajusta lo que quieras. Hasta que lo apruebes no lo ve.")}</small>
       <div class="prop-bot"><button id="b-aprobar">✅ ${t("Aprobar y activárselo")}</button></div></div>` : ""}
+    ${v.revision_semana && v.revision_semana.length ? `<div class="banda-abono" style="background:#FFF1D6"><span>🧐 <b>${t("Revisa esta semana")}</b>: ${v.revision_semana.map(esc).join(" · ")}</span></div>` : ""}
     ${v.wods_repetidos && v.wods_repetidos.length ? `<div class="banda-abono" style="background:#FFF1D6"><span>🔁 <b>${t("WODs repetidos de la semana anterior")}</b>: ${v.wods_repetidos.map((d) => esc(trDia(d))).join(" · ")}</span></div>` : ""}
     ${v.por_preparar && !v.por_preparar.length ? `<div class="plan-ok">✅ ${t("Planificación al día: tienes listas las 2 semanas siguientes de todos")}</div>` : ""}
     ${v.por_preparar && v.por_preparar.length ? `<div class="propuesta plan-pend"><b>📝 ${t("Te queda por preparar")}</b>

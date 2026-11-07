@@ -36,7 +36,7 @@ from pathlib import Path
 
 from logica import (
     NIVELES, NUM_PESO, _etiqueta_parte, agrupar_por_parte, quitar_parte, renombrar_parte, cambiar_pesos, copiar_rutina, destino_dia_siguiente,
-    destino_semana_siguiente, editar_texto_linea, rebasar, es_metcon, escalar, estado_parte, fmt_num, historial_parte,
+    destino_semana_siguiente, editar_texto_linea, rebasar, progresar, es_metcon, escalar, estado_parte, fmt_num, historial_parte,
     letra_visible, linea_activa, linea_no_hecha, marcar_linea, marcar_parte, no_hechas_en, norm, norm_busqueda,
     parametros_semana, partes_del_dia, pendientes_para, poner_pesos, prescripcion_semana, referencias_elite,
     resumen_dia, se_repite, semanas_que_sube, sin_validar, tipo_de_linea, versiones_por_movimiento,
@@ -827,7 +827,7 @@ def _igual(a: str, b: str) -> bool:
     return bool(a) and bool(b) and hmac.compare_digest(a.encode(), b.encode())
 
 
-VERSION = "11.61"
+VERSION = "11.62"
 CLAVES_NECESARIAS = ["CONTRASENA_DIEGO", "SUPABASE_URL", "SUPABASE_KEY", "APP_PASSWORD", "CONTRASENA_ARCHCHANA", "CONTRASENA_INVITADOS", "COACH_PIN",
                      "APP_ANTIGUA_URL", "CONTRASENA_DEMO"]
 
@@ -2928,14 +2928,16 @@ def vista(sesion: dict, atleta: str | None, semana: int | None, dia_id: str | No
     sugs = sugerencias(rut, semana, wods_de_diego(rutina("Yo", guardadas))) if alumno else {}
 
     dias = []
-    for d in rut["dias"]:
+    # un día que esta semana no tiene nada (p. ej. se fusionó con otro) no sale; uno sin líneas aún (perfil nuevo), sí
+    visibles = [d for d in rut["dias"] if not d.get("lineas") or agrupar_por_parte(d, semana)] or rut["dias"][:1]
+    for d in visibles:
         dias.append({"id": d["id"], "nombre": d["nombre"], "estado": resumen_dia(rut, semana, d),
                      "pendientes": bool(pendientes_para(rut, semana, d["id"]))})
-    ids = [d["id"] for d in rut["dias"]]
+    ids = [d["id"] for d in visibles]
     # al abrir, el primer día que aún tenga alguna parte sin marcar (hecha, no hecha o movida cuenta como marcada)
     def _sin_marcar(d):
         return any(estado_parte(rut, semana, d["id"], p)["estado"] == "pendiente" for p, _ in agrupar_por_parte(d, semana))
-    por_hacer = next((d["id"] for d, x in zip(rut["dias"], dias) if _sin_marcar(d) or x["pendientes"]), ids[-1])
+    por_hacer = next((d["id"] for d, x in zip(visibles, dias) if _sin_marcar(d) or x["pendientes"]), ids[-1])
     dia_id = dia_id if dia_id in ids else por_hacer
     if demo:  # en la demo solo se abren los días completos; el resto lleva candado
         for d in dias:
@@ -3005,6 +3007,23 @@ def vista(sesion: dict, atleta: str | None, semana: int | None, dia_id: str | No
                             dias_rep.append(d_["nombre"])
             if dias_rep:
                 base["wods_repetidos"] = sorted(set(dias_rep), key=dias_rep.index)
+            if atleta != "Yo":  # revisión rápida de la semana para el coach
+                avisos, vacios, todo = [], [], ""
+                for d_ in rut["dias"]:
+                    for p_, ls_ in agrupar_por_parte(d_, semana):
+                        for l_ in ls_:
+                            t_ = prescripcion_semana(l_, semana, rut.get("ajustes"))[0] or ""
+                            todo += " " + t_ + " " + l_["ejercicio"]
+                            if tipo_de_linea(p_, l_["ejercicio"]) in ("wod", "conditioning") and len(t_.strip()) < 4:
+                                vacios.append(f"{d_['nombre']} {p_[:1]}")
+                if vacios:
+                    avisos.append("Partes sin escribir: " + " · ".join(dict.fromkeys(vacios)))
+                if atleta not in SIN_WODS and not _GYM_MOVS.search(todo):
+                    avisos.append("Esta semana no hay gimnásticos")
+                if atleta not in SIN_WODS and not re.search(r"\b(row|bike|ski|run|aab|cal|rameur|course|remo|corr)", todo, re.I):
+                    avisos.append("Esta semana no hay trabajo aeróbico")
+                if avisos:
+                    base["revision_semana"] = avisos
         except Exception:  # noqa: BLE001
             pass
     for (quien, cual, tipo_p, nv_fijo) in NIVEL_FIJO_PARTE:  # p. ej. el conditioning del último día de su mujer, siempre RX
@@ -3809,6 +3828,42 @@ def _fmt_pr(valor: float, unidad: str) -> str:
     return fmt_valor(valor, unidad) if unidad == "tiempo" else f"{fmt_num(valor)} {unidad}"
 
 
+def _autorregular(atleta: str, c: dict, resultados: list[dict]) -> list[str]:
+    """Si alguien apunta en un ejercicio de fuerza un peso distinto del que tocaba (2,5 kg o más), la semana siguiente
+    se calcula desde lo que de verdad hizo: lo que hizo (redondeado a 2,5) + la subida. No se toca si Diego ya ha
+    escrito esa semana a mano. Devuelve frases para el aviso a Diego."""
+    out = []
+    try:
+        rut = rutina(atleta)
+        semana = int(next((p.get("semana") for p in c.get("partes") or [] if p.get("semana")), 0)
+                      or c.get("semana") or rut.get("semana_actual") or 1)
+        por_id = {l["id"]: l for d in rut["dias"] for l in d["lineas"]}
+        cambio = False
+        for f, r in zip([f for f in c.get("filas") or [] if str(f.get("name") or f.get("valor") or "").strip()], resultados):
+            l = por_id.get(f.get("id") or "")
+            if not l or r.get("unit") != "kg" or r.get("value") is None or float(l.get("sube") or 0) <= 0:
+                continue
+            if l["id"] in ((rut.get("ajustes") or {}).get(str(semana + 1)) or {}) or l.get("plan") or l.get("rotacion"):
+                continue
+            tocaba = peso_principal(prescripcion_semana(l, semana, rut.get("ajustes"))[0])
+            if not tocaba or abs(float(r["value"]) - tocaba) < 2.5:
+                continue
+            siguiente_txt = prescripcion_semana(l, semana + 1, rut.get("ajustes"))[0]
+            siguiente = peso_principal(siguiente_txt)
+            if not siguiente:
+                continue
+            objetivo = (int(float(r["value"]) / 2.5) * 2.5) + float(l.get("sube") or 0)
+            nuevo = progresar(siguiente_txt, objetivo - siguiente)
+            rebasar(l, semana + 1, nuevo)
+            cambio = True
+            out.append(f"{l['ejercicio']}: tocaba {fmt_num(tocaba)}, hizo {fmt_num(float(r['value']))} → semana que viene {fmt_num(objetivo)}")
+        if cambio:
+            datos().guardar(atleta, rut)
+    except Exception:  # noqa: BLE001
+        return []
+    return out
+
+
 def registrar(sesion: dict, c: dict) -> dict:
     """Guarda un entreno igual que formulario_entreno de app.py (tabla workouts + foto en el bucket «fotos»)."""
     import uuid
@@ -3872,6 +3927,7 @@ def registrar(sesion: dict, c: dict) -> dict:
         w["photo_path"] = datos().subir_foto(f"{carpeta}/{uuid.uuid4().hex}.jpg", jpg)
     datos().insertar_entreno(w)
 
+    ajustados = _autorregular(atleta, c, resultados) if atleta != "Yo" and not es_demo(sesion) else []
     hechas = [p for p in c.get("partes") or [] if p.get("parte") and p.get("dia")]
     if hechas:
         rut = rutina(atleta)
@@ -3909,6 +3965,8 @@ def registrar(sesion: dict, c: dict) -> dict:
             lineas.append(f"💬 {w['notes'][:600]}")
         if aviso_pr:
             lineas.append(f"🎉 {aviso_pr}")
+        for x in ajustados:
+            lineas.append(f"↕️ Ajustado solo: {x}")
         if w.get("photo_path"):
             lineas.append(f"📸 {datos().url_foto(w['photo_path'])}")
         if fin_semana:
