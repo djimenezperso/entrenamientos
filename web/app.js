@@ -2862,7 +2862,8 @@ function hojaNuevoPr() {
   const ig = qs.has("ig") || qs.has("insta");
   if (qs.get("pago") === "ok") { E.pagoCs = qs.get("cs") || ""; mem.set("pago_pendiente", E.pagoCs || "-"); }
   else if (mem.get("pago_pendiente")) E.pagoCs = mem.get("pago_pendiente") === "-" ? "" : mem.get("pago_pendiente");
-  if (inv || ig || qs.get("pago")) history.replaceState(null, "", location.pathname);
+  if (qs.get("a")) { E.atleta = qs.get("a"); mem.set("atleta", E.atleta); E.semana = Number(qs.get("s")) || null; E.dia = null; }  // enlace para revisar una semana
+  if (inv || ig || qs.get("pago") || qs.get("a")) history.replaceState(null, "", location.pathname);
   if (E.pagoCs !== undefined && !E.token) { pintarEntrar(); E.pagoMostrado = true; return hojaPago(E.pagoCs); }
   if (ig && !E.token) {  // enlace de la bio de Instagram: directo a la demo
     try {
