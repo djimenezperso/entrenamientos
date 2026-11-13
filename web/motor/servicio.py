@@ -2914,6 +2914,9 @@ def vista(sesion: dict, atleta: str | None, semana: int | None, dia_id: str | No
         if semana > max_semana:
             semana = actual
     base["max_semana"] = max_semana
+    # perfiles con «solo_semanas_listas»: no pueden pasar a la semana siguiente hasta que Diego la marca como lista
+    base["espera_semana"] = bool(cliente and rut.get("solo_semanas_listas")
+                                 and actual + 1 not in {int(x) for x in rut.get("semanas_listas") or []})
     if cliente and max_semana and max_semana > actual:  # aviso: «tu semana siguiente ya está lista» (una vez por semana)
         nueva = actual + 1
         if nueva not in [int(x) for x in rut.get("listas_vistas") or []]:
@@ -3792,6 +3795,9 @@ def accion(sesion: dict, c: dict) -> dict:
             raise Error("Semana no válida")
         if not es_coach(sesion) and atleta != "Yo" and nueva > semana_antes + 1:
             raise Error("Esa semana aún no está lista")
+        if (not es_coach(sesion) and atleta != "Yo" and rut.get("solo_semanas_listas") and nueva > semana_antes
+                and nueva not in {int(x) for x in rut.get("semanas_listas") or []}):
+            raise Error("Diego te está preparando esa semana. Se abre cuando esté lista 🔒")
         rut = dict(rut, semana_actual=nueva)
         aviso = f"Semana {nueva} es ahora la actual"
     elif tipo == "visto_semana_lista":

@@ -396,6 +396,7 @@ const FR = {
   "Ej.: no llegaba a 8+8, he hecho 8+5": "Ex. : je n'arrivais pas à 8+8, j'ai fait 8+5", "Esta y las siguientes": "Celle-ci et les suivantes",
   "Nombre": "Nom", "Esta semana": "Cette semaine", "Ajustar también la semana que viene": "Ajuster aussi la semaine prochaine",
   "ciclo": "cycle", "Escribe qué toca": "Écris le programme", "Volver a lo que había": "Revenir à l'original", "opcional": "optionnel",
+  "Diego te está preparando la semana {n}. Se abre cuando esté lista.": "Diego te prépare la semaine {n}. Elle s'ouvre dès qu'elle est prête.",
   "Qué toca": "Au programme", "Ideas": "Idées", "Sin ideas guardadas para este tipo todavía.": "Pas encore d'idées pour ce type.", "Tiempo total": "Temps total",
 };
 const t = (s) => (E.lang === "fr" && FR[s]) || s;
@@ -1225,6 +1226,9 @@ function finSemana(v) {
   return lista + finSemanaBase(v);
 }
 function finSemanaBase(v) {
+  if (v.semana === v.actual && v.espera_semana) {
+    return `<div class="aviso-opcional fin-semana">🔒 ${t("Diego te está preparando la semana {n}. Se abre cuando esté lista.").replace("{n}", v.actual + 1)}</div>`;
+  }
   if (v.semana === v.actual) {
     const todo = v.dias.every((d) => d.estado !== "pendiente");
     return `<button class="btn ${todo ? "btn-fuego" : "btn-negro"} fin-semana" id="b-fin">${t("Terminé la semana")} ${v.actual} → ${t("pasar a la")} ${v.actual + 1}</button>`;
