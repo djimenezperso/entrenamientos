@@ -397,6 +397,8 @@ const FR = {
   "Nombre": "Nom", "Esta semana": "Cette semaine", "Ajustar también la semana que viene": "Ajuster aussi la semaine prochaine",
   "ciclo": "cycle", "Escribe qué toca": "Écris le programme", "Volver a lo que había": "Revenir à l'original", "opcional": "optionnel",
   "Diego te está preparando la semana {n}. Se abre cuando esté lista.": "Diego te prépare la semaine {n}. Elle s'ouvre dès qu'elle est prête.",
+  "Mis anotaciones": "Mes annotations", "Lo que tienes que trabajar": "Ce que tu dois travailler",
+  "Nueva anotación…": "Nouvelle annotation…", "Guardar anotación": "Enregistrer l'annotation",
   "Qué toca": "Au programme", "Ideas": "Idées", "Sin ideas guardadas para este tipo todavía.": "Pas encore d'idées pour ce type.", "Tiempo total": "Temps total",
 };
 const t = (s) => (E.lang === "fr" && FR[s]) || s;
@@ -1022,6 +1024,7 @@ function pintar() {
     <div class="titulo-dia"><h2>${esc(trDia(v.dia.nombre))}</h2><span>${total ? `${hechas} ${t("de")} ${total} ${t("partes hechas")}` : ""}</span></div>
     ${v.dia.opcional ? `<div class="aviso-opcional">✨ ${t("Día opcional: hazlo solo si te encuentras bien. Si no lo haces, no pasa nada.")}</div>` : ""}
     <div class="barra"><i style="width:${total ? Math.round(hechas / total * 100) : 0}%"></i></div>
+    ${v.anotaciones ? bloqueAnotaciones(v) : ""}
     ${(v.novedades || []).map((n) => `<section class="novedad">
       <div class="nov-cab">${ic.llama("#FFB400", 22)}<div><small>${t("Novedad de Diego")} · ${esc(n.etiqueta)}</small><b>${esc(n.nombre)}</b></div></div>
       <div class="texto-wod">${esc(trWod(n.texto))}</div>
@@ -1049,6 +1052,21 @@ function pintar() {
     ${finSemana(v)}
   </main>` + nav();
   enlazar();
+}
+
+// «Mis anotaciones»: notas propias (lo que tiene que trabajar), plegadas para no tapar el día
+function bloqueAnotaciones(v) {
+  const n = v.anotaciones.length;
+  const primera = n ? v.anotaciones[0].texto.split("\n")[0] : "";
+  return `<details class="anotaciones" id="anotaciones" ${E.anotAbiertas ? "open" : ""}>
+    <summary><span class="anot-tit">📝 ${t("Mis anotaciones")}${n ? `<i>${n}</i>` : ""}</span>
+      <small>${n ? esc(primera.length > 70 ? primera.slice(0, 70) + "…" : primera) : t("Lo que tienes que trabajar")}</small></summary>
+    ${v.anotaciones.map((a) => `<div class="anot"><div class="anot-cab"><small>${esc(String(a.fecha || "").split("-").reverse().join("/"))}</small>
+      <button class="mini-btn" data-anot-borrar="${esc(a.id)}">${t("Borrar")}</button></div>
+      <div class="anot-txt">${esc(a.texto)}</div></div>`).join("")}
+    <textarea id="anot-nueva" rows="3" placeholder="${t("Nueva anotación…")}"></textarea>
+    <button class="btn btn-fuego" id="b-anot-guardar">+ ${t("Guardar anotación")}</button>
+  </details>`;
 }
 
 function cabecera(v) {
@@ -1305,6 +1323,18 @@ function enlazar() {
   on("b-chat", hojaChat);
   on("b-reloj", () => abrirCrono(null, null));
   on("b-solicitudes", hojaSolicitudes);
+  const anot = document.getElementById("anotaciones");
+  if (anot) anot.ontoggle = () => { E.anotAbiertas = anot.open; };
+  on("b-anot-guardar", (ev) => {
+    const texto = (document.getElementById("anot-nueva").value || "").trim();
+    if (!texto) return aviso(t("Nueva anotación…"), true);
+    E.anotAbiertas = true;
+    hacer({ tipo: "anotacion", texto, ver_semana: v.semana, ver_dia: v.dia_id || E.dia }, ev.currentTarget);
+  });
+  $app.querySelectorAll("[data-anot-borrar]").forEach((b) => b.onclick = () => {
+    if (!b.dataset.seguro) { b.dataset.seguro = "1"; b.textContent = t("¿Seguro? Pulsa otra vez"); return; }
+    hacer({ tipo: "borrar_anotacion", id: b.dataset.anotBorrar, ver_semana: v.semana, ver_dia: v.dia_id || E.dia }, b);
+  });
   on("b-sem-menos", () => cargar({ semana: v.semana - 1, dia: null }).then(() => window.scrollTo(0, 0)));
   on("b-sem-mas", () => cargar({ semana: v.semana + 1, dia: null }).then(() => window.scrollTo(0, 0)));
   on("b-fin", (ev) => hacer({ tipo: "semana", nueva: v.actual + 1, ver_semana: v.actual + 1, ver_dia: null }, ev.currentTarget).then(() => window.scrollTo(0, 0)));

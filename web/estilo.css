@@ -679,3 +679,17 @@ main { padding: 4px 16px 0; display: flex; flex-direction: column; gap: 12px; }
 #app:has(.titulo-dia) .barra { background: #F0CDB0; }
 #app:has(.titulo-dia) section.card .letra:not(.hecho) { background: #FF6A00; color: #FFFFFF; }
 .aviso-opcional { margin: 0 0 10px; padding: 10px 14px; border-radius: 14px; background: #EEF3FF; color: #2b4a8a; font-size: 13.5px; font-weight: 600; }
+
+/* «Mis anotaciones» (lo que tengo que trabajar) */
+.anotaciones { background: #FFF6EC; border: 2px solid #FFD9BD; border-radius: 20px; padding: 12px 14px; display: flex; flex-direction: column; gap: 10px; }
+.anotaciones summary { list-style: none; cursor: pointer; display: flex; flex-direction: column; gap: 2px; }
+.anotaciones summary::-webkit-details-marker { display: none; }
+.anotaciones .anot-tit { font-weight: 800; font-size: 15px; display: flex; align-items: center; gap: 6px; }
+.anotaciones .anot-tit i { font-style: normal; background: var(--brasa-osc); color: #fff; border-radius: 999px; font-size: 11px; padding: 1px 7px; }
+.anotaciones summary small { color: var(--suave); font-size: 12.5px; font-weight: 600; }
+.anotaciones .anot { background: #fff; border-radius: 14px; padding: 10px 12px; margin-top: 10px; }
+.anotaciones .anot-cab { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+.anotaciones .anot-cab small { color: var(--suave); font-weight: 700; font-size: 11.5px; }
+.anotaciones .anot-txt { white-space: pre-wrap; font-size: 14px; line-height: 1.45; margin-top: 4px; }
+.anotaciones textarea { width: 100%; box-sizing: border-box; margin-top: 10px; border: 1.5px solid var(--borde); border-radius: 14px; padding: 10px 12px; font: inherit; resize: vertical; background: #fff; }
+.anotaciones .btn { margin-top: 8px; }

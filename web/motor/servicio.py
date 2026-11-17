@@ -81,6 +81,7 @@ PROTEGIDOS = ["Yo", "Diego", "Manu Anel", "Salatti", "Mi esposa", "Dario", "Juan
 CLAVE_INVITADOS = "__invitados__"
 CLAVE_ACTIVIDAD = "__actividad__"
 CLAVE_CONFIG = "__config__"  # ajustes privados del coach (p. ej. el bot de Telegram); nunca se mandan al navegador
+CLAVE_ANOTACIONES = "__anotaciones__"  # {atleta: [{"id", "texto", "fecha"}]}: notas propias (lo que tiene que trabajar)
 CLAVE_VIDEOS = "__videos__"  # {ejercicio normalizado: {"url", "titulo"}} que pone el coach
 VIDEOS_BASE: dict = {}  # quién abre la app y cuándo (solo lo ve el coach)
 PLANTILLAS = {"Salatti": "Rutina de Salatti", "Dario": "Rutina de Dario"}
@@ -2791,7 +2792,7 @@ def vista(sesion: dict, atleta: str | None, semana: int | None, dia_id: str | No
     atleta = atleta if atleta in personas else personas[0]
     puede_ver(sesion, atleta)
     alumno = es_alumno(atleta, inv)
-    guardadas = datos().rutinas(list({atleta, "Yo", CLAVE_SOLICITUDES, CLAVE_NOVEDADES, CLAVE_ACTIVIDAD, CLAVE_VIDEOS, CLAVE_CONFIG}))
+    guardadas = datos().rutinas(list({atleta, "Yo", CLAVE_SOLICITUDES, CLAVE_NOVEDADES, CLAVE_ACTIVIDAD, CLAVE_VIDEOS, CLAVE_CONFIG, CLAVE_ANOTACIONES}))
     rut = rutina(atleta, guardadas)
     if es_demo(sesion) and atleta in DEMO_FIJAS:
         rut = _rut_demo(atleta)  # la muestra de la demo es siempre la misma, cambie lo que cambie la rutina real
@@ -2851,6 +2852,8 @@ def vista(sesion: dict, atleta: str | None, semana: int | None, dia_id: str | No
             "codigo_propio": coach and not es_demo(sesion) and atleta not in ("Yo", "Mi esposa") and (atleta in inv or atleta in ATLETAS or atleta in accesos_personales()),
             "sin_material": list(SIN_MATERIAL.get(atleta, ())),
             "semanas_listas": sorted(int(x) for x in (rut or {}).get("semanas_listas") or []) if coach else [],
+            "anotaciones": (((guardadas.get(CLAVE_ANOTACIONES) or {}).get(atleta) or [])
+                            if atleta in CON_ANOTACIONES and not es_demo(sesion) else None),
             "mis_solicitudes": {x["linea"]: x for x in todas_sol if x["atleta"] == atleta}}
     if coach and not es_demo(sesion) and not sesion.get("u"):
         try:
@@ -3609,6 +3612,8 @@ def accion(sesion: dict, c: dict) -> dict:
     if not rut:
         raise Error("Esa persona no tiene rutina")
     tipo = c.get("tipo")
+    if tipo in ("anotacion", "borrar_anotacion"):
+        return _anotacion(sesion, atleta, c)
     semana = int(c.get("semana") or rut.get("semana_actual") or 1)
     semana_antes = int(rut.get("semana_actual") or 1)
     aviso = "Guardado"
@@ -3830,6 +3835,31 @@ def accion(sesion: dict, c: dict) -> dict:
         _avisar_semana_sin_preparar(atleta, semana_antes, int(rut.get("semana_actual") or 1), rut)
     v = vista(sesion, atleta, int(c.get("ver_semana") or semana), c.get("ver_dia"))
     v["aviso"] = fin_semana or aviso
+    return v
+
+
+# ===== anotaciones propias («Mis anotaciones»: lo que tiene que trabajar) =====
+CON_ANOTACIONES = ("Yo",)  # de momento solo en el perfil de Diego
+
+
+def _anotacion(sesion: dict, atleta: str, c: dict) -> dict:
+    if atleta not in CON_ANOTACIONES:
+        raise Error("Las anotaciones aún no están en este perfil", 403)
+    import uuid
+    todas = datos().rutinas([CLAVE_ANOTACIONES]).get(CLAVE_ANOTACIONES) or {}
+    lista = list(todas.get(atleta) or [])
+    if c.get("tipo") == "anotacion":
+        texto = str(c.get("texto") or "").strip()[:2000]
+        if not texto:
+            raise Error("Escribe la anotación")
+        lista.insert(0, {"id": uuid.uuid4().hex[:10], "texto": texto, "fecha": dt.date.today().isoformat()})
+        aviso = "📝 Anotación guardada"
+    else:
+        lista = [x for x in lista if x.get("id") != c.get("id")]
+        aviso = "Anotación borrada"
+    datos().guardar(CLAVE_ANOTACIONES, {**todas, atleta: lista[:100]})
+    v = vista(sesion, atleta, int(c["ver_semana"]) if c.get("ver_semana") else None, c.get("ver_dia"))
+    v["aviso"] = aviso
     return v
 
 
