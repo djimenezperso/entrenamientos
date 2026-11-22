@@ -3282,3 +3282,19 @@ Object.assign(FR, {  // textos de Comida y Analizador
   "Analizar un vídeo": "Analyser une vidéo", "Analizar vídeo": "Analyser la vidéo", "Analizar mi": "Analyser mon", "3 análisis gratis": "3 analyses gratuites",
   "Graba de lado": "Filme de profil", "Sube el vídeo": "Charge la vidéo", "Mira qué corregir": "Vois quoi corriger",
 });
+Object.assign(FR, {  // analizador y alimentos
+  "Un solo levantamiento, de 3 a 15 segundos.": "Un seul mouvement, de 3 à 15 secondes.",
+  "La app sigue la barra y tu posición. El vídeo no sale de tu móvil.": "L'appli suit la barre et ta position. La vidéo ne quitte pas ton téléphone.",
+  "Las fases clave en verde o amarillo y ejercicios para mejorar.": "Les phases clés en vert ou en jaune, et des exercices pour progresser.",
+  "Después, análisis ilimitados por 4,99 € al mes. Entras con tu email, sin contraseña.": "Ensuite, analyses illimitées pour 4,99 € par mois. Tu te connectes avec ton e-mail, sans mot de passe.",
+  "Copos de avena": "Flocons d'avoine", "Pan integral": "Pain complet", "Arroz cocido": "Riz cuit", "Pasta cocida": "Pâtes cuites", "Patata cocida": "Pomme de terre cuite",
+  "Boniato asado": "Patate douce rôtie", "Tortitas de arroz": "Galettes de riz", "Pechuga de pollo": "Blanc de poulet", "Pavo en filetes": "Escalope de dinde",
+  "Ternera magra": "Bœuf maigre", "Salmón": "Saumon", "Atún al natural": "Thon au naturel", "Merluza": "Merlu", "Gambas": "Crevettes", "Huevos": "Œufs",
+  "Claras de huevo": "Blancs d'œuf", "Tofu firme": "Tofu ferme", "Lentejas cocidas": "Lentilles cuites", "Garbanzos cocidos": "Pois chiches cuits",
+  "Batido de proteína": "Shake protéiné", "Proteína vegetal": "Protéine végétale", "Yogur griego natural": "Yaourt grec nature", "Skyr o yogur proteico": "Skyr ou yaourt protéiné",
+  "Leche semidesnatada": "Lait demi-écrémé", "Bebida de soja": "Boisson au soja", "Queso fresco batido": "Fromage blanc", "Plátano": "Banane", "Manzana": "Pomme",
+  "Frutos rojos": "Fruits rouges", "Verdura variada": "Légumes variés", "Ensalada con tomate": "Salade et tomate", "Aguacate": "Avocat", "Aceite de oliva": "Huile d'olive",
+  "Crema de cacahuete": "Beurre de cacahuète", "Chocolate negro 85 %": "Chocolat noir 85 %", "Miel": "Miel", "Cereales de desayuno": "Céréales", "Galletas": "Biscuits",
+  "Zumo de naranja": "Jus d'orange", "Jamón serrano": "Jambon cru", "Jamón cocido": "Jambon blanc", "Queso curado": "Fromage affiné", "Pizza": "Pizza",
+  "Hamburguesa con pan": "Burger", "Café con leche": "Café au lait", "Cereales": "Céréales", "Fruta y verdura": "Fruits et légumes", "Grasas": "Matières grasses", "Otros": "Autres",
+});
