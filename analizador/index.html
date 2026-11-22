@@ -1,0 +1,1331 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#111315">
+<meta name="robots" content="noindex">
+<title>Analizador Djimenez</title>
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@700;800&family=Poppins:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#111315;--card:#1B1E21;--ink:#F3F1EC;--muted:#9AA0A6;--line:#2C3034;--or:#FF7A1F;--or2:rgba(255,122,31,.15);--ok:#4CC38A;--warn:#F2B33D;--bad:#F06A5A;--cy:#3DD6F5;--am:#FFE14D;--r:16px}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.45 Poppins,system-ui,sans-serif}
+.wrap{max-width:760px;margin:0 auto;padding:16px 14px 60px}
+h1{font:800 34px/1 "Barlow Condensed",sans-serif;margin:0;text-transform:uppercase}
+h1 span{color:var(--or)}
+.sub{color:var(--muted);font-size:13px;margin:6px 0 12px}
+.steps{display:flex;gap:5px;margin:0 0 12px;position:sticky;top:0;z-index:5;background:var(--bg);padding:6px 0}
+.steps span{flex:1;text-align:center;font-size:11.5px;font-weight:600;padding:7px 2px;border-radius:99px;background:var(--card);color:var(--muted);border:1px solid var(--line);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.steps span.on{background:var(--or);color:#fff;border-color:var(--or)}
+.steps span.ok{color:var(--ok);border-color:rgba(76,195,138,.45)}
+.card{background:var(--card);border:1px solid var(--line);border-radius:var(--r);padding:14px;margin-bottom:12px}
+.card h2{margin:0 0 8px;font-size:15px}
+.seg{display:flex;background:#0C0D0F;border-radius:12px;padding:3px;gap:3px}
+.seg button{flex:1;border:0;background:none;color:var(--muted);padding:9px 4px;border-radius:9px;font:600 14px Poppins,sans-serif;cursor:pointer}
+.seg button.on{background:var(--or);color:#fff}
+.row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.lbl{font-size:12px;color:var(--muted);margin:10px 0 5px}
+.btn{border:0;border-radius:11px;padding:10px 14px;background:var(--or);color:#fff;font:600 14px Poppins,sans-serif;cursor:pointer}
+.btn.sec{background:#2A2E33;color:var(--ink)}
+.btn.sm{padding:8px 11px;font-size:13px}
+.btn.big{width:100%;padding:16px;font-size:17px;border-radius:14px;margin-top:4px}
+.btn:disabled{opacity:.4;cursor:default}
+.drop{border:2px dashed var(--or);border-radius:var(--r);padding:26px 14px;text-align:center;cursor:pointer;display:block}
+.drop b{display:block;font-size:17px;margin-bottom:3px;color:var(--or)}
+.stage{position:relative;background:#000;border-radius:12px;overflow:hidden;touch-action:manipulation}
+canvas#cv{display:block;width:auto;max-width:100%;max-height:80vh;height:auto;margin:0 auto}
+.velo{position:absolute;inset:0;z-index:3;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;background:rgba(0,0,0,.45);color:#fff;font-size:13px;cursor:pointer}
+.velo .btn{padding:18px 28px;font-size:19px;border-radius:16px;box-shadow:0 10px 30px rgba(0,0,0,.45)}
+.stage.fs .velo{display:none}
+.step{background:var(--or2);color:#FFD3B3;border-radius:10px;padding:9px 11px;font-size:13.5px;margin:10px 0}
+.step b{color:#fff}
+input[type=range]{width:100%;accent-color:var(--or)}
+.t{font-variant-numeric:tabular-nums;color:var(--muted);font-size:12.5px;min-width:60px;text-align:right}
+.kpis{display:grid;grid-template-columns:repeat(2,1fr);gap:8px;margin-top:8px}
+.kpi{background:#0F1113;border:1px solid var(--line);border-radius:12px;padding:10px}
+.kpi small{display:block;color:var(--muted);font-size:11.5px}
+.kpi b{font:800 26px "Barlow Condensed",sans-serif}
+.kpi b em{font-style:normal;font-size:14px;color:var(--muted);margin-left:3px}
+.obs{border-left:3px solid var(--ok);background:#0F1113;border-radius:0 10px 10px 0;padding:9px 11px;margin-bottom:8px;font-size:13.5px}
+.obs.warn{border-color:var(--warn)}.obs.bad{border-color:var(--bad)}
+.obs b{display:block;margin-bottom:2px}
+.note{font-size:12.5px;color:var(--muted)}
+#iaNota{color:var(--cy);font-weight:600}
+ul.tips{margin:6px 0 0;padding-left:18px;font-size:13.5px;color:#D6D3CD}
+ul.tips li{margin-bottom:4px}
+details summary{cursor:pointer;color:var(--ink);font-size:14px;font-weight:600}
+.stage.fs{position:fixed;inset:0;z-index:40;border-radius:0;display:flex;flex-direction:column;justify-content:flex-start;align-items:center;overflow-y:auto;padding-top:env(safe-area-inset-top);padding-bottom:env(safe-area-inset-bottom)}
+.stage.fs canvas#cv{width:auto!important;max-width:100%;max-height:calc(100vh - 310px);max-height:calc(100dvh - 310px);touch-action:none;flex:none;margin-top:8px}
+.fsbar{display:none}
+.duo{display:grid;grid-template-columns:1fr 1fr;gap:8px}.duo .btn{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.stage:not(.fs) #fsx{display:none}
+#fsok:disabled{opacity:.55}
+.stage.fs .fsbar{display:flex;flex-direction:column;gap:8px;width:100%;max-width:760px;padding:10px 12px calc(24px + env(safe-area-inset-bottom));flex:none}
+.pl{display:flex;gap:10px;background:#0F1113;border:1px solid var(--line);border-radius:12px;padding:10px;margin-bottom:8px}
+.pl>span{flex:none;width:26px;height:26px;border-radius:50%;background:var(--or);color:#fff;font-weight:700;display:grid;place-items:center;font-size:13px}
+.pl b{display:block;font-size:14px}.pl p{margin:3px 0;font-size:12.5px;color:#C9C6C0}.pl small{color:var(--or);font-size:12.5px;font-weight:600}
+.como .pl{margin-bottom:6px}.como .pl div{font-size:13.5px;color:#D6D3CD;align-self:center}
+.navr{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:8px}
+.navr h2{margin:0}
+.navr .cnt{font-size:12.5px;color:var(--muted);font-variant-numeric:tabular-nums}
+.track{display:flex;align-items:flex-start;gap:12px;overflow-x:auto;scroll-snap-type:x mandatory;scrollbar-width:none;-webkit-overflow-scrolling:touch;overscroll-behavior-x:contain}
+.track::-webkit-scrollbar{display:none}
+.slide{flex:0 0 100%;scroll-snap-align:start;background:#0F1113;border:1px solid var(--line);border-radius:12px;padding:10px;min-width:0}
+.slide .sh{display:flex;justify-content:space-between;align-items:baseline;gap:8px;margin-bottom:6px}
+.slide .sh b{font-size:16px}
+.slide .d{color:var(--or);font-size:12.5px;font-weight:600}
+.slide canvas,.slide img{width:100%;display:block;border-radius:10px;background:#000}
+.slide canvas.mc{touch-action:none;cursor:crosshair;width:auto;max-width:100%;max-height:62vh;margin:0 auto}
+.slide p{margin:6px 0 0;font-size:13px;color:#C9C6C0}
+.slide p.st{color:var(--cy);font-weight:600}
+.slide p.done{color:var(--ok);font-weight:600}
+.dots{display:flex;gap:6px;justify-content:center;margin-top:10px;flex-wrap:wrap}
+.dots i{width:8px;height:8px;border-radius:50%;background:#3A3F45}
+.dots i.ok{background:var(--ok)}
+.dots i.on{background:var(--or);transform:scale(1.25)}
+.resp{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
+.rb{border:1px solid #3A3F45;background:#15181B;color:var(--ink);border-radius:99px;padding:7px 12px;font:500 13px Poppins,sans-serif;cursor:pointer}
+.rb.on{background:var(--or);border-color:var(--or);color:#fff}
+.chip{font-size:11.5px;font-weight:600;border-radius:99px;padding:2px 9px;background:#2A2E33;color:var(--muted);white-space:nowrap}
+.chip.ok{background:rgba(76,195,138,.15);color:var(--ok)}.chip.warn{background:rgba(242,179,61,.15);color:var(--warn)}.chip.bad{background:rgba(240,106,90,.15);color:var(--bad)}
+.ver{font-size:13px;margin-top:4px}
+.sub3{font-size:12px;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;margin:10px 0 6px}
+.ctl{display:grid;grid-template-columns:2fr 1fr 1fr 1fr;gap:8px;margin-top:8px}.ctl .btn{padding:10px 4px;white-space:nowrap}
+.navr .row{flex-wrap:nowrap;flex:none}.navr h2{min-width:0}
+#pv{display:block;width:auto;max-width:100%;max-height:52vh;max-height:52dvh;height:auto;margin:0 auto;border-radius:12px;background:#000;cursor:pointer}
+.cargando{position:fixed;inset:0;z-index:60;background:rgba(17,19,21,.94);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;color:#fff;font-size:17px;font-weight:600;text-align:center;padding:24px}
+.spin{width:44px;height:44px;border:4px solid rgba(255,255,255,.2);border-top-color:var(--or);border-radius:50%;animation:gira .8s linear infinite}
+@keyframes gira{to{transform:rotate(360deg)}}
+.iachip{position:absolute;left:50%;top:14px;transform:translateX(-50%);z-index:4;background:rgba(0,0,0,.72);color:var(--cy);font-size:13px;font-weight:600;padding:7px 12px;border-radius:99px;display:flex;align-items:center;gap:8px;pointer-events:none;white-space:nowrap}
+.iachip .spin{width:16px;height:16px;border-width:2px;border-top-color:var(--cy)}
+.modal{position:fixed;inset:0;z-index:70;background:rgba(10,11,12,.86);display:flex;align-items:center;justify-content:center;padding:18px}
+.modal .box{background:var(--card);border:1px solid var(--line);border-radius:18px;padding:20px;max-width:420px;width:100%;text-align:center}
+.modal h3{font:800 28px/1.05 "Barlow Condensed",sans-serif;text-transform:uppercase;margin:6px 0 8px}
+.modal ul{text-align:left;font-size:14px;color:#D6D3CD;padding-left:20px;margin:10px 0 14px}
+.precio{font:800 40px "Barlow Condensed",sans-serif;color:var(--or)}.precio small{font-size:16px;color:var(--muted)}
+.cuenta input{width:100%;background:#0F1113;border:1px solid var(--line);color:var(--ink);border-radius:11px;padding:12px;font:500 16px Poppins,sans-serif;margin:8px 0}
+.cuenta .barra{height:8px;background:#0F1113;border-radius:99px;overflow:hidden;margin:8px 0}.cuenta .barra i{display:block;height:100%;background:var(--or)}
+.cuenta .msg{font-size:13px;margin-top:6px;color:var(--warn)}
+.cuenta .top{display:flex;justify-content:space-between;align-items:center;gap:8px;font-size:13.5px}
+.lnk{background:none;border:0;color:var(--muted);text-decoration:underline;font:500 12.5px Poppins,sans-serif;cursor:pointer;padding:4px}
+.toast{position:fixed;left:50%;bottom:22px;transform:translateX(-50%);z-index:80;background:var(--ok);color:#06140c;font-weight:700;padding:12px 18px;border-radius:12px;box-shadow:0 10px 30px rgba(0,0,0,.4)}
+.trio{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}.trio .btn{padding:12px 6px;font-size:13.5px;min-height:52px}
+.qrbox{background:#fff;border-radius:16px;padding:10px;width:min(300px,72vw);margin:12px auto}.qrbox svg{display:block;width:100%;height:auto}
+canvas,.stage,.nosel{-webkit-user-select:none;user-select:none;-webkit-touch-callout:none;-webkit-tap-highlight-color:transparent}
+.hidden{display:none!important}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1><span data-t="h1a"></span> <span>Djimenez</span></h1>
+  <p class="sub" data-t="sub"></p>
+  <div class="steps" id="steps"><span class="on" data-t="st1"></span><span data-t="st2"></span><span data-t="st3"></span></div>
+
+  <!-- 1 · inicio -->
+  <div id="inicio">
+    <div class="card como"><h2 data-t="comoT"></h2>
+      <div class="pl"><span>1</span><div data-t="paso1"></div></div>
+      <div class="pl"><span>2</span><div data-t="paso2"></div></div>
+      <div class="pl"><span>3</span><div data-t="paso3"></div></div>
+    </div>
+    <div class="card">
+      <div class="lbl" style="margin-top:0" data-t="liftT"></div>
+      <div class="seg" id="lift"><button data-l="snatch" class="on">Snatch</button><button data-l="clean">Clean</button><button data-l="jerk">Jerk</button></div>
+      <div class="lbl" data-t="lado"></div>
+      <div class="seg" id="face"><button data-f="-1" data-t="izq"></button><button data-f="1" class="on" data-t="der"></button></div>
+    </div>
+    <div class="card cuenta hidden" id="cuenta"></div>
+    <label class="drop card" id="drop"><input type="file" id="file" accept="video/*" hidden><b data-t="subir"></b><span class="note" data-t="subirN"></span></label>
+    <div class="card"><details><summary data-t="tipsT"></summary><ul class="tips"><li data-t="tip1"></li><li data-t="tip2"></li><li data-t="tip3"></li><li data-t="tip4"></li><li data-t="tip5"></li></ul></details></div>
+    <div class="card"><details><summary data-t="vsT"></summary><ul class="tips"><li data-t="vs1"></li><li data-t="vs2"></li><li data-t="vs3"></li><li data-t="vs4"></li></ul><p class="note" data-t="vsN"></p></details></div>
+  </div>
+
+  <!-- 2a · seguir el disco -->
+  <div id="work" class="hidden">
+    <div class="card">
+      <div class="stage" id="stage"><div class="velo" id="velo"><button class="btn" id="empezar" data-t="empezar"></button><span data-t="empezarN"></span></div><div class="iachip hidden" id="iachip"><span class="spin"></span><span id="iachipT"></span></div><button class="btn sec" id="fsx" style="position:absolute;top:10px;right:10px;z-index:2">✕</button><canvas id="cv"></canvas><div class="fsbar"><p class="step" id="fsstep" style="margin:0"></p><div class="row"><button class="btn sec" id="fsprev">◀︎ 1</button><input type="range" id="fscrub" min="0" max="1000" value="0" style="flex:1"><button class="btn sec" id="fsnext">1 ▶︎</button><span class="t" id="fstl"></span></div><div class="duo"><button class="btn sec" id="fsundo" data-t="deshacer"></button><button class="btn sec" id="fsauto" data-t="detectar"></button></div><button class="btn" id="fsok" style="width:100%;padding:14px;font-size:16px" data-t="hecho"></button></div></div>
+      <div class="step" id="step"></div>
+      <div class="row"><button class="btn sec" id="prev">◀︎ 1</button><input type="range" id="scrub" min="0" max="1000" value="0" style="flex:1"><button class="btn sec" id="next">1 ▶︎</button><span class="t" id="tlabel"></span></div>
+      <div class="row" style="margin-top:10px">
+        <button class="btn" id="go" disabled data-t="seguir"></button>
+        <button class="btn sec" id="stop" disabled data-t="parar"></button>
+        <button class="btn sec" id="undo" data-t="deshacer"></button>
+        <button class="btn sec" id="redo" data-t="redo"></button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 2b · análisis: barra y posición juntas -->
+  <div id="pAnal" class="hidden">
+    <div class="card nosel"><h2 id="resT" style="margin-bottom:6px"></h2><canvas id="pv"></canvas><p class="note" id="iaNota" style="margin:6px 0 0"></p>
+      <div class="ctl"><button class="btn" id="rpgo"></button><button class="btn sec" id="rpini" data-t="otra"></button><button class="btn sec" id="rploop"></button><button class="btn sec" id="rpvel"></button></div></div>
+    <div class="card" id="elegir"><h2 data-t="elT"></h2><div class="duo"><button class="btn" id="elPaso" data-t="elPaso"></button><button class="btn sec" id="elConc" data-t="elConc"></button></div></div>
+    <div id="detalle" class="hidden">
+    <div class="card"><h2 data-t="barraT"></h2><div id="planB"></div></div>
+    <div class="card" id="cardEsc">
+      <div class="navr"><h2 data-t="escT"></h2><div class="row"><span class="cnt" id="escCnt"></span><button class="btn sec sm" id="escPrev">◀︎</button><button class="btn sec sm" id="escNext">▶︎</button></div></div>
+      <p class="note" style="margin:0 0 8px" id="escN"></p>
+      <div class="track" id="escTrack"></div>
+      <div class="dots" id="escDots"></div>
+    </div>
+    <div class="card"><details><summary data-t="datosT"></summary><div class="kpis" id="kpis"></div><div id="obs" style="margin-top:10px"></div><p class="note" data-t="orient"></p><button class="btn sec" id="dl" style="width:100%;margin-top:6px" data-t="dl"></button><p class="note" id="dlnota" style="margin:6px 0 0"></p></details></div>
+    <button class="btn big" id="sigConc" data-t="sigConc" style="margin-bottom:12px"></button>
+    </div>
+    <div class="card"><h2 data-t="compT"></h2><p class="note" style="margin:0 0 10px" data-t="compN"></p><div class="trio"><button class="btn" id="compVid" data-t="compVid"></button><button class="btn sec" id="compWa" data-t="compWa"></button><button class="btn sec" id="compQr" data-t="compQr"></button></div><p class="note" id="compNota" style="margin:8px 0 0"></p></div>
+    <button class="btn sec" id="corregir" style="width:100%" data-t="corregir"></button>
+  </div>
+
+  <!-- 3 · conclusiones -->
+  <div id="pConc" class="hidden">
+    <div class="card" id="cardConc">
+      <div class="navr"><h2 data-t="conT"></h2><div class="row"><span class="cnt" id="conCnt"></span><button class="btn sec sm" id="conPrev">◀︎</button><button class="btn sec sm" id="conNext">▶︎</button></div></div>
+      <div class="track" id="conTrack"></div>
+      <div class="dots" id="conDots"></div>
+    </div>
+    <div class="card"><div class="row"><button class="btn sec" id="copy" data-t="copy"></button><span class="note" id="copied"></span></div></div>
+    <div class="card"><h2 data-t="appT"></h2><div class="trio" style="grid-template-columns:repeat(2,1fr)"><button class="btn sec" id="appWa" data-t="compWa"></button><button class="btn sec" id="appQr" data-t="compQr"></button></div></div>
+    <button class="btn big" id="otro" data-t="otro"></button>
+    <button class="btn sec" id="volverP" style="width:100%;margin-top:8px" data-t="volverP"></button>
+  </div>
+</div>
+<div id="qrM" class="modal hidden"><div class="box"><h3 data-t="qrT"></h3><p class="note" style="margin:0" data-t="qrN"></p><div class="qrbox"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 37 37" shape-rendering="crispEdges"><rect width="100%" height="100%" fill="#fff"/><path d="M4 4h1v1h-1zM5 4h1v1h-1zM6 4h1v1h-1zM7 4h1v1h-1zM8 4h1v1h-1zM9 4h1v1h-1zM10 4h1v1h-1zM12 4h1v1h-1zM15 4h1v1h-1zM19 4h1v1h-1zM20 4h1v1h-1zM21 4h1v1h-1zM22 4h1v1h-1zM23 4h1v1h-1zM24 4h1v1h-1zM26 4h1v1h-1zM27 4h1v1h-1zM28 4h1v1h-1zM29 4h1v1h-1zM30 4h1v1h-1zM31 4h1v1h-1zM32 4h1v1h-1zM4 5h1v1h-1zM10 5h1v1h-1zM12 5h1v1h-1zM13 5h1v1h-1zM18 5h1v1h-1zM19 5h1v1h-1zM21 5h1v1h-1zM22 5h1v1h-1zM26 5h1v1h-1zM32 5h1v1h-1zM4 6h1v1h-1zM6 6h1v1h-1zM7 6h1v1h-1zM8 6h1v1h-1zM10 6h1v1h-1zM15 6h1v1h-1zM16 6h1v1h-1zM17 6h1v1h-1zM18 6h1v1h-1zM19 6h1v1h-1zM22 6h1v1h-1zM23 6h1v1h-1zM26 6h1v1h-1zM28 6h1v1h-1zM29 6h1v1h-1zM30 6h1v1h-1zM32 6h1v1h-1zM4 7h1v1h-1zM6 7h1v1h-1zM7 7h1v1h-1zM8 7h1v1h-1zM10 7h1v1h-1zM12 7h1v1h-1zM13 7h1v1h-1zM21 7h1v1h-1zM23 7h1v1h-1zM26 7h1v1h-1zM28 7h1v1h-1zM29 7h1v1h-1zM30 7h1v1h-1zM32 7h1v1h-1zM4 8h1v1h-1zM6 8h1v1h-1zM7 8h1v1h-1zM8 8h1v1h-1zM10 8h1v1h-1zM15 8h1v1h-1zM17 8h1v1h-1zM21 8h1v1h-1zM23 8h1v1h-1zM26 8h1v1h-1zM28 8h1v1h-1zM29 8h1v1h-1zM30 8h1v1h-1zM32 8h1v1h-1zM4 9h1v1h-1zM10 9h1v1h-1zM13 9h1v1h-1zM15 9h1v1h-1zM16 9h1v1h-1zM18 9h1v1h-1zM22 9h1v1h-1zM23 9h1v1h-1zM26 9h1v1h-1zM32 9h1v1h-1zM4 10h1v1h-1zM5 10h1v1h-1zM6 10h1v1h-1zM7 10h1v1h-1zM8 10h1v1h-1zM9 10h1v1h-1zM10 10h1v1h-1zM12 10h1v1h-1zM14 10h1v1h-1zM16 10h1v1h-1zM18 10h1v1h-1zM20 10h1v1h-1zM22 10h1v1h-1zM24 10h1v1h-1zM26 10h1v1h-1zM27 10h1v1h-1zM28 10h1v1h-1zM29 10h1v1h-1zM30 10h1v1h-1zM31 10h1v1h-1zM32 10h1v1h-1zM12 11h1v1h-1zM13 11h1v1h-1zM15 11h1v1h-1zM16 11h1v1h-1zM17 11h1v1h-1zM18 11h1v1h-1zM20 11h1v1h-1zM21 11h1v1h-1zM22 11h1v1h-1zM23 11h1v1h-1zM24 11h1v1h-1zM4 12h1v1h-1zM6 12h1v1h-1zM7 12h1v1h-1zM9 12h1v1h-1zM10 12h1v1h-1zM11 12h1v1h-1zM13 12h1v1h-1zM15 12h1v1h-1zM16 12h1v1h-1zM17 12h1v1h-1zM18 12h1v1h-1zM19 12h1v1h-1zM20 12h1v1h-1zM21 12h1v1h-1zM22 12h1v1h-1zM26 12h1v1h-1zM29 12h1v1h-1zM31 12h1v1h-1zM32 12h1v1h-1zM5 13h1v1h-1zM7 13h1v1h-1zM12 13h1v1h-1zM14 13h1v1h-1zM15 13h1v1h-1zM16 13h1v1h-1zM20 13h1v1h-1zM21 13h1v1h-1zM22 13h1v1h-1zM23 13h1v1h-1zM24 13h1v1h-1zM25 13h1v1h-1zM26 13h1v1h-1zM27 13h1v1h-1zM28 13h1v1h-1zM32 13h1v1h-1zM4 14h1v1h-1zM5 14h1v1h-1zM6 14h1v1h-1zM10 14h1v1h-1zM11 14h1v1h-1zM13 14h1v1h-1zM15 14h1v1h-1zM16 14h1v1h-1zM18 14h1v1h-1zM20 14h1v1h-1zM22 14h1v1h-1zM24 14h1v1h-1zM26 14h1v1h-1zM27 14h1v1h-1zM30 14h1v1h-1zM31 14h1v1h-1zM7 15h1v1h-1zM9 15h1v1h-1zM12 15h1v1h-1zM14 15h1v1h-1zM15 15h1v1h-1zM17 15h1v1h-1zM18 15h1v1h-1zM19 15h1v1h-1zM23 15h1v1h-1zM24 15h1v1h-1zM25 15h1v1h-1zM26 15h1v1h-1zM27 15h1v1h-1zM28 15h1v1h-1zM32 15h1v1h-1zM6 16h1v1h-1zM7 16h1v1h-1zM9 16h1v1h-1zM10 16h1v1h-1zM11 16h1v1h-1zM12 16h1v1h-1zM13 16h1v1h-1zM14 16h1v1h-1zM21 16h1v1h-1zM29 16h1v1h-1zM30 16h1v1h-1zM5 17h1v1h-1zM8 17h1v1h-1zM11 17h1v1h-1zM12 17h1v1h-1zM16 17h1v1h-1zM17 17h1v1h-1zM19 17h1v1h-1zM20 17h1v1h-1zM21 17h1v1h-1zM23 17h1v1h-1zM25 17h1v1h-1zM26 17h1v1h-1zM30 17h1v1h-1zM31 17h1v1h-1zM32 17h1v1h-1zM6 18h1v1h-1zM9 18h1v1h-1zM10 18h1v1h-1zM12 18h1v1h-1zM13 18h1v1h-1zM16 18h1v1h-1zM18 18h1v1h-1zM22 18h1v1h-1zM23 18h1v1h-1zM27 18h1v1h-1zM30 18h1v1h-1zM31 18h1v1h-1zM32 18h1v1h-1zM4 19h1v1h-1zM7 19h1v1h-1zM11 19h1v1h-1zM12 19h1v1h-1zM13 19h1v1h-1zM14 19h1v1h-1zM15 19h1v1h-1zM16 19h1v1h-1zM17 19h1v1h-1zM23 19h1v1h-1zM24 19h1v1h-1zM25 19h1v1h-1zM26 19h1v1h-1zM28 19h1v1h-1zM31 19h1v1h-1zM4 20h1v1h-1zM5 20h1v1h-1zM10 20h1v1h-1zM11 20h1v1h-1zM14 20h1v1h-1zM15 20h1v1h-1zM22 20h1v1h-1zM23 20h1v1h-1zM24 20h1v1h-1zM25 20h1v1h-1zM27 20h1v1h-1zM28 20h1v1h-1zM29 20h1v1h-1zM31 20h1v1h-1zM5 21h1v1h-1zM7 21h1v1h-1zM8 21h1v1h-1zM11 21h1v1h-1zM14 21h1v1h-1zM16 21h1v1h-1zM17 21h1v1h-1zM19 21h1v1h-1zM21 21h1v1h-1zM22 21h1v1h-1zM27 21h1v1h-1zM29 21h1v1h-1zM30 21h1v1h-1zM31 21h1v1h-1zM4 22h1v1h-1zM6 22h1v1h-1zM9 22h1v1h-1zM10 22h1v1h-1zM13 22h1v1h-1zM19 22h1v1h-1zM21 22h1v1h-1zM22 22h1v1h-1zM25 22h1v1h-1zM30 22h1v1h-1zM8 23h1v1h-1zM9 23h1v1h-1zM11 23h1v1h-1zM12 23h1v1h-1zM16 23h1v1h-1zM19 23h1v1h-1zM20 23h1v1h-1zM21 23h1v1h-1zM23 23h1v1h-1zM24 23h1v1h-1zM25 23h1v1h-1zM28 23h1v1h-1zM30 23h1v1h-1zM5 24h1v1h-1zM6 24h1v1h-1zM7 24h1v1h-1zM9 24h1v1h-1zM10 24h1v1h-1zM13 24h1v1h-1zM14 24h1v1h-1zM15 24h1v1h-1zM17 24h1v1h-1zM19 24h1v1h-1zM20 24h1v1h-1zM21 24h1v1h-1zM22 24h1v1h-1zM23 24h1v1h-1zM24 24h1v1h-1zM25 24h1v1h-1zM26 24h1v1h-1zM27 24h1v1h-1zM28 24h1v1h-1zM29 24h1v1h-1zM30 24h1v1h-1zM12 25h1v1h-1zM13 25h1v1h-1zM16 25h1v1h-1zM17 25h1v1h-1zM18 25h1v1h-1zM22 25h1v1h-1zM23 25h1v1h-1zM24 25h1v1h-1zM28 25h1v1h-1zM29 25h1v1h-1zM30 25h1v1h-1zM31 25h1v1h-1zM32 25h1v1h-1zM4 26h1v1h-1zM5 26h1v1h-1zM6 26h1v1h-1zM7 26h1v1h-1zM8 26h1v1h-1zM9 26h1v1h-1zM10 26h1v1h-1zM12 26h1v1h-1zM13 26h1v1h-1zM14 26h1v1h-1zM16 26h1v1h-1zM17 26h1v1h-1zM20 26h1v1h-1zM21 26h1v1h-1zM23 26h1v1h-1zM24 26h1v1h-1zM26 26h1v1h-1zM28 26h1v1h-1zM29 26h1v1h-1zM31 26h1v1h-1zM4 27h1v1h-1zM10 27h1v1h-1zM12 27h1v1h-1zM13 27h1v1h-1zM14 27h1v1h-1zM15 27h1v1h-1zM19 27h1v1h-1zM20 27h1v1h-1zM22 27h1v1h-1zM24 27h1v1h-1zM28 27h1v1h-1zM29 27h1v1h-1zM31 27h1v1h-1zM4 28h1v1h-1zM6 28h1v1h-1zM7 28h1v1h-1zM8 28h1v1h-1zM10 28h1v1h-1zM13 28h1v1h-1zM16 28h1v1h-1zM18 28h1v1h-1zM19 28h1v1h-1zM20 28h1v1h-1zM21 28h1v1h-1zM24 28h1v1h-1zM25 28h1v1h-1zM26 28h1v1h-1zM27 28h1v1h-1zM28 28h1v1h-1zM30 28h1v1h-1zM31 28h1v1h-1zM4 29h1v1h-1zM6 29h1v1h-1zM7 29h1v1h-1zM8 29h1v1h-1zM10 29h1v1h-1zM12 29h1v1h-1zM13 29h1v1h-1zM14 29h1v1h-1zM15 29h1v1h-1zM17 29h1v1h-1zM18 29h1v1h-1zM19 29h1v1h-1zM20 29h1v1h-1zM21 29h1v1h-1zM22 29h1v1h-1zM23 29h1v1h-1zM25 29h1v1h-1zM27 29h1v1h-1zM28 29h1v1h-1zM29 29h1v1h-1zM32 29h1v1h-1zM4 30h1v1h-1zM6 30h1v1h-1zM7 30h1v1h-1zM8 30h1v1h-1zM10 30h1v1h-1zM12 30h1v1h-1zM13 30h1v1h-1zM15 30h1v1h-1zM16 30h1v1h-1zM18 30h1v1h-1zM20 30h1v1h-1zM24 30h1v1h-1zM27 30h1v1h-1zM30 30h1v1h-1zM32 30h1v1h-1zM4 31h1v1h-1zM10 31h1v1h-1zM15 31h1v1h-1zM16 31h1v1h-1zM17 31h1v1h-1zM19 31h1v1h-1zM22 31h1v1h-1zM24 31h1v1h-1zM27 31h1v1h-1zM28 31h1v1h-1zM29 31h1v1h-1zM31 31h1v1h-1zM4 32h1v1h-1zM5 32h1v1h-1zM6 32h1v1h-1zM7 32h1v1h-1zM8 32h1v1h-1zM9 32h1v1h-1zM10 32h1v1h-1zM12 32h1v1h-1zM13 32h1v1h-1zM15 32h1v1h-1zM16 32h1v1h-1zM17 32h1v1h-1zM18 32h1v1h-1zM20 32h1v1h-1zM22 32h1v1h-1zM23 32h1v1h-1zM24 32h1v1h-1zM27 32h1v1h-1zM31 32h1v1h-1z" fill="#111315"/></svg></div><b>analizador.djimenezapps.com</b><br><button class="btn sec" id="qrX" style="margin-top:14px;width:100%" data-t="cerrar"></button></div></div>
+<div id="muro" class="modal hidden"><div class="box" id="muroBox"></div></div>
+<div id="carga" class="cargando hidden"><div class="spin"></div><div id="cargaT"></div><small class="note" id="cargaN"></small></div>
+<video id="v" playsinline muted preload="auto" style="display:none"></video>
+<script>
+/* ---------- idioma: el del móvil (francés, español o inglés); si es otro, francés ---------- */
+const LANG=(()=>{try{const ql=new URLSearchParams(location.search).get("lang");if(ql==="es"||ql==="fr"||ql==="en")return ql}catch(e){}const ls=(navigator.languages&&navigator.languages.length?navigator.languages:[navigator.language||"fr"]).map(x=>(x||"").toLowerCase());for(const l of ls){if(l.startsWith("fr"))return "fr";if(l.startsWith("es")||l.startsWith("ca")||l.startsWith("gl")||l.startsWith("eu"))return "es";if(l.startsWith("en"))return "en"}return "fr"})();
+const LOC={es:"es-ES",fr:"fr-FR",en:"en-GB"}[LANG];
+const t=(es,fr,en)=>LANG==="fr"?fr:LANG==="en"?en:es;
+document.documentElement.lang=LANG;
+document.title=t("Analizador Djimenez · halterofilia","Analyseur Djimenez · haltérophilie","Djimenez Analyzer · weightlifting");
+const I={
+ h1a:["Analizador","Analyseur","Analyzer"],
+ sub:["Analiza tu levantamiento en 3 pasos: vídeo, análisis de barra y posición, y conclusiones.","Analyse ton mouvement en 3 étapes : vidéo, analyse de la barre et de la position, et conclusions.","Analyze your lift in 3 steps: video, bar and position analysis, and conclusions."],
+ st1:["1 · Vídeo","1 · Vidéo","1 · Video"],st2:["2 · Análisis","2 · Analyse","2 · Analysis"],st3:["3 · Conclusiones","3 · Conclusions","3 · Conclusions"],
+ comoT:["Cómo funciona","Comment ça marche","How it works"],
+ paso1:["<b>Sube el vídeo</b> de un levantamiento, grabado de lado.","<b>Charge la vidéo</b> d'un mouvement, filmé de profil.","<b>Upload a video</b> of one lift, filmed from the side."],
+ paso2:["<b>Análisis:</b> marcas el disco y la app sigue la barra. A la vez, la IA detecta tu posición: lo ves todo junto, la barra en una mitad y tu cuerpo en la otra.","<b>Analyse :</b> tu marques le disque et l'appli suit la barre. En même temps, l'IA détecte ta position : tu vois tout ensemble, la barre d'un côté et ton corps de l'autre.","<b>Analysis:</b> mark the plate and the app tracks the bar. At the same time, AI detects your position: you see it all together, the bar on one half and your body on the other."],
+ paso3:["<b>Conclusiones:</b> lo que tienes que trabajar, con ejercicios.","<b>Conclusions :</b> ce que tu dois travailler, avec des exercices.","<b>Conclusions:</b> what to work on, with drills."],
+ liftT:["¿Qué levantamiento es?","Quel mouvement ?","Which lift?"],
+ lado:["¿Hacia dónde miras en el vídeo?","De quel côté regardes-tu dans la vidéo ?","Which way are you facing in the video?"],
+ izq:["← Izquierda","← Gauche","← Left"],der:["Derecha →","Droite →","Right →"],
+ tipsT:["📹 Cómo grabar el vídeo","📹 Comment filmer","📹 How to film"],
+ tip1:["<b>Un solo levantamiento</b> por vídeo, de 3 a 15 s (máximo 30).","<b>Un seul mouvement</b> par vidéo, de 3 à 15 s (30 max).","<b>One lift</b> per video, 3 to 15 s (30 max)."],
+ tip2:["<b>1080p a 60 fps</b> es lo ideal. El 4K funciona, pero va más lento.","<b>1080p à 60 ips</b>, c'est l'idéal. La 4K marche, mais c'est plus lent.","<b>1080p at 60 fps</b> is ideal. 4K works, but it's slower."],
+ tip3:["<b>Totalmente de lado</b>, con el móvil fijo a la altura de la cadera, a 3–4 m.","<b>Bien de profil</b>, téléphone fixe à hauteur de hanche, à 3–4 m.","<b>Fully side-on</b>, phone fixed at hip height, 3–4 m away."],
+ tip4:["Que salgan <b>el cuerpo entero y el disco completo</b> todo el rato, con buena luz: así la IA detecta mejor tu cuerpo.","<b>Tout le corps et le disque entier</b> doivent rester dans le cadre, avec une bonne lumière : l'IA détecte mieux ton corps.","Keep <b>your whole body and the whole plate</b> in frame the entire time, with good light: the AI detects your body better."],
+ tip5:["Deja grabando <b>hasta que estés de pie del todo</b>.","Continue de filmer <b>jusqu'à être complètement debout</b>.","Keep recording <b>until you're fully standing</b>."],
+ vsT:["🆚 Snatch vs clean: qué cambia","🆚 Snatch vs clean : ce qui change","🆚 Snatch vs clean: what changes"],
+ vs1:["<b>Salida:</b> en el snatch la cadera va más baja (el agarre es más ancho); en el clean, más alta.","<b>Départ :</b> au snatch, la hanche est plus basse (prise plus large) ; au clean, plus haute.","<b>Start:</b> in the snatch your hips sit lower (wider grip); in the clean, higher."],
+ vs2:["<b>Contacto:</b> en el snatch la barra toca más arriba, en la cadera; en el clean, más abajo, en la parte alta del muslo.","<b>Contact :</b> au snatch, la barre touche plus haut, à la hanche ; au clean, plus bas, en haut des cuisses.","<b>Contact:</b> in the snatch the bar meets you higher, at the hips; in the clean, lower, on the upper thighs."],
+ vs3:["<b>Recepción:</b> los dos piden tobillos móviles para recibir abajo con el tronco recto; el snatch, además, hombros.","<b>Réception :</b> les deux demandent des chevilles mobiles pour réceptionner bas, buste droit ; le snatch, en plus, des épaules.","<b>Catch:</b> both need mobile ankles to catch low with an upright torso; the snatch also needs mobile shoulders."],
+ vs4:["<b>¿Cuál cuesta más?</b> El snatch pide más técnica, velocidad y movilidad; el clean, más fuerza.","<b>Le plus dur ?</b> Le snatch demande plus de technique, de vitesse et de mobilité ; le clean, plus de force.","<b>Which is harder?</b> The snatch takes more technique, speed and mobility; the clean, more strength."],
+ vsN:["La app lo tiene en cuenta: mide la altura de tu cadera en la salida, dónde toca la barra respecto a tu cadera y cuánto se flexiona tu tobillo en la recepción.","L'appli en tient compte : elle mesure la hauteur de ta hanche au départ, où la barre touche par rapport à ta hanche et la flexion de ta cheville à la réception.","The app takes this into account: it measures your hip height at the start, where the bar meets you relative to your hip, and how much your ankle bends in the catch."],
+ subir:["📹 Sube el vídeo","📹 Charge la vidéo","📹 Upload the video"],
+ subirN:["Un solo levantamiento, grabado de lado. El vídeo no sale de tu móvil.","Un seul mouvement, filmé de profil. La vidéo ne quitte pas ton téléphone.","One lift, filmed from the side. The video never leaves your phone."],
+ empezar:["▶︎ Toca para empezar","▶︎ Touche pour commencer","▶︎ Tap to start"],
+ empezarN:["Se abre en grande con los pasos","Elle s'ouvre en grand avec les étapes","Opens full screen with the steps"],
+ detectar:["🎯 Detectar disco","🎯 Détecter le disque","🎯 Detect plate"],
+ deshacer:["↩︎ Deshacer","↩︎ Annuler","↩︎ Undo"],hecho:["Hecho","OK","Done"],
+ seguir:["Seguir el disco","Suivre le disque","Track the plate"],parar:["Parar y analizar","Arrêter et analyser","Stop and analyze"],redo:["Empezar de nuevo","Recommencer","Start over"],
+ barraIntro:["A un lado, el recorrido de tu barra; al otro, tu posición detectada por la IA. Se repite solo: toca el vídeo para pausar.","D'un côté, la trajectoire de ta barre ; de l'autre, ta position détectée par l'IA. Ça tourne en boucle : touche la vidéo pour mettre en pause.","On one side, your bar path; on the other, your position detected by AI. It loops by itself: tap the video to pause."],
+ otra:["↺","↺","↺"],velT:["Velocidad","Vitesse","Speed"],
+ elT:["¿Qué quieres ver ahora?","Tu veux voir quoi maintenant ?","What do you want to see now?"],
+ elPaso:["🔍 Paso a paso","🔍 Pas à pas","🔍 Step by step"],elConc:["✅ Conclusiones","✅ Conclusions","✅ Conclusions"],
+ vel1:["Normal","Normale","Normal"],vel2:["Lenta ½","Lente ½","Slow ½"],vel3:["Muy lenta ¼","Très lente ¼","Very slow ¼"],
+ barraT:["🏋️ Qué corregir en la barra","🏋️ Quoi corriger sur la barre","🏋️ What to fix on the bar"],
+ datosT:["📊 Ver los datos y descargar el vídeo","📊 Voir les données et télécharger la vidéo","📊 See the data and download the video"],
+ orient:["Orientativo: se basa solo en el recorrido del disco.","Indicatif : basé uniquement sur la trajectoire du disque.","A guide only: based solely on the plate's path."],
+ dl:["⬇︎ Descargar el vídeo","⬇︎ Télécharger la vidéo","⬇︎ Download the video"],
+ corregir:["✏️ Corregir el seguimiento del disco","✏️ Corriger le suivi du disque","✏️ Fix the plate tracking"],
+ escT:["🧍 Tu posición, momento a momento","🧍 Ta position, moment par moment","🧍 Your position, moment by moment"],
+ sigConc:["Ver conclusiones ▶︎","Voir les conclusions ▶︎","See conclusions ▶︎"],
+ conT:["✅ Conclusiones","✅ Conclusions","✅ Conclusions"],
+ copy:["Copiar resultados","Copier les résultats","Copy results"],
+ otro:["📹 Analizar otro vídeo","📹 Analyser une autre vidéo","📹 Analyze another video"],
+ compT:["📲 Compártelo","📲 Partage-le","📲 Share it"],
+ compN:["Publica tu vídeo analizado en Instagram o WhatsApp, o pasa la app a tus amigos por WhatsApp o con el QR.","Publie ta vidéo analysée sur Instagram ou WhatsApp, ou passe l'appli à tes potes par WhatsApp ou avec le QR.","Post your analyzed video on Instagram or WhatsApp, or pass the app to friends via WhatsApp or the QR code."],
+ compVid:["📤 Publicar mi vídeo","📤 Publier ma vidéo","📤 Post my video"],
+ compWa:["💬 WhatsApp","💬 WhatsApp","💬 WhatsApp"],
+ compQr:["🔳 Código QR","🔳 QR code","🔳 QR code"],
+ appT:["📲 Comparte la app","📲 Partage l'appli","📲 Share the app"],
+ qrT:["Escanea y analiza","Scanne et analyse","Scan and analyze"],
+ qrN:["Enséñaselo a tus amigos del box: lo abren con la cámara.","Montre-le à tes potes de la salle : ils l'ouvrent avec l'appareil photo.","Show it to your gym friends: they open it with their camera."],
+ cerrar:["Cerrar","Fermer","Close"],
+ volverP:["◀︎ Volver al análisis","◀︎ Retour à l'analyse","◀︎ Back to the analysis"]
+};
+const LI={es:0,fr:1,en:2}[LANG];
+document.querySelectorAll("[data-t]").forEach(e=>{const v=I[e.dataset.t];if(v)e.innerHTML=v[LI]});
+const ESC_IA=t("La IA ha marcado tu <b>hombro, cadera, rodilla y tobillo</b> en cada momento clave. Si algún punto no está en su sitio, arrástralo; si una escena no tiene puntos, tócalos tú. Responde la pregunta y pasa sola a la siguiente.","L'IA a marqué ton <b>épaule, ta hanche, ton genou et ta cheville</b> à chaque moment clé. Si un point n'est pas à sa place, fais-le glisser ; si une scène n'a pas de points, touche-les toi-même. Réponds à la question et ça passe tout seul à la suivante.","The AI has marked your <b>shoulder, hip, knee and ankle</b> at each key moment. If a point is off, drag it; if a scene has no points, tap them yourself. Answer the question and it moves on by itself.");
+const ESC_MANO=t("En cada momento clave, toca en la foto tu <b>hombro, cadera, rodilla y tobillo</b> y responde la pregunta. Pasa sola a la siguiente.","À chaque moment clé, touche sur la photo ton <b>épaule, ta hanche, ton genou et ta cheville</b> et réponds à la question. Ça passe tout seul à la suivante.","At each key moment, tap your <b>shoulder, hip, knee and ankle</b> on the photo and answer the question. It moves on by itself.");
+
+const $=s=>document.querySelector(s);
+const V=$("#v"), CV=$("#cv"), X=CV.getContext("2d",{willReadFrequently:true});
+const S={lift:"snatch",face:1,mode:"idle",cal:[],pts:[],dt:1/30,pxcm:null,tpl:null,running:false,esc:[],pose:null};
+const DISCO=45; // cm de diámetro de un disco olímpico (bumper)
+const AM="#FFE14D",CY="#3DD6F5"; // amarillo de la barra, cian del cuerpo
+function n(v,d=0){return (Math.round(v*10**d)/10**d).toLocaleString(LOC,{minimumFractionDigits:d,maximumFractionDigits:d})}
+const seg=v=>n(v,2)+" s";
+$("#tlabel").textContent=seg(0);$("#fstl").textContent=seg(0);
+
+/* ---------- IA de postura (MediaPipe, en el propio móvil) ---------- */
+const MP="https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@1.2.3";
+const MODELO="https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_full/float16/latest/pose_landmarker_full.task";
+let PL=null,PLp=null;
+function cargarIA(){
+  if(PLp)return PLp;
+  PLp=(async()=>{
+    const v=await import(MP+"/vision_bundle.mjs");
+    const fs=await v.FilesetResolver.forVisionTasks(MP+"/wasm");
+    const mk=d=>v.PoseLandmarker.createFromOptions(fs,{baseOptions:{modelAssetPath:MODELO,delegate:d},runningMode:"IMAGE",numPoses:1});
+    try{PL=await mk("GPU")}catch(e){PL=await mk("CPU")}
+    return PL;
+  })().catch(e=>{console.warn("IA",e);PLp=null;return null});
+  return PLp;
+}
+// puntos del lado que da a la cámara: hombro, codo, muñeca, cadera, rodilla, tobillo, talón, punta del pie
+const LAD={L:[11,13,15,23,25,27,29,31],R:[12,14,16,24,26,28,30,32]};
+S.pv=new Map(); // posturas ya detectadas, por tiempo (ms)
+function poseAhora(){if(!PL||S.tAct==null)return null;const k=Math.round(S.tAct*1000);if(!S.pv.has(k))S.pv.set(k,detectar());return S.pv.get(k)}
+function ladoDe(lm){const s=a=>a.reduce((x,k)=>x+(lm[k].visibility||0),0);return s([11,23,25,27])>=s([12,24,26,28])?"L":"R"}
+function pintaPoseVivo(){if(S.grabando||!S.running)return;poseAhora()} // durante el seguimiento la IA va mirando tu cuerpo sin dibujarlo: se ve después, en la pantalla partida
+function detectar(){try{const r=PL&&PL.detect(FC);return r&&r.landmarks&&r.landmarks[0]||null}catch(e){return null}}
+function aCV(lm,lado){return LAD[lado].map(k=>({x:lm[k].x*CV.width,y:lm[k].y*CV.height,v:lm[k].visibility||0}))}
+async function posturas(prog){
+  S.pose=null;S.lado=null;
+  const pl=await cargarIA();if(!pl)return false;
+  const N=S.pts.length,need=new Set();for(let i=0;i<N;i+=2)need.add(i);need.add(N-1);S.R.claves.forEach(c=>need.add(c[0]));
+  const idx=[...need].sort((a,b)=>a-b),raw=[];let vl=0,vr=0;
+  for(let j=0;j<idx.length;j++){
+    const i=idx[j],k=Math.round(S.pts[i].t*1000);let lm;
+    if(S.pv.has(k))lm=S.pv.get(k);else{await seek(S.pts[i].t);lm=poseAhora()}
+    if(lm){raw.push({i,t:S.pts[i].t,lm});vl+=[11,23,25,27].reduce((s,k)=>s+(lm[k].visibility||0),0);vr+=[12,24,26,28].reduce((s,k)=>s+(lm[k].visibility||0),0)}
+    prog&&prog((j+1)/idx.length);
+  }
+  if(raw.length<3)return false;
+  S.lado=vl>=vr?"L":"R";
+  const crudo=raw.map(r=>({i:r.i,t:r.t,p:brazos(aCV(r.lm,S.lado),r.t)}));
+  // suavizado en el tiempo: cada punto es la media de sus vecinos (más peso a los cercanos y a los que la IA ve bien)
+  S.pose=crudo.map(q=>({i:q.i,t:q.t,p:q.p.map((_,k)=>{let sx=0,sy=0,sw=0;
+    for(const o of crudo){const d=(o.t-q.t)/(k===1||k===2?0.11:0.07);if(Math.abs(d)>2.5)continue;const w=Math.exp(-d*d/2)*(0.3+(o.p[k].v||0));sx+=o.p[k].x*w;sy+=o.p[k].y*w;sw+=w}
+    return {x:sx/sw,y:sy/sw,v:q.p[k].v}})}));
+  return true;
+}
+// solo vale una postura de un fotograma cercano: si la IA no vio el cuerpo en ese momento, no se inventa
+function poseEn(tt){if(!S.pose||!S.pose.length)return null;const A=S.pose;let j=0;while(j<A.length-1&&A[j+1].t<=tt)j++;
+  const a=A[j],b=A[Math.min(j+1,A.length-1)];if(Math.min(Math.abs(a.t-tt),Math.abs(b.t-tt))>0.12)return null;
+  if(b===a||b.t-a.t>0.3||tt<=a.t)return a; // entre dos detecciones, el cuerpo se mueve poco a poco (sin saltos)
+  const f=Math.min(1,(tt-a.t)/(b.t-a.t));return {i:a.i,t:tt,p:a.p.map((q,k)=>({x:q.x+(b.p[k].x-q.x)*f,y:q.y+(b.p[k].y-q.y)*f,v:q.v}))}}
+function poseIdx(i){if(!S.pose)return null;let b=S.pose[0];for(const q of S.pose)if(Math.abs(q.i-i)<Math.abs(b.i-i))b=q;return Math.abs(b.i-i)<=3?b:null}
+/* brazos: si la IA no ve bien un brazo, se reconstruye con lógica (las manos van en la barra) */
+function barEn(tt){if(!S.pts.length)return null;let b=S.pts[0];for(const p of S.pts)if(Math.abs(p.t-tt)<Math.abs(b.t-tt))b=p;return b}
+function brazos(p,tt){
+  const b=barEn(tt);if(!b)return p;
+  const P=p.map(q=>({...q})),S0=P[0],c=P[3],torso=Math.hypot(S0.x-c.x,S0.y-c.y)||1;
+  const L1=0.62*torso,L2=0.55*torso,f=S.face; // brazo y antebrazo, proporcionales al tronco
+  const w=P[2],e=P[1],lejos=Math.hypot(w.x-b.x,w.y-b.y)>0.45*torso;
+  if(!w.u&&((w.v||0)<0.5||lejos))P[2]={x:b.x,y:b.y,v:0}; // la mano, en la barra (salvo si la has puesto tú)
+  const W=P[2],dx=W.x-S0.x,dy=W.y-S0.y,d=Math.hypot(dx,dy)||1;
+  // barra apoyada en los hombros (recepción del clean, salida del jerk): codos altos y hacia delante
+  // (en clean y jerk; en el snatch la barra no se apoya en los hombros)
+  const sn=S.lift==="snatch",paso=(v,a,b)=>Math.max(0,Math.min(1,(v-a)/(b-a)));
+  // brazo doblado: el codo cae donde encajan brazo y antebrazo. Se da por estirado un poco antes de llegar
+  // a la longitud total, y sin saltos: cuanto más lejos está la barra, más se abre el codo
+  const dd=Math.min(L1+L2,d/0.9),a=(L1*L1-L2*L2+dd*dd)/(2*dd),h=Math.sqrt(Math.max(0,L1*L1-a*a)),ux=dx/d,uy=dy/d;
+  const E1={x:S0.x+ux*a-uy*h,y:S0.y+uy*a+ux*h},E2={x:S0.x+ux*a+uy*h,y:S0.y+uy*a-ux*h};
+  // en el tirón del clean (barra por debajo del hombro) y en el giro del snatch, el codo va atrás y arriba; en el jerk, delante
+  const atras=sn||(S.lift==="clean"&&dy>0),pt=q=>(atras?-1:1)*(f*(q.x-S0.x)+0.25*(q.y-S0.y));
+  let E=pt(E1)>=pt(E2)?E1:E2;
+  // barra apoyada en los hombros (recepción del clean, salida del jerk): codos altos y hacia delante.
+  // Se mezcla poco a poco con el codo calculado para que no salte al entrar o salir de esa posición (en el snatch no hay)
+  const wr=sn?0:(1-paso(d,0.7*L1,1.05*L1))*paso(dy,-0.95*L1,-0.6*L1)*(1-paso(dy,0.25*L1,0.45*L1)),rack=wr>0.5;
+  if(wr>0)E={x:E.x+(S0.x+f*0.9*L1-E.x)*wr,y:E.y+(S0.y+0.18*L1-E.y)*wr};
+  // el codo que ve la IA solo se queda si encaja con un brazo de verdad y no se aleja de donde tiene que estar
+  // (si unas veces vale el de la IA y otras el calculado, el codo da saltos)
+  const ok=e.u||(e.v||0)>=0.5&&!lejos&&Math.abs(Math.hypot(e.x-S0.x,e.y-S0.y)-L1)<0.35*L1&&Math.abs(Math.hypot(e.x-W.x,e.y-W.y)-L2)<0.4*L2
+    &&Math.hypot(e.x-E.x,e.y-E.y)<0.45*L1&&(!rack||(f*(e.x-S0.x)>0.3*L1&&e.y<S0.y+0.6*L1));
+  if(!ok)P[1]={x:E.x,y:E.y,v:0};
+  return P;
+}
+/* esqueleto con ángulos de rodilla y cadera */
+function esqueleto(c,p,k){
+  const P=p.map(q=>[q.x*k,q.y*k]),lw=Math.max(2,3.5*k);
+  c.save();c.lineCap="round";c.lineJoin="round";c.strokeStyle=CY;c.lineWidth=lw;c.shadowColor=CY;c.shadowBlur=lw*2;
+  c.beginPath();[[0,1],[1,2],[0,3],[3,4],[4,5],[5,6],[6,7],[5,7]].forEach(([a,b])=>{c.moveTo(P[a][0],P[a][1]);c.lineTo(P[b][0],P[b][1])});c.stroke();c.shadowBlur=0;
+  P.forEach(q=>{c.fillStyle="#fff";c.beginPath();c.arc(q[0],q[1],lw*1.1,0,7);c.fill()});
+  const A=(a,b,d)=>ang({x:P[a][0],y:P[a][1]},{x:P[b][0],y:P[b][1]},{x:P[d][0],y:P[d][1]});
+  c.font=`700 ${Math.round(14*k)}px Poppins,sans-serif`;c.lineWidth=3*k;c.strokeStyle="rgba(0,0,0,.85)";c.fillStyle="#fff";
+  [[A(3,4,5)+"°",P[4]],[A(0,3,4)+"°",P[3]]].forEach(([tx,q])=>{const x0=S.face>0?q[0]-9*k-c.measureText(tx).width:q[0]+9*k;c.strokeText(tx,x0,q[1]);c.fillText(tx,x0,q[1])});
+  c.restore();
+}
+
+/* ---------- disco automático: busca el círculo del disco en el fotograma ---------- */
+function autoDisco(cerca){ // cerca: punto que ha tocado el usuario (busca el disco solo ahí)
+  if(!FC.width)return false;
+  const sw=160,sc=FC.width/sw,sh=Math.round(FC.height/sc),N=sw*sh;
+  const cc=document.createElement("canvas");cc.width=sw;cc.height=sh;const cx2=cc.getContext("2d",{willReadFrequently:true});cc.getContext("2d").drawImage(FC,0,0,sw,sh);
+  const d=cx2.getImageData(0,0,sw,sh).data;
+  // bordes por color (R, G y B por separado): un disco rojo sobre fondo oscuro también se ve
+  const ch=[0,1,2].map(c=>{const g=new Float32Array(N),b=new Float32Array(N);for(let i=0;i<N;i++)g[i]=d[i*4+c];
+    for(let y=1;y<sh-1;y++)for(let x=1;x<sw-1;x++){let q=0;for(let j=-1;j<=1;j++)for(let i=-1;i<=1;i++)q+=g[(y+j)*sw+x+i];b[y*sw+x]=q/9}return b});
+  const gx=new Float32Array(N),gy=new Float32Array(N),mg=new Float32Array(N);let su=0,sq=0,cn=0;
+  for(let y=2;y<sh-2;y++)for(let x=2;x<sw-2;x++){const k=y*sw+x;let bx=0,by=0,bm=0;
+    for(const b of ch){const vx=(b[k-sw+1]+2*b[k+1]+b[k+sw+1])-(b[k-sw-1]+2*b[k-1]+b[k+sw-1]);
+      const vy=(b[k+sw-1]+2*b[k+sw]+b[k+sw+1])-(b[k-sw-1]+2*b[k-sw]+b[k-sw+1]);const m=Math.hypot(vx,vy);if(m>bm){bm=m;bx=vx;by=vy}}
+    gx[k]=bx;gy[k]=by;mg[k]=bm;su+=bm;sq+=bm*bm;cn++}
+  const mu=su/cn,sd=Math.sqrt(Math.max(0,sq/cn-mu*mu)),th=Math.max(18,mu+1.2*sd);
+  const r0=Math.max(5,Math.round(0.04*Math.max(sw,sh))),r1=Math.max(r0+2,Math.round(0.24*Math.min(sw,sh))),nr=r1-r0+1;
+  const acc=new Float32Array(N*nr);
+  for(let y=2;y<sh-2;y++)for(let x=2;x<sw-2;x++){const k=y*sw+x,m=mg[k];if(m<th)continue;const ux=gx[k]/m,uy=gy[k]/m;
+    for(let ri=0;ri<nr;ri++){const r=r0+ri;for(let sg=-1;sg<=1;sg+=2){const X1=Math.round(x+sg*ux*r),Y1=Math.round(y+sg*uy*r);if(X1>=0&&Y1>=0&&X1<sw&&Y1<sh)acc[ri*N+Y1*sw+X1]++}}}
+  const pun=(ri,x,y)=>{let q=0;for(let j=-1;j<=1;j++)for(let i=-1;i<=1;i++){const X1=x+i,Y1=y+j;if(X1>=0&&Y1>=0&&X1<sw&&Y1<sh)q+=acc[ri*N+Y1*sw+X1]}return q/(2*Math.PI*(r0+ri))};
+  // si la IA ya ve el cuerpo, el disco suele estar a la altura de las espinillas (snatch y clean)
+  // o de los hombros (jerk: la barra empieza apoyada en los hombros)
+  const jk=S.lift==="jerk";let pr=null;const lm=PL&&!cerca?poseAhora():null;
+  const ct=cerca?{x:cerca.x/sc,y:cerca.y/sc}:null;
+  if(lm&&jk)pr={x:(lm[11].x+lm[12].x)/2*sw,y:(lm[11].y+lm[12].y)/2*sh};
+  else if(lm){const ax=(lm[27].x+lm[28].x)/2*sw,ay=(lm[27].y+lm[28].y)/2*sh,ky=(lm[25].y+lm[26].y)/2*sh;pr={x:ax,y:(ay+ky)/2}}
+  let best=null;
+  for(let ri=0;ri<nr;ri++){const r=r0+ri;
+    for(let y=Math.max(r,cerca||jk?0:Math.round(sh*.3));y<=Math.min(sh-1,sh-r+2);y++)for(let x=0;x<sw;x++){
+      if(ct&&Math.hypot(x-ct.x,y-ct.y)>Math.max(3,0.3*r))continue;
+      if(acc[ri*N+y*sw+x]<0.2*r)continue;
+      const sv=pun(ri,x,y);if(sv<0.18)continue;
+      let v=sv*r; // cuenta el total de borde que apoya el círculo: un disco grande pesa más que un círculo pequeño cualquiera
+      if(pr)v*=Math.exp(-(((x-pr.x)/(0.22*sw))**2)-(((y-pr.y)/(0.3*sh))**2));
+      else if(jk&&!ct)v*=y<0.5*sh?1.6:1; // jerk sin IA todavía: el disco está en la mitad de arriba
+      if(!best||v>best.v)best={v,s:sv,ri,x,y}}}
+  if(!best||best.s<0.2)return false;
+  // si hay círculos concéntricos (el centro del disco), quedarse con el borde exterior
+  const prof=[];for(let ri=0;ri<nr;ri++){let m=0,mx=best.x,my=best.y;
+    for(let j=-3;j<=3;j++)for(let i=-3;i<=3;i++){const X1=best.x+i,Y1=best.y+j;if(X1<0||Y1<0||X1>=sw||Y1>=sh)continue;const v=pun(ri,X1,Y1);if(v>m){m=v;mx=X1;my=Y1}}prof.push({m,x:mx,y:my})}
+  let valle=Infinity,cand=null;const rb=r0+best.ri;
+  for(let ri=best.ri+1;ri<nr;ri++){const p=prof[ri];valle=Math.min(valle,p.m);
+    const pico=p.m>=(prof[ri-1]?.m||0)&&p.m>=(prof[ri+1]?.m||0);
+    if(r0+ri>=1.6*rb&&pico&&p.m>=Math.max(0.18,0.2*best.s)&&p.m>=1.8*valle&&p.y+r0+ri<=sh+2&&(!cand||p.m>cand.m))cand={...p,ri}}
+  if(cand){let ri=cand.ri;while(ri+1<nr&&prof[ri+1].m>=0.85*cand.m&&prof[ri+1].y+r0+ri+1<=sh+2)ri++; // el borde de fuera, no un aro de dentro
+    best={...best,ri,x:prof[ri].x,y:prof[ri].y}}
+  const cx=(best.x+.5)*sc,cy=(best.y+.5)*sc,r=(r0+best.ri)*sc;
+  S.cal=[{x:cx,y:cy-r},{x:cx,y:cy+r}];S.pxcm=2*r/DISCO;
+  base();S.pts=[{x:cx,y:cy,t:V.currentTime}];S.tpl=plantilla(cx,cy);
+  S.mode="listo";S.R=null;S.auto=true;S.centroAuto=true;
+  return true;
+}
+
+/* ---------- trayectoria suave y brillante ---------- */
+function liso(a){return a.map((p,i)=>{const q=a.slice(Math.max(0,i-2),i+3);return {t:p.t,x:q.reduce((s,z)=>s+z.x,0)/q.length,y:q.reduce((s,z)=>s+z.y,0)/q.length}})}
+function trazo(c,pts,map,w,col,glow){
+  if(pts.length<2)return;const P=pts.map(map);
+  c.save();c.lineJoin="round";c.lineCap="round";c.lineWidth=w;c.strokeStyle=col;
+  if(glow){c.shadowColor=col;c.shadowBlur=w*2.5}
+  c.beginPath();c.moveTo(P[0][0],P[0][1]);
+  for(let i=1;i<P.length-1;i++){const mx=(P[i][0]+P[i+1][0])/2,my=(P[i][1]+P[i+1][1])/2;c.quadraticCurveTo(P[i][0],P[i][1],mx,my)}
+  const L=P[P.length-1];c.lineTo(L[0],L[1]);c.stroke();c.restore();
+}
+function punto(c,x,y,r,col,glow){c.save();c.fillStyle=col;if(glow){c.shadowColor=col;c.shadowBlur=r*2}c.beginPath();c.arc(x,y,r,0,7);c.fill();c.restore()}
+function lineaH(c,y,txt,col,lw,derecha){
+  const w=c.canvas.width,fs=Math.round(w/20);c.save();c.setLineDash([lw*3,lw*2]);c.strokeStyle=col;c.lineWidth=lw;c.shadowColor="rgba(0,0,0,.8)";c.shadowBlur=4;
+  c.beginPath();c.moveTo(0,y);c.lineTo(w,y);c.stroke();c.setLineDash([]);
+  c.font=`italic 800 ${fs}px Poppins,sans-serif`;c.fillStyle=col;c.textAlign=derecha?"right":"left";c.fillText(txt,derecha?w-8:8,y-lw*2);c.restore();
+}
+function rotulo(c,txt,cx,y,fs,col){c.save();c.font=`italic 800 ${fs}px Poppins,sans-serif`;c.textAlign="center";c.fillStyle=col;c.shadowColor="rgba(0,0,0,.85)";c.shadowBlur=fs/3;c.fillText(txt,cx,y);c.restore()}
+
+/* ---------- pantallas: inicio → disco → análisis → conclusiones ---------- */
+const PAG=["inicio","work","pAnal","pConc"];
+function mostrar(id,auto=true){
+  PAG.forEach(p=>$("#"+p).classList.toggle("hidden",p!==id));
+  const st={inicio:1,work:2,pAnal:2,pConc:3}[id];
+  [...$("#steps").children].forEach((e,i)=>{e.classList.toggle("on",i+1===st);e.classList.toggle("ok",i+1<st)});
+  if(id!=="pAnal"&&RP.on)rpStop();
+  if(id==="pAnal"&&auto&&S.listo&&!RP.on)rpPlay();
+  window.scrollTo({top:0,behavior:"smooth"});
+}
+$("#corregir").onclick=()=>{mostrar("work");abrirFs()};
+$("#sigConc").onclick=()=>{mostrar("pConc");renderConc();setTimeout(()=>irCon(0),60)};
+$("#volverP").onclick=()=>mostrar("pAnal");
+$("#otro").onclick=()=>location.reload();
+
+/* ---------- selección ---------- */
+$("#lift").onclick=e=>{const b=e.target.closest("button");if(!b)return;S.lift=b.dataset.l;[...$("#lift").children].forEach(x=>x.classList.toggle("on",x===b))};
+$("#face").onclick=e=>{const b=e.target.closest("button");if(!b)return;S.face=+b.dataset.f;[...$("#face").children].forEach(x=>x.classList.toggle("on",x===b))};
+
+/* ---------- vídeo ---------- */
+$("#file").onchange=async e=>{
+  const f=e.target.files[0];if(!f)return;
+  cargando(true,t("Cargando el vídeo…","Chargement de la vidéo…","Loading the video…"),t("Un momento, no cierres la página.","Un instant, ne ferme pas la page.","One moment, don't close the page."));
+  S.pv=new Map();S.lado=null;
+  cargarIA().then(pl=>{if(pl&&V.duration&&!S.running){if(S.mode!=="sigue"&&S.pts.length<=1&&!S.tocado&&S.tAct===0){base();autoDisco()}paso();dibujar()}}); // la IA se va descargando mientras marcas el disco
+  V.src=URL.createObjectURL(f);
+  try{await V.play();V.pause()}catch(err){}
+  const abierto=await new Promise(r=>{if(V.readyState>=1)return r(true);V.onloadedmetadata=()=>r(true);V.onerror=()=>r(false);setTimeout(()=>r(V.readyState>=1),20000)});
+  if(!abierto){cargando(false);avisoCarga(t("No se ha podido abrir este vídeo. Prueba con otro o vuelve a grabarlo con la cámara del móvil.","Impossible d'ouvrir cette vidéo. Essaie avec une autre ou refilme-la avec l'appareil photo du téléphone.","This video couldn't be opened. Try another one or film it again with your phone's camera."));e.target.value="";return}
+  if(V.duration>30){cargando(false);const s=Math.round(V.duration);avisoCarga(t(`El vídeo dura ${s} s. Recórtalo en la galería a un solo levantamiento (de 3 a 15 s) y vuelve a subirlo.`,`La vidéo dure ${s} s. Coupe-la dans ta galerie pour garder un seul mouvement (3 à 15 s) et recharge-la.`,`The video is ${s} s long. Trim it in your gallery to a single lift (3 to 15 s) and upload it again.`));V.removeAttribute("src");e.target.value="";return}
+  if(P.pase){const g=await progApi("usar");if(!g.ok){cargando(false);V.removeAttribute("src");e.target.value="";if(g.agotado){P.st=g;pintaProg();muroProg()}else if(g.error==="pase"){P.st={error:"pase"};pintaProg();avisoCarga(t("Tu acceso ha caducado: vuelve a abrir el analizador desde Djimenez Prog.","Ton accès a expiré : rouvre l'analyseur depuis Djimenez Prog.","Your access expired: open the analyzer again from Djimenez Prog."))}else avisoCarga(ERR.red);return}P.st=g;pintaProg()}
+  const gasto=P.pase?{ok:true}:C.activo?await api("usar"):{ok:true,usados:0};
+  if(!gasto.ok){cargando(false);V.removeAttribute("src");e.target.value="";if(gasto.usados!=null){C.st={...C.st,usados:gasto.usados};pintaCuenta();muro()}else avisoCarga(gasto.error==="sesion"?t("Tu sesión ha caducado: vuelve a entrar con tu email.","Ta session a expiré : reconnecte-toi avec ton e-mail.","Your session expired: sign in again with your email."):ERR.red);pintaCuenta();return}
+  if(C.activo){C.st={...C.st,usados:gasto.usados,pro:gasto.pro};pintaCuenta()}
+  const g=Math.max(V.videoWidth,V.videoHeight);
+  avisoCarga(g>1920?t("Es un vídeo 4K: funciona, pero irá más lento. Para el analizador basta con 1080p.","C'est une vidéo 4K : ça marche, mais ce sera plus lent. Pour l'analyseur, 1080p suffit.","This is a 4K video: it works, but it'll be slower. 1080p is enough for the analyzer."):"");
+  const w=Math.min(640,V.videoWidth), h=Math.round(V.videoHeight*w/V.videoWidth);
+  CV.width=w;CV.height=h;
+  mostrar("work");
+  reset();
+  await new Promise(r=>{if(V.readyState>=2)r();else{V.addEventListener("loadeddata",r,{once:true});setTimeout(r,4000)}});
+  await seek(Math.min(0.1,V.duration/4));await seek(0);await new Promise(r=>setTimeout(r,120));await seek(0);
+  $("#cargaT").textContent=t("Buscando el disco…","Recherche du disque…","Finding the plate…");
+  await new Promise(r=>setTimeout(r,30));
+  if(autoDisco()){dibujar();paso()}
+  cargando(false);
+};
+function cargando(on,txt,nota){$("#carga").classList.toggle("hidden",!on);if(on){$("#cargaT").textContent=txt||"";$("#cargaN").textContent=nota||""}}
+function avisoCarga(m){let x=$("#aviso");if(!x){x=document.createElement("p");x.id="aviso";x.className="step";$("#drop").after(x)}x.textContent=m;x.classList.toggle("hidden",!m)}
+function seek(tt){
+  if(RP.on)rpStop();
+  tt=Math.max(0,Math.min(V.duration-0.001,tt));S.tAct=tt;
+  return new Promise(r=>{
+    let hecho=false;const fin=()=>{if(hecho)return;hecho=true;dibujar(true);r()};
+    V.addEventListener("seeked",fin,{once:true});setTimeout(fin,1500);
+    V.currentTime=tt;
+  });
+}
+const FC=document.createElement("canvas"),FX=FC.getContext("2d");
+function frame(){X.drawImage(V,0,0,CV.width,CV.height);if(FC.width!==CV.width||FC.height!==CV.height){FC.width=CV.width;FC.height=CV.height}FX.drawImage(CV,0,0)}
+function base(){if(FC.width===CV.width&&FC.height===CV.height)X.drawImage(FC,0,0);else frame()}
+function dibujar(nuevo){
+  if(nuevo)frame();else base();
+  $("#scrub").value=Math.round(V.currentTime/V.duration*1000);
+  $("#tlabel").textContent=seg(V.currentTime);
+  $("#fscrub").value=$("#scrub").value;$("#fstl").textContent=$("#tlabel").textContent;
+  X.lineWidth=2;
+  S.cal.forEach(p=>{X.strokeStyle="#4CC38A";X.beginPath();X.arc(p.x,p.y,6,0,7);X.stroke()});
+  if(S.cal.length===2){X.beginPath();X.moveTo(S.cal[0].x,S.cal[0].y);X.lineTo(S.cal[1].x,S.cal[1].y);X.stroke();
+    const mx=(S.cal[0].x+S.cal[1].x)/2,my=(S.cal[0].y+S.cal[1].y)/2,rr=Math.hypot(S.cal[0].x-S.cal[1].x,S.cal[0].y-S.cal[1].y)/2;
+    if(!S.pts.length||S.pts.length===1){X.save();X.setLineDash([7,6]);X.strokeStyle="rgba(76,195,138,.95)";X.lineWidth=2.5;X.beginPath();X.arc(mx,my,rr,0,7);X.stroke();X.restore()}
+    S.cal.forEach(p=>{X.fillStyle="#4CC38A";X.beginPath();X.arc(p.x,p.y,6,0,7);X.fill();X.strokeStyle="#fff";X.lineWidth=2;X.stroke()})}
+  ruta();pintaPoseVivo();
+  if(S.lupa){const s=36,L=Math.round(CV.width*.34),lx=S.lupa.x<CV.width/2?CV.width-L-8:8;
+    X.save();X.beginPath();X.rect(lx,8,L,L);X.clip();X.drawImage(FC,S.lupa.x-s/2,S.lupa.y-s/2,s,s,lx,8,L,L);X.restore();
+    X.strokeStyle="#fff";X.lineWidth=2;X.strokeRect(lx,8,L,L);X.strokeStyle="#FF7A1F";X.beginPath();X.moveTo(lx+L/2,8);X.lineTo(lx+L/2,8+L);X.moveTo(lx,8+L/2);X.lineTo(lx+L,8+L/2);X.stroke()}
+}
+function ruta(){
+  if(!S.pts.length)return;
+  const p0=S.pts[0];X.setLineDash([5,5]);X.strokeStyle="rgba(255,255,255,.45)";X.lineWidth=1.5;X.beginPath();X.moveTo(p0.x,0);X.lineTo(p0.x,CV.height);X.stroke();X.setLineDash([]);
+  trazo(X,S.pts,p=>[p.x,p.y],3,AM,true);
+  punto(X,p0.x,p0.y,5,AM,true);
+  const u=S.pts[S.pts.length-1];punto(X,u.x,u.y,4,"#fff",false);
+}
+$("#scrub").oninput=e=>{if(S.running)return;seek(e.target.value/1000*V.duration)};
+$("#prev").onclick=()=>{if(!S.running)seek(V.currentTime-S.dt)};
+$("#next").onclick=()=>{if(!S.running)seek(V.currentTime+S.dt)};
+
+/* ---------- pasos del seguimiento ---------- */
+function paso(){
+  const m={
+    cal:t("<b>1 · Medida.</b> Ve al principio del levantamiento y toca el <b>borde de arriba</b> del disco y luego el <b>borde de abajo</b>. Si un punto no queda justo, arrástralo: sale una lupa.","<b>1 · Mesure.</b> Va au début du mouvement et touche le <b>bord du haut</b> du disque, puis le <b>bord du bas</b>. Si un point n'est pas pile dessus, fais-le glisser : une loupe apparaît.","<b>1 · Scale.</b> Go to the start of the lift and tap the <b>top edge</b> of the plate, then the <b>bottom edge</b>. If a point isn't quite right, drag it: a magnifier appears."),
+    marca:t("<b>2 · Disco.</b> Toca el <b>centro del disco</b> (donde entra la barra).","<b>2 · Disque.</b> Touche le <b>centre du disque</b> (là où passe la barre).","<b>2 · Plate.</b> Tap the <b>centre of the plate</b> (where the bar goes through)."),
+    listo:t("<b>3 · Listo.</b> Si el punto no está en el centro del disco, arrástralo. Luego pulsa «Seguir el disco». Si la línea se separa del disco, para, toca el centro bien y vuelve a darle.","<b>3 · Prêt.</b> Si le point n'est pas au centre du disque, fais-le glisser. Puis appuie sur « Suivre le disque ». Si la ligne quitte le disque, arrête, touche bien le centre et relance.","<b>3 · Ready.</b> If the point isn't on the centre of the plate, drag it. Then press “Track the plate”. If the line drifts off the plate, stop, tap the centre again and restart."),
+    sigue:t("Siguiendo el disco… Cuando estés de pie del todo (o en el bloqueo del jerk), pulsa «Parar y analizar».","Suivi du disque… Quand tu es complètement debout (ou au verrouillage du jerk), appuie sur « Arrêter et analyser ».","Tracking the plate… Once you're fully standing (or at the jerk lockout), press “Stop and analyze”."),
+    fin:t("Disco seguido. Si la línea se fue del disco en algún tramo, ve a ese momento, toca el centro del disco y vuelve a seguir.","Disque suivi. Si la ligne a quitté le disque à un moment, va à ce moment, touche le centre du disque et relance le suivi.","Plate tracked. If the line left the plate at some point, go to that moment, tap the plate centre and track again.")
+  }[S.mode];
+  const mAuto=S.auto&&S.mode==="listo"&&S.pts.length===1?t("<b>🎯 Disco detectado.</b> Los puntos verdes son el borde de arriba y el de abajo, y el amarillo el centro. Si alguno no está justo, arrástralo a su sitio. Luego pulsa «Seguir el disco».","<b>🎯 Disque détecté.</b> Les points verts sont le bord du haut et du bas, le jaune le centre. Si l'un n'est pas pile dessus, fais-le glisser à sa place. Puis appuie sur « Suivre le disque ».","<b>🎯 Plate detected.</b> The green points are the top and bottom edges, the yellow one the centre. If one is off, drag it into place. Then press “Track the plate”."):null;
+  const m2=mAuto||m;
+  $("#step").innerHTML=((["cal","marca"].includes(S.mode)||(S.mode==="listo"&&S.pts.length===1&&!S.R))?t("Pulsa <b>«Toca para empezar»</b>: el vídeo se abre en grande con los pasos.<br>","Appuie sur <b>« Touche pour commencer »</b> : la vidéo s'ouvre en grand avec les étapes.<br>","Press <b>“Tap to start”</b>: the video opens full screen with the steps.<br>"):"")+(m2||"");
+  const iaTxt="";
+  $("#fsstep").innerHTML=(m2||"")+iaTxt;
+  $("#fsauto").disabled=S.running||S.pts.length>1;
+
+  $("#fsok").textContent={cal:t("Marca los 2 bordes del disco","Marque les 2 bords du disque","Mark the 2 plate edges"),marca:t("Toca el centro del disco","Touche le centre du disque","Tap the plate centre"),listo:t("Seguir el disco ▶︎","Suivre le disque ▶︎","Track the plate ▶︎"),sigue:I.parar[LI],fin:t("Ver el análisis ▶︎","Voir l'analyse ▶︎","See the analysis ▶︎")}[S.mode]||I.hecho[LI];
+  $("#fsok").disabled=S.mode==="cal"||S.mode==="marca";
+  $("#go").disabled=!(S.mode==="listo"||S.mode==="fin")||S.running;
+  $("#stop").disabled=!S.running&&S.pts.length<4;
+  $("#velo").classList.toggle("hidden",!(["cal","marca"].includes(S.mode)||(S.mode==="listo"&&S.pts.length===1&&!S.R)));
+}
+function aviso(m){paso();const o=t("Ojo:","Attention :","Note:");$("#fsstep").innerHTML=`<b>${o}</b> ${m}`;$("#step").innerHTML=`<b>${o}</b> ${m}`}
+function reset(){S.auto=false;S.centroAuto=false;S.tocado=false;S.cal=[];S.pts=[];S.pxcm=null;S.tpl=null;S.R=null;S.listo=false;S.mode="cal";S.running=false;paso();if(V.duration)dibujar()}
+$("#redo").onclick=()=>{cerrarFs();reset();seek(0)};
+function abrirFs(){$("#stage").classList.add("fs");document.body.style.overflow="hidden";paso();dibujar()}
+function cerrarFs(){$("#stage").classList.remove("fs");document.body.style.overflow=""}
+$("#fsundo").onclick=()=>$("#undo").click();
+$("#fsauto").onclick=()=>{if(S.running||S.pts.length>1)return;base();if(autoDisco()){S.tocado=false;dibujar();paso()}else aviso(t("No he encontrado el disco en este fotograma. Prueba en otro momento del vídeo o márcalo tú tocando los bordes.","Je n'ai pas trouvé le disque sur cette image. Essaie à un autre moment de la vidéo ou marque-le toi-même en touchant les bords.","I couldn't find the plate in this frame. Try another moment of the video or mark it yourself by tapping the edges."))};
+$("#fsok").onclick=()=>{if(S.running)$("#stop").click();else if(S.mode==="listo")$("#go").click();else if(S.mode==="fin"){cerrarFs();if(S.R)mostrar("pAnal");else analizar()}};
+$("#fsx").onclick=()=>{if(S.running)$("#stop").click();cerrarFs()};
+$("#velo").onclick=()=>abrirFs();
+$("#fscrub").oninput=e=>{if(S.running)return;seek(e.target.value/1000*V.duration)};
+$("#fsprev").onclick=()=>$("#prev").click();
+$("#fsnext").onclick=()=>$("#next").click();
+$("#undo").onclick=async()=>{
+  if(S.running)return;
+  if(S.mode==="cal"){S.cal.pop()}
+  else if(S.mode==="marca"){S.cal.pop();S.pxcm=null;S.mode="cal"}
+  else if(S.pts.length<=1){S.pts=[];S.tpl=null;S.mode="marca";S.auto=false}
+  else{
+    S.pts.splice(Math.max(1,S.pts.length-5));
+    const u=S.pts[S.pts.length-1];await seek(u.t);frame();S.tpl=plantilla(u.x,u.y);
+    S.mode="listo";S.R=null;
+  }
+  dibujar();paso();
+};
+
+/* posición del dedo dentro de un canvas */
+function pos(e,c){const r=c.getBoundingClientRect(),ok=e.target===c&&typeof e.offsetX==="number";const x=ok?e.offsetX:e.clientX-r.left,y=ok?e.offsetY:e.clientY-r.top;return {x:x*c.width/(c.clientWidth||r.width),y:y*c.height/(c.clientHeight||r.height)}}
+CV.addEventListener("touchstart",e=>{if(S.arr!=null)e.preventDefault()},{passive:false});
+CV.addEventListener("touchmove",e=>{if(S.arr!=null)e.preventDefault()},{passive:false});
+CV.addEventListener("pointermove",e=>{if(S.arr==null)return;const p=pos(e,CV),o=S.arr.l[S.arr.i];
+  if(!S.arr.cal&&S.cal.length===2)S.cal.forEach(q=>{q.x+=p.x-o.x;q.y+=p.y-o.y});
+  o.x=p.x;o.y=p.y;S.lupa=p;S.tocado=true;
+  if(S.arr.cal&&S.centroAuto&&S.pts.length===1&&S.cal.length===2){S.pts[0].x=(S.cal[0].x+S.cal[1].x)/2;S.pts[0].y=(S.cal[0].y+S.cal[1].y)/2}
+  dibujar()});
+const soltar=()=>{if(S.arr==null)return;const a=S.arr;S.arr=null;S.lupa=null;
+  if(a.cal&&S.cal.length===2){const d=Math.hypot(S.cal[0].x-S.cal[1].x,S.cal[0].y-S.cal[1].y);if(d>=8)S.pxcm=d/DISCO}
+  if(S.pts.length===1){base();S.tpl=plantilla(S.pts[0].x,S.pts[0].y)}
+  dibujar()};
+CV.addEventListener("pointerup",soltar);CV.addEventListener("pointercancel",soltar);
+CV.addEventListener("pointerdown",e=>{
+  if(S.running)return;
+  if(!$("#stage").classList.contains("fs")){if(["cal","marca","listo","fin"].includes(S.mode))abrirFs();return}
+  const {x,y}=pos(e,CV);
+  const cand=[...S.cal.map((p,i)=>({l:S.cal,i,cal:true,p})),...(S.pts.length===1?[{l:S.pts,i:0,cal:false,p:S.pts[0]}]:[])];
+  let best=null,dm=CV.width/18;cand.forEach(c=>{const d=Math.hypot(c.p.x-x,c.p.y-y);if(d<dm){dm=d;best=c}});
+  if(best){S.arr=best;S.lupa={x,y};try{CV.setPointerCapture(e.pointerId)}catch(err){}dibujar();return}
+  S.tocado=true;
+  if(S.mode==="cal"){S.cal.push({x,y});if(S.cal.length===2){const d=Math.hypot(S.cal[0].x-S.cal[1].x,S.cal[0].y-S.cal[1].y);if(d<8){S.cal=[];}else{S.pxcm=d/DISCO;S.mode="marca"}}dibujar();paso();return}
+  if(S.mode==="marca"||S.mode==="listo"||S.mode==="fin"){
+    const tt=V.currentTime;
+    // antes de seguir: si tocas donde está el disco de verdad, el círculo se va ahí (y se ajusta a su tamaño)
+    if(S.mode!=="marca"&&S.pts.length<=1&&S.cal.length===2){base();
+      if(autoDisco({x,y})){S.tocado=true;S.centroAuto=true;dibujar();paso();return}
+      const mx=(S.cal[0].x+S.cal[1].x)/2,my=(S.cal[0].y+S.cal[1].y)/2;S.cal.forEach(p=>{p.x+=x-mx;p.y+=y-my})}
+    S.pts=S.pts.filter(p=>p.t<tt-1e-4);
+    base();S.pts.push({x,y,t:tt});S.tpl=plantilla(x,y);S.mode="listo";S.R=null;S.centroAuto=false;dibujar();paso();
+  }
+});
+
+/* ---------- seguimiento por plantilla ---------- */
+function gris(x0,y0,w,h){
+  x0=Math.max(0,Math.round(x0));y0=Math.max(0,Math.round(y0));w=Math.min(CV.width-x0,Math.round(w));h=Math.min(CV.height-y0,Math.round(h));
+  const d=X.getImageData(x0,y0,w,h).data,g=new Float32Array(w*h);
+  for(let i=0;i<w*h;i++)g[i]=d[i*4]*.299+d[i*4+1]*.587+d[i*4+2]*.114;
+  return {g,w,h,x0,y0};
+}
+function lado(){return Math.max(18,Math.min(70,Math.round((S.pxcm||2)*DISCO*0.45)))}
+function plantilla(x,y){const s=lado();return gris(x-s/2,y-s/2,s,s)}
+function buscar(px,py){
+  const T=S.tpl, s=T.w, R=Math.round(s*1.3);
+  const A=gris(px-s/2-R,py-s/2-R,s+2*R,s+2*R);
+  let best=1e18,bx=0,by=0;
+  const sad=(ox,oy,st)=>{let q=0;for(let j=0;j<T.h;j+=st){const ra=(oy+j)*A.w+ox, rt=j*T.w;for(let i=0;i<T.w;i+=st){const v=A.g[ra+i]-T.g[rt+i];q+=v<0?-v:v}if(q>best)break}return q};
+  for(let oy=0;oy+T.h<=A.h;oy+=2)for(let ox=0;ox+T.w<=A.w;ox+=2){const v=sad(ox,oy,2);if(v<best){best=v;bx=ox;by=oy}}
+  const cx=bx,cy=by;best=1e18;
+  for(let oy=Math.max(0,cy-2);oy<=Math.min(A.h-T.h,cy+2);oy++)for(let ox=Math.max(0,cx-2);ox<=Math.min(A.w-T.w,cx+2);ox++){const v=sad(ox,oy,1);if(v<best){best=v;bx=ox;by=oy}}
+  return {x:A.x0+bx+s/2,y:A.y0+by+s/2};
+}
+$("#go").onclick=async()=>{
+  if(!S.pts.length)return;
+  if(S.pts[S.pts.length-1].t>=V.duration-2*S.dt){aviso(t("Estás al final del vídeo. Vuelve al principio con la barra de abajo, toca el centro del disco ahí y dale otra vez.","Tu es à la fin de la vidéo. Reviens au début avec le curseur, touche le centre du disque et relance.","You're at the end of the video. Go back to the start with the slider, tap the centre of the plate there and try again."));return}
+  S.running=true;S.mode="sigue";paso();
+  while(S.running&&S.pts[S.pts.length-1].t<V.duration-S.dt){
+    const a=S.pts[S.pts.length-1], b=S.pts[S.pts.length-2]||a;
+    await seek(a.t+S.dt);
+    if(!S.running)break;
+    frame();
+    const p=buscar(a.x+(a.x-b.x)*.7,a.y+(a.y-b.y)*.7);
+    S.pts.push({x:p.x,y:p.y,t:a.t+S.dt});
+    S.tpl=plantilla(p.x,p.y);
+    ruta();pintaPoseVivo();
+    await new Promise(r=>setTimeout(r,0));
+  }
+  if(S.running){S.running=false;analizar()}
+};
+$("#stop").onclick=()=>{if(S.running){S.running=false;setTimeout(analizar,60)}else if(S.pts.length>3)analizar()};
+
+/* ---------- textos de la barra ---------- */
+const DEL=()=>t("hacia delante","vers l'avant","forward"),ATR=()=>t("hacia atrás","vers l'arrière","backward");
+const TIT={
+ dipCorto:t("Dip muy corto","Dip très court","Very short dip"),dipLargo:t("Dip muy profundo","Dip très profond","Very deep dip"),dipOk:t("Dip controlado","Dip contrôlé","Controlled dip"),
+ dipCurvo:t("El dip no es vertical","Le dip n'est pas vertical","The dip isn't vertical"),dipRecto:t("Dip recto","Dip droit","Straight dip"),
+ empCurvo:t("El empuje no es recto","La poussée n'est pas droite","The drive isn't straight"),empRecto:t("Empuje recto","Poussée droite","Straight drive"),
+ bloqDel:t("Bloqueas con la barra por delante","Verrouillage avec la barre devant","Lockout with the bar in front"),bloqAtr:t("Bloqueas muy por detrás","Verrouillage trop en arrière","Lockout too far back"),bloqOk:t("Bloqueo encima","Verrouillage au-dessus","Lockout on top"),
+ noAcerca:t("La barra no se acerca a ti","La barre ne vient pas vers toi","The bar doesn't come toward you"),acerca:t("La barra viene hacia ti","La barre vient vers toi","The bar comes toward you"),
+ bucleG:t("Bucle grande hacia delante","Grande boucle vers l'avant","Big forward loop"),bucleP:t("Algo de bucle hacia delante","Un peu de boucle vers l'avant","Some forward loop"),cerrada:t("Trayectoria cerrada","Trajectoire serrée","Tight bar path"),
+ recDel:t("Recibes por delante","Réception devant","Catching in front"),recAtr:t("Recibes muy por detrás","Réception trop en arrière","Catching too far back"),recOk:t("Recepción en buen sitio","Réception bien placée","Catch in a good spot"),
+ caida:t("Cuánto te metes debajo","Combien tu passes sous la barre","How far you drop under"),
+ subeDel:t("Te levantas hacia delante","Tu te relèves vers l'avant","You stand up forward"),subeAtr:t("Te levantas hacia atrás","Tu te relèves vers l'arrière","You stand up backward"),subeOk:t("Te levantas recto","Tu te relèves droit","You stand up straight"),
+ power:t("Recibes casi de pie","Réception presque debout","Catching almost standing"),faltaSubida:t("Falta la subida","Il manque la remontée","Stand-up missing"),sinMedida:t("Sin medida","Sans mesure","No scale")
+};
+const NOM={salida:t("Salida","Départ","Start"),primer:t("Primer tirón","Premier tirage","First pull"),contacto:t("Contacto","Contact","Contact"),extension:t("Extensión","Extension","Extension"),entrada:t("Entrada debajo","Passage sous la barre","Getting under"),recepcion:t("Recepción","Réception","Catch"),depie:t("De pie","Debout","Standing"),fondo:t("Fondo del dip","Bas du dip","Bottom of the dip"),empuje:t("Empuje","Poussée","Drive"),arriba:t("Barra arriba","Barre en haut","Bar overhead"),bloqueo:t("Bloqueo","Verrouillage","Lockout")};
+
+/* ---------- análisis de la barra ---------- */
+function suav(a){return a.map((p,i)=>{const q=a.slice(Math.max(0,i-1),i+2);return {...p,x:q.reduce((s,z)=>s+z.x,0)/q.length,y:q.reduce((s,z)=>s+z.y,0)/q.length}})}
+function analizar(){
+  if(S.pts.length<4){S.mode="listo";aviso(t("No ha dado tiempo a seguir el disco. Comprueba que estás al principio del levantamiento y vuelve a darle.","Le disque n'a pas pu être suivi. Vérifie que tu es au début du mouvement et relance.","The plate couldn't be tracked. Check you're at the start of the lift and try again."));return}
+  S.mode="fin";paso();
+  const k=S.pxcm||1, p0=S.pts[0];
+  const P=suav(S.pts).map(p=>({t:p.t,x:(p.x-p0.x)/k*S.face,y:(p0.y-p.y)/k})); // cm: x+ = hacia delante, y+ = arriba
+  const vel=P.map((p,i)=>i===0?0:(p.y-P[i-1].y)/100/Math.max(1e-3,p.t-P[i-1].t));
+  const R={};const f0=v=>v.toFixed(0);
+  if(S.lift==="jerk"){
+    let iDip=0;for(let i=0;i<P.length;i++){if(P[i].y<P[iDip].y)iDip=i;if(P[i].y>5)break}
+    let iTop=0;P.forEach((p,i)=>{if(p.y>P[iTop].y)iTop=i});
+    let iV=iDip;for(let i=iDip;i<=iTop;i++)if(vel[i]>vel[iV])iV=i;
+    const fin=P[P.length-1];
+    const derivaDip=P[iDip].x, maxDel=Math.max(...P.slice(iDip).map(p=>p.x)), maxAtr=Math.min(...P.slice(iDip).map(p=>p.x));
+    R.k=[[t("Profundidad del dip","Profondeur du dip","Dip depth"),-P[iDip].y,"cm"],[t("Altura máxima","Hauteur max.","Max height"),P[iTop].y,"cm"],[t("Velocidad máxima subiendo","Vitesse max. en montée","Max upward speed"),vel[iV],"m/s",2],[t("Barra al final vs salida","Barre à la fin vs départ","Bar at the end vs start"),fin.x,"cm",0,true],[t("Se va hacia delante (máx.)","Part vers l'avant (max.)","Drifts forward (max)"),Math.max(0,maxDel),"cm"],[t("Se va hacia atrás (máx.)","Part vers l'arrière (max.)","Drifts back (max)"),Math.max(0,-maxAtr),"cm"]];
+    R.o=[];
+    const dip=f0(-P[iDip].y);
+    R.o.push(-P[iDip].y<5?["warn","dipCorto",t(`Bajas ${dip} cm. Con un dip tan corto cuesta sacar fuerza de las piernas.`,`Tu descends de ${dip} cm. Avec un dip si court, c'est dur d'utiliser la force des jambes.`,`You drop ${dip} cm. With such a short dip it's hard to drive with your legs.`)]:-P[iDip].y>18?["warn","dipLargo",t(`Bajas ${dip} cm. Un dip tan largo suele hacer que pierdas tensión.`,`Tu descends de ${dip} cm. Un dip aussi long fait souvent perdre la tension.`,`You drop ${dip} cm. A dip that long often makes you lose tension.`)]:["ok","dipOk",t(`Bajas ${dip} cm antes de empujar.`,`Tu descends de ${dip} cm avant de pousser.`,`You drop ${dip} cm before driving.`)]);
+    const dd=f0(Math.abs(derivaDip));
+    R.o.push(Math.abs(derivaDip)>4?["bad","dipCurvo",(d=>t(`En el dip la barra se mueve ${dd} cm ${d}.`,`Pendant le dip, la barre bouge de ${dd} cm ${d}.`,`During the dip the bar moves ${dd} cm ${d}.`))(derivaDip>0?t("hacia delante (el pecho se cae)","vers l'avant (la poitrine tombe)","forward (your chest drops)"):ATR())]:["ok","dipRecto",t(`La barra baja y sube casi en vertical (${dd} cm de desvío).`,`La barre descend et remonte presque à la verticale (${dd} cm d'écart).`,`The bar goes down and up almost vertically (${dd} cm of drift).`)]);
+    const derivaEmp=P[iTop].x-P[iDip].x,de=f0(Math.abs(derivaEmp));
+    R.k.push([t("Desvío en el empuje","Écart pendant la poussée","Drift during the drive"),derivaEmp,"cm",0,true]);
+    R.o.push(Math.abs(derivaEmp)>5?["bad","empCurvo",(d=>t(`Del fondo del dip a lo más alto la barra se va ${de} cm ${d}.`,`Du bas du dip au point le plus haut, la barre part de ${de} cm ${d}.`,`From the bottom of the dip to the top the bar drifts ${de} cm ${d}.`))(derivaEmp>0?DEL():ATR())]:["ok","empRecto",t(`Del dip a lo más alto la barra sube casi en vertical (${de} cm de desvío).`,`Du dip au point le plus haut, la barre monte presque à la verticale (${de} cm d'écart).`,`From the dip to the top the bar rises almost vertically (${de} cm of drift).`)]);
+    const fx=f0(Math.abs(fin.x));
+    R.o.push(fin.x>6?["bad","bloqDel",t(`Acabas ${fx} cm por delante de donde empezaste.`,`Tu finis ${fx} cm devant ton point de départ.`,`You finish ${fx} cm in front of where you started.`)]:fin.x<-8?["warn","bloqAtr",t(`Acabas ${fx} cm por detrás de la salida.`,`Tu finis ${fx} cm derrière le départ.`,`You finish ${fx} cm behind the start.`)]:["ok","bloqOk",t(`Acabas a ${fx} cm de la línea de salida.`,`Tu finis à ${fx} cm de la ligne de départ.`,`You finish ${fx} cm from the start line.`)]);
+    R.claves=[
+      [0,"salida",t("Barra en los hombros","Barre sur les épaules","Bar on the shoulders"),t("¿El peso está en todo el pie y el tronco recto?","Le poids est-il sur tout le pied, buste droit ?","Is your weight over your whole foot, torso upright?")],
+      [iDip,"fondo",t(`${n(-P[iDip].y)} cm abajo`,`${n(-P[iDip].y)} cm plus bas`,`${n(-P[iDip].y)} cm down`),t("¿Bajas con el tronco vertical y las rodillas hacia delante?","Tu descends buste vertical et genoux vers l'avant ?","Do you dip with an upright torso and knees forward?")],
+      [iV,"empuje",`${n(vel[iV],2)} m/s`,t("¿La barra sube pegada a la cara?","La barre monte-t-elle près du visage ?","Does the bar travel close to your face?")],
+      [iTop,"arriba",t(`${n(P[iTop].y)} cm sobre la salida`,`${n(P[iTop].y)} cm au-dessus du départ`,`${n(P[iTop].y)} cm above the start`),t("¿Los brazos quedan bloqueados encima de la oreja?","Les bras sont-ils verrouillés au-dessus des oreilles ?","Are your arms locked out over your ears?")],
+      [P.length-1,"bloqueo",t(`${n(fin.x)} cm respecto a la salida`,`${n(fin.x)} cm par rapport au départ`,`${n(fin.x)} cm from the start`),t("¿Barra, hombro y cadera en la misma vertical?","Barre, épaule et hanche sur la même verticale ?","Bar, shoulder and hip in one vertical line?")]];
+    if(iTop-iV>2)R.claves.splice(3,0,[Math.round((iV+iTop)/2),"entrada",t("Entre el empuje y la barra arriba","Entre la poussée et la barre en haut","Between the drive and the bar overhead"),t("¿Te metes debajo moviendo los pies rápido, con el tronco vertical?","Tu passes dessous en bougeant vite les pieds, buste vertical ?","Do you get under with fast feet and an upright torso?")]);
+  }else{
+    let iMax=0;P.forEach((p,i)=>{if(p.y>P[iMax].y)iMax=i});
+    let iV=0;for(let i=0;i<=iMax;i++)if(vel[i]>vel[iV])iV=i;
+    let iTop=iV;for(let i=iV;i<P.length;i++){if(P[i].y>P[iTop].y)iTop=i;else if(P[i].y<P[iTop].y-1.5)break}
+    let iRec=iTop;for(let i=iTop;i<P.length;i++)if(P[i].y<P[iRec].y)iRec=i;
+    const antes=P.slice(0,iV+1), dsp=P.slice(iV,iRec+1);
+    const atr=Math.min(0,...antes.map(p=>p.x)), del=Math.max(0,...dsp.map(p=>p.x-P[iV].x)), rec=P[iRec], caida=P[iTop].y-rec.y;
+    R.k=[[t("Altura máxima de la barra","Hauteur max. de la barre","Max bar height"),P[iTop].y,"cm"],[t("Caída hasta la recepción","Descente jusqu'à la réception","Drop to the catch"),caida,"cm"],[t("Velocidad máxima","Vitesse max.","Max speed"),vel[iV],"m/s",2],[t("Se acerca a ti antes del contacto","Se rapproche de toi avant le contact","Comes toward you before contact"),-atr,"cm"],[t("Bucle hacia delante tras el contacto","Boucle vers l'avant après le contact","Forward loop after contact"),del,"cm"],[t("Recepción vs salida","Réception vs départ","Catch vs start"),rec.x,"cm",0,true]];
+    R.o=[];
+    const ax=f0(-atr),dx=f0(del),rx=f0(Math.abs(rec.x)),cx=f0(caida);
+    R.o.push(-atr<1?["warn","noAcerca",t("Desde el suelo hasta el contacto la barra no viene hacia tu cuerpo.","Du sol jusqu'au contact, la barre ne revient pas vers ton corps.","From the floor to contact the bar doesn't move toward your body.")]:["ok","acerca",t(`Antes del contacto se acerca ${ax} cm a tu cuerpo.`,`Avant le contact, elle se rapproche de ${ax} cm de ton corps.`,`Before contact it comes ${ax} cm toward your body.`)]);
+    R.o.push(del>12?["bad","bucleG",t(`Después del contacto la barra sale ${dx} cm hacia delante.`,`Après le contact, la barre part de ${dx} cm vers l'avant.`,`After contact the bar swings ${dx} cm forward.`)]:del>7?["warn","bucleP",t(`La barra sale ${dx} cm hacia delante tras el contacto.`,`La barre part de ${dx} cm vers l'avant après le contact.`,`The bar swings ${dx} cm forward after contact.`)]:["ok","cerrada",t(`Tras el contacto la barra solo sale ${dx} cm hacia delante.`,`Après le contact, la barre ne part que de ${dx} cm vers l'avant.`,`After contact the bar only moves ${dx} cm forward.`)]);
+    R.o.push(rec.x>5?["bad","recDel",t(`Recibes ${rx} cm por delante de la salida.`,`Tu réceptionnes ${rx} cm devant le départ.`,`You catch ${rx} cm in front of the start.`)]:rec.x<-15?["warn","recAtr",t(`Recibes ${rx} cm por detrás de la salida.`,`Tu réceptionnes ${rx} cm derrière le départ.`,`You catch ${rx} cm behind the start.`)]:["ok","recOk",rec.x<0?t(`Recibes ${rx} cm por detrás de la salida.`,`Tu réceptionnes ${rx} cm derrière le départ.`,`You catch ${rx} cm behind the start.`):t(`Recibes ${rx} cm por delante de la salida.`,`Tu réceptionnes ${rx} cm devant le départ.`,`You catch ${rx} cm in front of the start.`)]);
+    R.o.push(["ok","caida",t(`Desde la altura máxima bajas ${cx} cm con la barra hasta recibir.`,`Depuis la hauteur max., tu descends de ${cx} cm avec la barre jusqu'à la réception.`,`From max height you drop ${cx} cm with the bar to the catch.`)]);
+    const fin=P[P.length-1], sube=fin.x-rec.x, subida=fin.y-rec.y, sx=f0(Math.abs(sube));
+    if(subida>15){
+      R.k.push([t("Desvío al levantarte","Écart en te relevant","Drift as you stand up"),sube,"cm",0,true]);
+      R.o.push(Math.abs(sube)>8?["warn",sube>0?"subeDel":"subeAtr",(d=>t(`Al ponerte de pie la barra se va ${sx} cm ${d}.`,`En te relevant, la barre part de ${sx} cm ${d}.`,`As you stand up the bar drifts ${sx} cm ${d}.`))(sube>0?DEL():ATR())]:["ok","subeOk",t(`Al ponerte de pie la barra solo se mueve ${sx} cm en horizontal.`,`En te relevant, la barre ne bouge que de ${sx} cm à l'horizontale.`,`As you stand up the bar only moves ${sx} cm horizontally.`)]);
+    }else if(rec.y>P[iTop].y*0.7)R.o.push(["ok","power",t("Es una recepción en power, así que no hay subida que analizar.","C'est une réception en power, donc pas de remontée à analyser.","It's a power catch, so there's no stand-up to analyze.")]);
+    else R.o.push(["warn","faltaSubida",t("El seguimiento acaba antes de que te pongas de pie.","Le suivi s'arrête avant que tu sois debout.","Tracking stops before you're standing.")]);
+    const i0=Math.max(1,Math.round(iV*0.5));
+    let iF=i0;for(let i=i0;i<=iTop;i++)if(P[i].x>P[iF].x)iF=i;
+    let iCf=iF;while(iCf>i0&&P[iCf-1].x<P[iCf].x-0.05)iCf--;
+    const haySalida=iF>i0&&P[iF].x-P[iCf].x>=1;
+    const vs=vel.map((v,i)=>{const q=vel.slice(Math.max(1,i-2),i+3);return q.reduce((s,z)=>s+z,0)/q.length});
+    let iC=iV;{let best=-Infinity;for(let i=Math.max(2,Math.round(iV*0.5));i<iV&&i<vs.length-1;i++){const a=vs[i+1]-vs[i-1];if(a>best){best=a;iC=i}}}
+    if(iC>=iV)iC=Math.max(1,iV-Math.round(0.06/Math.max(S.dt,1e-3)));
+    if(haySalida)iC=Math.min(iCf,iV);
+    const sn=S.lift==="snatch",rn=n(Math.abs(rec.x)),un=n(Math.abs(sube));
+    R.claves=[
+      [0,"salida",t("Posición de inicio","Position de départ","Starting position"),sn?t("¿Hombros por delante de la barra? En el snatch la cadera va más baja que en el clean.","Épaules devant la barre ? Au snatch, la hanche est plus basse qu'au clean.","Shoulders in front of the bar? In the snatch your hips sit lower than in the clean."):t("¿Hombros por delante de la barra? En el clean la cadera va más alta que en el snatch.","Épaules devant la barre ? Au clean, la hanche est plus haute qu'au snatch.","Shoulders in front of the bar? In the clean your hips sit higher than in the snatch.")],
+      [iC,"contacto",t(`${n(-atr)} cm hacia ti antes`,`${n(-atr)} cm vers toi avant`,`${n(-atr)} cm toward you before`),sn?t("En el snatch el contacto es alto, en la cadera. ¿La barra llega pegada o la golpeas y sale hacia delante?","Au snatch, le contact est haut, à la hanche. La barre arrive collée ou tu la frappes et elle part devant ?","In the snatch the contact is high, at the hips. Does the bar arrive close, or do you bang it and it swings forward?"):t("En el clean el contacto es más bajo, en la parte alta del muslo. ¿La barra llega pegada al cuerpo?","Au clean, le contact est plus bas, en haut des cuisses. La barre arrive-t-elle collée au corps ?","In the clean the contact is lower, on the upper thighs. Does the bar arrive close to your body?")],
+      [iV,"extension",t(`${n(vel[iV],2)} m/s, la máxima`,`${n(vel[iV],2)} m/s, le max.`,`${n(vel[iV],2)} m/s, the max`),t("¿Extiendes del todo cadera y rodillas? ¿Estás recto, inclinado o echado atrás?","Hanches et genoux complètement tendus ? Tu es droit, penché ou en arrière ?","Do you fully extend hips and knees? Are you upright, leaning forward or leaning back?")],
+      [iRec,"recepcion",rec.x<0?t(`${rn} cm detrás de la salida`,`${rn} cm derrière le départ`,`${rn} cm behind the start`):t(`${rn} cm delante de la salida`,`${rn} cm devant le départ`,`${rn} cm in front of the start`),sn?t("¿La barra queda encima del medio pie, con los brazos bloqueados? Mira también tus tobillos: la rodilla tiene que poder avanzar.","La barre est-elle au-dessus du milieu du pied, bras verrouillés ? Regarde aussi tes chevilles : le genou doit pouvoir avancer.","Is the bar over mid-foot with your arms locked? Check your ankles too: your knee needs to travel forward."):t("¿La barra queda encima del medio pie, con el pecho arriba? Mira también tus tobillos: la rodilla tiene que poder avanzar.","La barre est-elle au-dessus du milieu du pied, poitrine haute ? Regarde aussi tes chevilles : le genou doit pouvoir avancer.","Is the bar over mid-foot with your chest up? Check your ankles too: your knee needs to travel forward.")]];
+    if(subida>15)R.claves.push([P.length-1,"depie",(d=>t(`${un} cm ${d} al subir`,`${un} cm ${d} en te relevant`,`${un} cm ${d} as you stand`))(sube>0?DEL():ATR()),t("¿Subes con el tronco recto?","Tu remontes buste droit ?","Do you stand up with an upright torso?")]);
+    if(iRec-iTop>2&&P[iTop].y-P[iRec].y>=10)R.claves.splice(3,0,[Math.round((iTop+iRec)/2),"entrada",t("Bajando a la recepción","En descendant vers la réception","Dropping into the catch"),t("¿Tiras de ti hacia abajo pegado a la barra?","Tu te tires sous la barre en restant collé à elle ?","Do you pull yourself down close to the bar?")]);
+    if(iC>2)R.claves.splice(1,0,[Math.round(iC/2),"primer",t("Entre el suelo y el contacto","Entre le sol et le contact","Between the floor and contact"),t("¿Los hombros siguen por delante y la espalda mantiene el ángulo?","Les épaules restent devant et le dos garde son angle ?","Do your shoulders stay in front and your back keep its angle?")]);
+  }
+  if(!S.pxcm)R.o.unshift(["warn","sinMedida",t("No marcaste el disco al principio, así que los centímetros no son reales.","Tu n'as pas mesuré le disque au début, donc les centimètres ne sont pas réels.","You didn't measure the plate at the start, so the centimetres aren't real.")]);
+  pintar(R,P);
+}
+
+/* ---------- consejos de la barra: [qué hacer, ejercicio] ---------- */
+const P2=()=>t("con pausa de 2 s","avec pause de 2 s","with a 2 s pause");
+const LL=()=>S.lift==="snatch"?"snatch":"clean",LC=()=>S.lift==="snatch"?"Snatch":"Clean";
+const PULL=q=>t(`Tirón de ${LL()} ${q[0]}, 3×3`,`Tirage ${LL()} ${q[1]}, 3×3`,`${LC()} pull ${q[2]}, 3×3`);
+const SQ=()=>`${S.lift==="snatch"?"Overhead":"Front"} squat ${P2()}, 3×3`;
+const HASTA=()=>S.lift==="snatch"?t("a la cadera","à la hanche","to your hips"):t("a la parte alta del muslo","en haut des cuisses","to your upper thighs");
+const HANG=()=>t(`Hang ${LL()} desde encima de la rodilla, 3×3`,`Hang ${LL()} depuis au-dessus du genou, 3×3`,`Hang ${LL()} from above the knee, 3×3`);
+const PAUSA3DIP=()=>t("Pausa de 3 s en el fondo del dip, 3×3 ligero","Pause de 3 s en bas du dip, 3×3 léger","3 s pause at the bottom of the dip, 3×3 light");
+const PUSHW=()=>t("Push press de cara a una pared, a un palmo, 3×5 ligero","Push press face à un mur, à une main, 3×5 léger","Push press facing a wall, a hand's width away, 3×5 light");
+const DIP2=()=>t("Dip con pausa de 2 s, 3×3","Dip avec pause de 2 s, 3×3","Dip with a 2 s pause, 3×3");
+const TOBI=()=>t("Rodilla a la pared, 3×10 por pierna + 30 s abajo en squat","Genou au mur, 3×10 par jambe + 30 s en bas du squat","Knee-to-wall, 3×10 per leg + 30 s squat hold");
+const CONSEJO={
+ dipCorto:()=>[t("Baja algo más en el dip, unos 8–12 cm, y sube sin pararte abajo.","Descends un peu plus dans le dip, 8 à 12 cm, et remonte sans t'arrêter en bas.","Dip a bit deeper, about 8–12 cm, and drive up without pausing at the bottom."),t("Dip and drive con poco peso, 3×5","Dip and drive avec peu de charge, 3×5","Light dip and drive, 3×5")],
+ dipLargo:()=>[t("Acorta el dip: baja solo lo justo y cambia de dirección rápido.","Raccourcis le dip : descends juste ce qu'il faut et change vite de direction.","Shorten the dip: go down just enough and change direction fast."),t("Dip con pausa de 2 s a la profundidad buena, 3×3","Dip avec pause de 2 s à la bonne profondeur, 3×3","Dip with a 2 s pause at the right depth, 3×3")],
+ dipCurvo:()=>[t("Baja con el peso en todo el pie y el tronco vertical, sin dejar caer el pecho.","Descends avec le poids sur tout le pied et le buste vertical, sans laisser tomber la poitrine.","Dip with your weight over your whole foot and an upright torso, without letting your chest drop."),PAUSA3DIP()],
+ empCurvo:()=>[t("Empuja la barra hacia arriba, no hacia delante, y mete la cabeza por debajo.","Pousse la barre vers le haut, pas vers l'avant, et passe la tête dessous.","Drive the bar up, not forward, and get your head through."),PUSHW()],
+ bloqDel:()=>[t("Al bloquear, mete la cabeza y el pecho por debajo de la barra.","Au verrouillage, passe la tête et la poitrine sous la barre.","At lockout, push your head and chest through under the bar."),"Jerk balance, 3×3"],
+ bloqAtr:()=>[t("No eches la barra hacia atrás: termina con ella encima de las orejas.","Ne renvoie pas la barre en arrière : finis-la au-dessus des oreilles.","Don't throw the bar back: finish with it over your ears."),t("Split jerk tras nuca con pausa de 2 s en el bloqueo, 3×3","Split jerk nuque avec pause de 2 s au verrouillage, 3×3","Behind-the-neck split jerk with a 2 s pause at lockout, 3×3")],
+ noAcerca:()=>[t("Mantén los hombros por delante de la barra y llévala pegada a las piernas hasta el contacto.","Garde les épaules devant la barre et garde-la collée aux jambes jusqu'au contact.","Keep your shoulders in front of the bar and keep it close to your legs until contact."),PULL(["con pausa justo por debajo de la rodilla","avec pause juste sous le genou","with a pause just below the knee"])],
+ bucleG:()=>[t(`Termina el tirón hacia arriba, no hacia delante: deja que la barra llegue ${HASTA()} en vez de golpearla.`,`Finis le tirage vers le haut, pas vers l'avant : laisse la barre venir ${HASTA()} au lieu de la frapper.`,`Finish the pull upward, not forward: let the bar come ${HASTA()} instead of banging it.`),HANG()],
+ recDel:()=>[t("Tira hacia arriba hasta el final y métete debajo, sin saltar hacia delante.","Tire vers le haut jusqu'au bout et passe dessous, sans sauter vers l'avant.","Pull all the way up and get under it, without jumping forward."),S.lift==="snatch"?"Muscle snatch + overhead squat, 3×3":"Tall clean, 3×3"],
+ recAtr:()=>[t("No te eches atrás al extender: termina con los hombros encima de la barra.","Ne pars pas en arrière à l'extension : finis les épaules au-dessus de la barre.","Don't lean back as you extend: finish with your shoulders over the bar."),PULL(["con pausa en la posición de contacto","avec pause en position de contact","with a pause at the contact position"])],
+ subeDel:()=>[S.lift==="snatch"?t("Al subir, mantén la barra encima del medio pie.","En remontant, garde la barre au-dessus du milieu du pied.","As you stand, keep the bar over mid-foot."):t("Al subir, codos altos y pecho arriba.","En remontant, coudes hauts et poitrine haute.","As you stand, elbows high and chest up."),SQ()],
+ subeAtr:()=>[t("Sube con el peso en el medio pie, sin echar la barra atrás.","Remonte avec le poids au milieu du pied, sans renvoyer la barre en arrière.","Stand up with your weight on mid-foot, without pushing the bar back."),SQ()]
+};
+CONSEJO.bucleP=CONSEJO.bucleG;
+function top3(a){const vis=new Set();return a.filter(x=>!vis.has(x.h)&&vis.add(x.h)).sort((x,y)=>x.s-y.s).slice(0,3)}
+function planBarra(R){const ord={bad:0,warn:1};return top3(R.o.filter(o=>o[0]!=="ok"&&CONSEJO[o[1]]).map(([c,id])=>{const [h,e]=CONSEJO[id]();return {t:TIT[id],h,e,s:ord[c]}}))}
+const item=(p,i)=>`<div class="pl"><span>${i+1}</span><div><b>${p.h}</b><p>${t("Porque:","Parce que :","Because:")} ${p.t.charAt(0).toLowerCase()+p.t.slice(1)}.</p><small>${t("Ejercicio:","Exercice :","Drill:")} ${p.e}</small></div></div>`;
+const barraOk=()=>`<div class="pl"><span>✓</span><div><b>${t("La barra va por buen camino","La barre est sur la bonne voie","The bar path looks good")}</b><p>${t("No hay nada claro que corregir en el recorrido.","Rien de clair à corriger sur la trajectoire.","Nothing clear to fix in the bar path.")}</p></div></div>`;
+
+/* ---------- preguntas de cada escena: [texto, tipo, qué hacer, ejercicio, grupo] ---------- */
+function opciones(id){
+  const sn=S.lift==="snatch",ok=(x,g)=>[x,"ok","","",g];
+  const PSAL=t("Posición de salida con pausa de 3 s, 3×3","Position de départ avec pause de 3 s, 3×3","Start position with a 3 s pause, 3×3");
+  const BDEL=t("Barra por delante","Barre devant","Bar in front"),ATRAS=t("Me echo atrás","Je pars en arrière","I lean back"),SEVA=t("Se va hacia delante","Elle part devant","It drifts forward");
+  if(S.lift==="jerk")return ({
+    salida:[ok(t("Sí, todo el pie","Oui, tout le pied","Yes, whole foot")),[t("Peso en puntas","Poids sur la pointe","Weight on toes"),"warn",t("Reparte el peso en todo el pie, con el tronco recto, antes del dip.","Répartis le poids sur tout le pied, buste droit, avant le dip.","Spread your weight over your whole foot, torso upright, before the dip."),DIP2()]],
+    fondo:[ok(t("Tronco vertical","Buste vertical","Upright torso")),[t("El pecho se va delante","La poitrine part devant","Chest drops forward"),"bad",t("Baja con el tronco vertical: rodillas hacia delante, sin dejar caer el pecho.","Descends buste vertical : genoux vers l'avant, sans laisser tomber la poitrine.","Dip with an upright torso: knees forward, without letting your chest drop."),PAUSA3DIP()]],
+    empuje:[ok(t("Pegada a la cara","Près du visage","Close to my face")),[SEVA,"bad",t("Empuja la barra hacia arriba, pegada a la cara, y mete la cabeza por debajo.","Pousse la barre vers le haut, près du visage, et passe la tête dessous.","Drive the bar up close to your face and get your head through."),PUSHW()]],
+    entrada:[ok(t("Rápido y vertical","Rapide et vertical","Fast and upright")),[t("Tardo en meterme","Je passe dessous trop tard","I'm slow getting under"),"warn",t("Mete los pies rápido nada más terminar el empuje.","Bouge les pieds vite dès la fin de la poussée.","Move your feet fast as soon as the drive ends."),t("Split jerk tras nuca, 3×3","Split jerk nuque, 3×3","Behind-the-neck split jerk, 3×3")]],
+    arriba:[ok(t("Bloqueada encima","Verrouillée au-dessus","Locked out on top")),[BDEL,"bad",t("Mete la cabeza por debajo: la barra tiene que acabar encima de las orejas.","Passe la tête dessous : la barre doit finir au-dessus des oreilles.","Get your head through: the bar must end up over your ears."),"Jerk balance, 3×3"]],
+    bloqueo:[ok(t("Todo en línea","Tout aligné","All in line")),[t("No está en línea","Pas aligné","Not in line"),"warn",t("Termina con la barra, el hombro y la cadera en la misma vertical.","Finis avec la barre, l'épaule et la hanche sur la même verticale.","Finish with bar, shoulder and hip in one vertical line."),"Jerk balance, 3×3"]]
+  })[id]||[];
+  return ({
+    salida:[ok(t("Hombros por delante","Épaules devant","Shoulders in front"),"h"),[t("Hombros encima","Épaules au-dessus","Shoulders over the bar"),"warn",t("Al empezar, pon los hombros un poco por delante de la barra, no justo encima.","Au départ, place les épaules un peu devant la barre, pas juste au-dessus.","At the start, put your shoulders slightly in front of the bar, not right over it."),PSAL,"h"],[t("Hombros detrás","Épaules derrière","Shoulders behind"),"warn",t("Al empezar, adelanta los hombros: un poco por delante de la barra.","Au départ, avance les épaules : un peu devant la barre.","At the start, bring your shoulders forward: slightly in front of the bar."),PSAL,"h"],ok(t("Cadera bien","Hanche OK","Hips fine"),"c"),[t("Cadera muy alta","Hanche trop haute","Hips too high"),"warn",t("Baja la cadera y acércate a la barra: espinillas pegadas y pecho arriba.","Baisse la hanche et rapproche-toi de la barre : tibias collés et poitrine haute.","Lower your hips and get closer to the bar: shins against it and chest up."),PULL(["con pausa a un palmo del suelo","avec pause à une main du sol","with a pause a hand's width off the floor"]),"c"]],
+    primer:[ok(t("Mismo ángulo","Même angle","Same angle")),[t("La cadera sube antes","La hanche monte d'abord","Hips rise first"),"bad",t("Empuja el suelo con las piernas y sube cadera y hombros a la vez.","Pousse le sol avec les jambes et monte hanche et épaules en même temps.","Push the floor away with your legs and raise hips and shoulders together."),PULL(["hasta la rodilla con pausa","jusqu'au genou avec pause","to the knee with a pause"])]],
+    contacto:[ok(t("Pegada","Collée","Close")),[t("La golpeo y sale","Je la frappe et elle part","I bang it and it swings out"),"bad",t(`Deja que la barra llegue ${HASTA()} y termina hacia arriba, sin golpearla hacia delante.`,`Laisse la barre venir ${HASTA()} et finis vers le haut, sans la frapper vers l'avant.`,`Let the bar come ${HASTA()} and finish upward, without banging it forward.`),HANG()],[t("No llega a tocar","Elle ne touche pas","It doesn't touch"),"warn",sn?t("Lleva la barra pegada a los muslos hasta la cadera.","Garde la barre collée aux cuisses jusqu'à la hanche.","Keep the bar against your thighs up to your hips."):t("Lleva la barra pegada a los muslos hasta la parte alta del muslo.","Garde la barre collée aux cuisses jusqu'en haut.","Keep the bar against your thighs up to the top of them."),t(`Hang ${LL()} con pausa en el muslo, 3×3`,`Hang ${LL()} avec pause aux cuisses, 3×3`,`Hang ${LL()} with a pause at the thigh, 3×3`)]],
+    extension:[ok(t("Extiendo del todo","Extension complète","Full extension"),"e"),[t("Me quedo corto","Je reste court","I cut it short"),"warn",t("Termina la extensión de cadera y rodillas antes de meterte debajo.","Finis l'extension des hanches et des genoux avant de passer dessous.","Finish extending hips and knees before getting under."),`${LC()} high pull, 3×3`,"e"],ok(t("Recto","Droit","Upright"),"i"),[t("Inclinado delante","Penché devant","Leaning forward"),"warn",t("Al terminar el tirón, ponte recto.","À la fin du tirage, redresse-toi.","At the end of the pull, get upright."),`${LC()} high pull, 3×3`,"i"],[ATRAS,"warn",t("Extiende hacia arriba, no hacia atrás: hombros encima de la barra.","Pousse vers le haut, pas vers l'arrière : épaules au-dessus de la barre.","Extend upward, not backward: shoulders over the bar."),PULL(["con pausa en el contacto","avec pause au contact","with a pause at contact"]),"i"]],
+    entrada:[ok(t("Pegado a la barra","Collé à la barre","Close to the bar")),[t("Se separa","Elle s'éloigne","It drifts away"),"warn",t("Tira de ti hacia abajo pegado a la barra, con los codos rápidos.","Tire-toi sous la barre en restant collé, coudes rapides.","Pull yourself down close to the bar, with fast elbows."),sn?"Snatch balance, 3×3":"Tall clean, 3×3"]],
+    recepcion:sn?[ok(t("Sí, bloqueada","Oui, verrouillée","Yes, locked out"),"p"),[BDEL,"bad",t("Recibe con la barra encima del medio pie, no por delante.","Réceptionne avec la barre au-dessus du milieu du pied, pas devant.","Catch with the bar over mid-foot, not in front."),`Overhead squat ${P2()}, 3×3`,"p"],[t("Brazos flojos","Bras mous","Soft arms"),"warn",t("Bloquea los brazos al recibir, empujando la barra hacia arriba.","Verrouille les bras à la réception en poussant la barre vers le haut.","Lock your arms as you catch, pushing the bar up."),"Snatch balance, 3×3","b"],[t("Talones se levantan","Talons qui décollent","Heels come up"),"warn",t("Te faltan tobillos: trabaja la movilidad para recibir con los talones en el suelo.","Il te manque de la cheville : travaille la mobilité pour réceptionner talons au sol.","You're short on ankle mobility: work on it to catch with your heels down."),TOBI(),"k"]]:[ok(t("Barra sobre el pie","Barre au-dessus du pied","Bar over the foot"),"p"),[BDEL,"warn",t("Recibe con la barra encima del medio pie, pegada a la garganta.","Réceptionne avec la barre au-dessus du milieu du pied, contre la gorge.","Catch with the bar over mid-foot, against your throat."),"Tall clean, 3×3","p"],ok(t("Pecho arriba","Poitrine haute","Chest up"),"t"),[t("Pecho caído","Poitrine tombée","Chest dropped"),"warn",t("Recibe con el pecho arriba y el tronco más vertical.","Réceptionne poitrine haute et buste plus vertical.","Catch with your chest up and a more upright torso."),`Front squat ${P2()}, 3×3`,"t"],[t("Talones se levantan","Talons qui décollent","Heels come up"),"warn",t("Te faltan tobillos: trabaja la movilidad para recibir con los talones en el suelo.","Il te manque de la cheville : travaille la mobilité pour réceptionner talons au sol.","You're short on ankle mobility: work on it to catch with your heels down."),TOBI(),"k"]],
+    depie:[ok(t("Recto","Droit","Upright")),[SEVA,"warn",t("Al subir, pecho arriba y la barra encima del medio pie.","En remontant, poitrine haute et barre au-dessus du milieu du pied.","As you stand, chest up and bar over mid-foot."),SQ()],[ATRAS,"warn",t("Sube con el peso en el medio pie, sin echar la barra atrás.","Remonte avec le poids au milieu du pied, sans renvoyer la barre en arrière.","Stand up with your weight on mid-foot, without pushing the bar back."),SQ()]]
+  })[id]||[];
+}
+
+/* ---------- medidas del cuerpo marcado ---------- */
+const PARTES=t(["el hombro","la cadera","la rodilla","el tobillo"],["l'épaule","la hanche","le genou","la cheville"],["the shoulder","the hip","the knee","the ankle"]);
+function ang(a,b,c){const u=[a.x-b.x,a.y-b.y],v=[c.x-b.x,c.y-b.y];return Math.round(Math.acos(Math.max(-1,Math.min(1,(u[0]*v[0]+u[1]*v[1])/(Math.hypot(...u)*Math.hypot(...v)||1))))*180/Math.PI)}
+function medir(z){const [h,c,r,tb]=z.cuerpo,f=S.face;return {rod:ang(c,r,tb),cad:ang(h,c,r),tr:Math.round(Math.atan2((h.x-c.x)*f,c.y-h.y)*180/Math.PI),hb:(h.x-z.bx)*f/z.pc,cb:(c.x-z.bx)*f/z.pc,esp:Math.round(Math.atan2((r.x-tb.x)*f,tb.y-r.y)*180/Math.PI),bc:(z.by-c.y)/z.pc}}
+function resumenCuerpo(z){const r=medir(z),T=Math.abs(r.tr),d=r.tr>2?DEL():r.tr<-2?ATR():t("(vertical)","(vertical)","(upright)"),h=n(Math.abs(r.hb)),pd=r.hb>=0;
+  return t(`Rodilla ${r.rod}° · Cadera ${r.cad}° · Tronco ${T}° ${d} · Tobillo ${r.esp}° · Hombro ${h} cm ${pd?"por delante":"por detrás"} de la barra`,`Genou ${r.rod}° · Hanche ${r.cad}° · Buste ${T}° ${d} · Cheville ${r.esp}° · Épaule ${h} cm ${pd?"devant":"derrière"} la barre`,`Knee ${r.rod}° · Hip ${r.cad}° · Torso ${T}° ${d} · Ankle ${r.esp}° · Shoulder ${h} cm ${pd?"in front of":"behind"} the bar`)}
+function evaluar(z){
+  if((z.cuerpo||[]).length<4)return [];
+  const r=medir(z),sn=S.lift==="snatch",out=[],tb=z.cuerpo[3],f=S.face;
+  const barPie=(z.bx-tb.x)*f/z.pc, T=Math.abs(r.tr);
+  const add=(s,txt,h,e)=>out.push({s,txt,h,e});
+  const OKT=t("Tronco recto","Buste droit","Upright torso");
+  if(S.lift==="jerk"){
+    if(z.id==="salida"){T>10?add("warn",t(`Tronco a ${T}° ${r.tr>0?DEL():ATR()}`,`Buste à ${T}° ${r.tr>0?DEL():ATR()}`,`Torso at ${T}° ${r.tr>0?DEL():ATR()}`),t("Empieza con el tronco recto y el peso en todo el pie.","Commence buste droit, poids sur tout le pied.","Start with an upright torso and weight over your whole foot."),DIP2()):add("ok",OKT)}
+    else if(z.id==="fondo"){r.tr>12?add("bad",t(`El pecho se va ${T}° hacia delante`,`La poitrine part de ${T}° vers l'avant`,`Chest drops ${T}° forward`),t("Baja con el tronco vertical: rodillas hacia delante, sin dejar caer el pecho.","Descends buste vertical : genoux vers l'avant, sans laisser tomber la poitrine.","Dip with an upright torso: knees forward, without letting your chest drop."),PAUSA3DIP()):add("ok",t(`Tronco casi vertical (${T}°)`,`Buste presque vertical (${T}°)`,`Torso nearly upright (${T}°)`))}
+    else if(z.id==="arriba"||z.id==="bloqueo"){const h=n(Math.abs(r.hb)),det=r.hb>0;Math.abs(r.hb)>6?add("warn",t(`La barra queda ${h} cm ${det?"por detrás":"por delante"} del hombro`,`La barre est ${h} cm ${det?"derrière":"devant"} l'épaule`,`The bar is ${h} cm ${det?"behind":"in front of"} your shoulder`),r.hb<0?t("Mete la cabeza y el pecho por debajo: la barra encima del hombro.","Passe la tête et la poitrine dessous : la barre au-dessus de l'épaule.","Get your head and chest through: bar over your shoulder."):t("No eches la barra hacia atrás: termina con ella encima del hombro.","Ne renvoie pas la barre en arrière : finis-la au-dessus de l'épaule.","Don't push the bar back: finish with it over your shoulder."),"Jerk balance, 3×3"):add("ok",t("Barra y hombro en la misma vertical","Barre et épaule sur la même verticale","Bar and shoulder in one vertical line"))}
+    return out;
+  }
+  const HDET=x=>t(`Hombros ${x} cm por detrás de la barra`,`Épaules ${x} cm derrière la barre`,`Shoulders ${x} cm behind the bar`);
+  if(z.id==="salida"){
+    const lim=sn?62:70;
+    r.tr>lim?add("warn",sn?t(`Cadera alta para un snatch: tronco a ${T}° de la vertical`,`Hanche haute pour un snatch : buste à ${T}° de la verticale`,`Hips high for a snatch: torso ${T}° from vertical`):t(`Cadera muy alta: tronco a ${T}° de la vertical`,`Hanche trop haute : buste à ${T}° de la verticale`,`Hips too high: torso ${T}° from vertical`),sn?t("En el snatch la cadera va más baja que en el clean (el agarre es más ancho): baja la cadera, pecho arriba y espinillas pegadas a la barra.","Au snatch, la hanche est plus basse qu'au clean (prise plus large) : baisse la hanche, poitrine haute et tibias collés à la barre.","In the snatch your hips sit lower than in the clean (wider grip): drop your hips, chest up and shins against the bar."):t("Baja un poco la cadera y acércate a la barra: espinillas pegadas y pecho arriba.","Baisse un peu la hanche et rapproche-toi de la barre : tibias collés et poitrine haute.","Lower your hips a little and get closer to the bar: shins against it and chest up."),PULL(["con pausa a un palmo del suelo","avec pause à une main du sol","with a pause a hand's width off the floor"])):add("ok",t(`Cadera a buena altura para un ${LL()} (tronco a ${T}°)`,`Hanche à bonne hauteur pour un ${LL()} (buste à ${T}°)`,`Hips at a good height for a ${LL()} (torso at ${T}°)`));
+    const PS=t("Posición de salida con pausa de 3 s, 3×3","Position de départ avec pause de 3 s, 3×3","Start position with a 3 s pause, 3×3");
+    r.hb<-2?add("warn",HDET(n(-r.hb)),t("Al empezar, adelanta los hombros: un poco por delante de la barra.","Au départ, avance les épaules : un peu devant la barre.","At the start, bring your shoulders forward: slightly in front of the bar."),PS):r.hb<1?add("warn",t("Hombros justo encima de la barra","Épaules juste au-dessus de la barre","Shoulders right over the bar"),t("Al empezar, pon los hombros un poco por delante de la barra.","Au départ, place les épaules un peu devant la barre.","At the start, put your shoulders slightly in front of the bar."),PS):add("ok",t(`Hombros ${n(r.hb)} cm por delante de la barra`,`Épaules ${n(r.hb)} cm devant la barre`,`Shoulders ${n(r.hb)} cm in front of the bar`));
+  }else if(z.id==="primer"){
+    const s0=S.esc.find(e=>e.id==="salida"&&(e.cuerpo||[]).length===4);
+    const PR=PULL(["hasta la rodilla con pausa","jusqu'au genou avec pause","to the knee with a pause"]);
+    if(s0){const d=Math.round(r.tr-medir(s0).tr);d>8?add("bad",t(`La cadera sube antes que los hombros: el tronco se tumba ${d}° más que en la salida`,`La hanche monte avant les épaules : le buste se couche de ${d}° de plus qu'au départ`,`Hips rise before shoulders: torso tips ${d}° more than at the start`),t("Empuja el suelo con las piernas y sube cadera y hombros a la vez.","Pousse le sol avec les jambes et monte hanche et épaules en même temps.","Push the floor away with your legs and raise hips and shoulders together."),PR):add("ok",t("Mantienes el ángulo de la espalda desde la salida","Tu gardes l'angle du dos depuis le départ","You keep your back angle from the start"))}
+    r.hb<-2?add("warn",HDET(n(-r.hb)),t("Mantén los hombros por delante de la barra hasta el contacto.","Garde les épaules devant la barre jusqu'au contact.","Keep your shoulders in front of the bar until contact."),PR):add("ok",t("Hombros por delante de la barra","Épaules devant la barre","Shoulders in front of the bar"));
+  }else if(z.id==="contacto"){
+    T>35&&r.tr>0?add("warn",t(`Llegas muy inclinado (tronco a ${T}°)`,`Tu arrives très penché (buste à ${T}°)`,`You arrive leaning a lot (torso at ${T}°)`),t("Sigue empujando con las piernas para llegar al contacto con el tronco más vertical.","Continue de pousser avec les jambes pour arriver au contact avec le buste plus vertical.","Keep pushing with your legs to reach contact with a more upright torso."),HANG()):add("ok",t(`Tronco a ${T}° en el contacto`,`Buste à ${T}° au contact`,`Torso at ${T}° at contact`));
+    const dv=r.bc,dn=n(Math.abs(dv));
+    if(sn){
+      dv>8?add("warn",t(`La barra toca ${dn} cm por debajo de la cadera`,`La barre touche ${dn} cm sous la hanche`,`The bar meets you ${dn} cm below the hip`),t("En el snatch el contacto es más alto que en el clean: deja que la barra suba pegada hasta la cadera antes de extender.","Au snatch, le contact est plus haut qu'au clean : laisse la barre remonter collée jusqu'à la hanche avant d'étendre.","In the snatch the contact is higher than in the clean: let the bar travel close up to your hips before extending."),t("Hang snatch desde medio muslo, 3×3","Hang snatch depuis mi-cuisse, 3×3","Hang snatch from mid-thigh, 3×3")):add("ok",t("Contacto alto, en la cadera: lo que pide el snatch","Contact haut, à la hanche : ce que demande le snatch","High contact at the hip: just what the snatch needs"));
+    }else{
+      dv<3?add("warn",t(`Contacto muy alto para un clean: a ${dn} cm de la cadera`,`Contact trop haut pour un clean : à ${dn} cm de la hanche`,`Contact too high for a clean: ${dn} cm from the hip`),t("En el clean el contacto es más bajo que en el snatch: en la parte alta del muslo, sin esperar a la cadera.","Au clean, le contact est plus bas qu'au snatch : en haut des cuisses, sans attendre la hanche.","In the clean the contact is lower than in the snatch: on the upper thighs, without waiting for the hips."),HANG()):dv>20?add("warn",t(`Contacto muy bajo: ${dn} cm por debajo de la cadera`,`Contact trop bas : ${dn} cm sous la hanche`,`Contact too low: ${dn} cm below the hip`),t("Lleva la barra pegada hasta la parte alta del muslo antes de extender.","Garde la barre collée jusqu'en haut des cuisses avant d'étendre.","Keep the bar close up to your upper thighs before extending."),t("Hang clean con pausa en el muslo, 3×3","Hang clean avec pause aux cuisses, 3×3","Hang clean with a pause at the thigh, 3×3")):add("ok",t(`Contacto en la parte alta del muslo (${dn} cm bajo la cadera): lo que pide el clean`,`Contact en haut des cuisses (${dn} cm sous la hanche) : ce que demande le clean`,`Contact on the upper thigh (${dn} cm below the hip): just what the clean needs`));
+    }
+  }else if(z.id==="extension"){
+    r.rod>=160&&r.cad>=160?add("ok",t(`Extiendes del todo (rodilla ${r.rod}°, cadera ${r.cad}°)`,`Extension complète (genou ${r.rod}°, hanche ${r.cad}°)`,`Full extension (knee ${r.rod}°, hip ${r.cad}°)`)):add("warn",t(`Te quedas corto: rodilla ${r.rod}°, cadera ${r.cad}°`,`Tu restes court : genou ${r.rod}°, hanche ${r.cad}°`,`You cut it short: knee ${r.rod}°, hip ${r.cad}°`),t("Termina la extensión de cadera y rodillas antes de meterte debajo.","Finis l'extension des hanches et des genoux avant de passer dessous.","Finish extending hips and knees before getting under."),`${LC()} high pull, 3×3`);
+    r.tr<-12?add("warn",t(`Te echas ${T}° hacia atrás`,`Tu pars de ${T}° en arrière`,`You lean back ${T}°`),t("Extiende hacia arriba, no hacia atrás: hombros encima de la barra.","Pousse vers le haut, pas vers l'arrière : épaules au-dessus de la barre.","Extend upward, not backward: shoulders over the bar."),PULL(["con pausa en el contacto","avec pause au contact","with a pause at contact"])):r.tr>12?add("warn",t(`Sigues inclinado ${T}° hacia delante`,`Tu restes penché de ${T}° vers l'avant`,`You're still leaning ${T}° forward`),t("Termina el tirón recto.","Finis le tirage droit.","Finish the pull upright."),`${LC()} high pull, 3×3`):add("ok",OKT);
+  }else if(z.id==="recepcion"){
+    barPie>10?add("warn",t(`La barra queda ${n(barPie)} cm por delante del tobillo`,`La barre est ${n(barPie)} cm devant la cheville`,`The bar is ${n(barPie)} cm in front of your ankle`),t("Recibe con la barra encima del medio pie.","Réceptionne avec la barre au-dessus du milieu du pied.","Catch with the bar over mid-foot."),sn?`Overhead squat ${P2()}, 3×3`:"Tall clean, 3×3"):add("ok",t("Barra encima del pie","Barre au-dessus du pied","Bar over the foot"));
+    r.tr>(sn?45:35)?add("warn",t(`Pecho caído: tronco a ${T}°`,`Poitrine tombée : buste à ${T}°`,`Chest dropped: torso at ${T}°`),sn?t("Recibe con el tronco más vertical y las axilas activas.","Réceptionne buste plus vertical, aisselles actives.","Catch with a more upright torso and active armpits."):t("Recibe con el pecho arriba y el tronco más vertical.","Réceptionne poitrine haute et buste plus vertical.","Catch with your chest up and a more upright torso."),SQ()):add("ok",t(`Tronco a ${T}°`,`Buste à ${T}°`,`Torso at ${T}°`));
+    if(r.rod<115){
+      r.esp<25&&r.tr>(sn?35:28)?add("warn",t(`Poca flexión de tobillo: la espinilla solo avanza ${r.esp}°`,`Peu de flexion de cheville : le tibia n'avance que de ${r.esp}°`,`Limited ankle bend: your shin only tilts ${r.esp}°`),t("Sin movilidad de tobillo la rodilla no avanza y el pecho se cae. Trabaja los tobillos para recibir abajo con el tronco recto.","Sans mobilité de cheville, le genou n'avance pas et la poitrine tombe. Travaille tes chevilles pour réceptionner bas, buste droit.","Without ankle mobility your knee can't travel forward and your chest drops. Work your ankles to catch low with an upright torso."),TOBI()):add("ok",t(`Tobillos: la espinilla avanza ${r.esp}°`,`Chevilles : le tibia avance de ${r.esp}°`,`Ankles: your shin tilts ${r.esp}°`));
+    }
+  }else if(z.id==="depie"){
+    r.tr>12?add("warn",t(`Subes inclinado ${T}° hacia delante`,`Tu remontes penché de ${T}° vers l'avant`,`You stand up leaning ${T}° forward`),t("Al subir, pecho arriba y la barra encima del medio pie.","En remontant, poitrine haute et barre au-dessus du milieu du pied.","As you stand, chest up and bar over mid-foot."),SQ()):r.tr<-10?add("warn",t(`Te echas ${T}° hacia atrás al subir`,`Tu pars de ${T}° en arrière en remontant`,`You lean back ${T}° as you stand`),t("Sube con el peso en el medio pie.","Remonte avec le poids au milieu du pied.","Stand with your weight on mid-foot."),SQ()):add("ok",t("Subes recto","Tu remontes droit","You stand up straight"));
+  }
+  return out;
+}
+function correcciones(z){
+  const a=[];
+  evaluar(z).forEach(v=>{if(v.s!=="ok")a.push({t:v.txt,h:v.h,e:v.e,s:v.s==="bad"?0:1})});
+  (z.resp||[]).forEach(k=>{const o=z.op[k];if(o&&o[1]!=="ok"){const r=o[0].toLowerCase();a.push({t:t(`respondiste «${r}»`,`tu as répondu « ${r} »`,`you answered “${r}”`),h:o[2],e:o[3],s:o[1]==="bad"?0:1})}});
+  const vis=new Set();return a.filter(x=>!vis.has(x.h)&&vis.add(x.h)).sort((x,y)=>x.s-y.s);
+}
+function estado(z){
+  const c=correcciones(z),hay=(z.cuerpo||[]).length===4||(z.resp||[]).length;
+  if(!hay)return ["",t("Sin marcar","Pas marquée","Not marked")];
+  if(c.some(x=>x.s===0))return ["bad",t("A corregir","À corriger","To fix")];
+  if(c.length)return ["warn",t("Mejorable","À améliorer","Could be better")];
+  return ["ok",t("Bien","Bien","Good")];
+}
+
+/* ---------- resultados: barra y posición en la misma pantalla ---------- */
+async function pintar(R,P){
+  const nom={snatch:"Snatch",clean:"Clean",jerk:"Jerk"}[S.lift];
+  S.R=R;S.nom=nom;S.dl=null;S.listo=false;$("#dl").textContent=I.dl[LI];$("#dlnota").textContent="";$("#compVid").textContent=I.compVid[LI];$("#compNota").textContent="";
+  const ds=n(P[P.length-1].t-P[0].t,2);
+  $("#resT").textContent=`🎥 ${nom} · `+t(`${ds} s analizados`,`${ds} s analysées`,`${ds} s analyzed`);
+  $("#kpis").innerHTML=R.k.map(([l,v,u,d=0,s])=>`<div class="kpi"><small>${l}</small><b>${s&&v>0?"+":""}${n(v,d)}<em>${u}</em></b></div>`).join("");
+  $("#obs").innerHTML=R.o.map(([c,id,x])=>`<div class="obs ${c}"><b>${TIT[id]}</b>${x}</div>`).join("");
+  const B=planBarra(R);
+  $("#planB").innerHTML=B.length?B.map(item).join(""):barraOk();
+  cerrarFs();mostrar("pAnal",false);
+  rpStop();
+  $("#sigConc").disabled=true;$("#elConc").disabled=true;$("#detalle").classList.add("hidden");$("#escTrack").innerHTML="";$("#escDots").innerHTML="";$("#escCnt").textContent="";
+  const nota=$("#iaNota"),BUSCA=t("🤖 La IA está detectando tu posición…","🤖 L'IA détecte ta position…","🤖 AI is detecting your position…");
+  nota.textContent=BUSCA;$("#escN").innerHTML=BUSCA;
+  const ok=await posturas(p=>{nota.textContent=`${BUSCA} ${Math.round(p*100)} %`});
+  S.esc=[];
+  for(const [i,id,dato,mirar] of R.claves){
+    await seek(S.pts[i].t);
+    const E=escena(i),z={...E,i,id,l:NOM[id],dato,mirar,cuerpo:[],op:opciones(id),resp:[],ia:false};
+    const ps=ok?poseIdx(i):null;
+    if(ps){z.cuerpo=[0,3,4,5].map(k=>({x:(ps.p[k].x-E.x0)*E.m,y:(ps.p[k].y-E.y0)*E.m}));z.ia=true}
+    S.esc.push(z);
+  }
+  pintarEscenas();renderConc();
+  nota.textContent=ok?t("🤖 ¿Un punto mal? Pausa y arrástralo.","🤖 Un point mal placé ? Pause et fais-le glisser.","🤖 A point off? Pause and drag it."):t("No se ha podido usar la IA en este móvil: marca tu cuerpo a mano en las escenas de abajo.","Impossible d'utiliser l'IA sur ce téléphone : marque ton corps à la main dans les scènes ci-dessous.","AI couldn't run on this phone: mark your body by hand in the scenes below.");
+  $("#escN").innerHTML=ok?ESC_IA:ESC_MANO;
+  $("#sigConc").disabled=false;$("#elConc").disabled=false;S.listo=true;
+  await rpPreparar();
+  if(!$("#pAnal").classList.contains("hidden"))rpPlay();
+}
+
+/* escena recortada en resolución original, con la trayectoria y la vertical de la barra */
+function escena(i){
+  const k=S.pxcm||2, f=V.videoWidth/CV.width;
+  const xs=S.pts.map(p=>p.x), ys=S.pts.map(p=>p.y);
+  // fotograma entero: se ve todo el cuerpo, sin recortar
+  const x0=0,y0=0,w=CV.width,h=CV.height;
+  const out=document.createElement("canvas"), sc=Math.min(2,900/(h*f));
+  out.width=Math.round(w*f*sc);out.height=Math.round(h*f*sc);
+  const c=out.getContext("2d",{willReadFrequently:true});c.drawImage(V,x0*f,y0*f,w*f,h*f,0,0,out.width,out.height);
+  {const d=c.getImageData(0,0,out.width,out.height).data;let s=0;for(let j=0;j<d.length;j+=4*97)s+=d[j]+d[j+1]+d[j+2];
+   if(s<d.length/(4*97)*6)c.drawImage(FC,x0,y0,w,h,0,0,out.width,out.height)}
+  const m=out.width/w, T=p=>[(p.x-x0)*m,(p.y-y0)*m], lw=Math.max(3,out.width/150), L=liso(S.pts);
+  trazo(c,L,T,lw,"rgba(255,225,77,.3)",false);
+  trazo(c,L.slice(0,i+1),T,lw,AM,true);
+  const [bx,by]=T(S.pts[i]);
+  c.setLineDash([10,8]);c.lineWidth=Math.max(2,out.width/300);c.strokeStyle="rgba(255,255,255,.85)";c.beginPath();c.moveTo(bx,0);c.lineTo(bx,out.height);c.stroke();
+  const [sx,sy]=T(S.pts[0]);c.strokeStyle="rgba(76,195,138,.7)";c.beginPath();c.moveTo(sx,0);c.lineTo(sx,out.height);c.stroke();c.setLineDash([]);
+  punto(c,sx,sy,lw*1.8,AM,true);
+  punto(c,bx,by,Math.max(5,out.width/90),"#fff",false);
+  return {url:out.toDataURL("image/jpeg",.85),bx,by,pc:k*m,x0,y0,m};
+}
+
+/* ---------- carrusel de escenas ---------- */
+function pintarEscenas(){
+  const N=S.esc.length;
+  $("#escTrack").innerHTML=S.esc.map((z,q)=>`<div class="slide" data-q="${q}">
+    <div class="sh"><b>${q+1}/${N} · ${z.l}</b><span class="d">${z.dato}</span></div>
+    <canvas class="mc" data-q="${q}"></canvas>
+    <p class="st" id="st${q}"></p>
+    <p>${z.mirar}</p>
+    <div class="resp" id="rs${q}"></div>
+    <div class="row" style="margin-top:10px"><button class="btn sec sm" data-a="des" data-q="${q}">${I.deshacer[LI]}</button><button class="btn sec sm" data-a="bor" data-q="${q}">${t("Borrar","Effacer","Clear")}</button><button class="btn sec sm" data-a="menos" data-q="${q}">${t("◀︎ Antes","◀︎ Avant","◀︎ Earlier")}</button><button class="btn sec sm" data-a="mas" data-q="${q}">${t("Después ▶︎","Après ▶︎","Later ▶︎")}</button><button class="btn sm" data-a="sig" data-q="${q}" style="margin-left:auto">${q<N-1?t("Siguiente ▶︎","Suivante ▶︎","Next ▶︎"):t("Ver conclusiones ✓","Voir les conclusions ✓","See conclusions ✓")}</button></div>
+  </div>`).join("");
+  S.esc.forEach((z,q)=>{cargarImg(q);pintarResp(q)});
+  $("#escTrack").scrollLeft=0;S.escI=0;actDots();
+}
+function cargarImg(q){const z=S.esc[q];z.img=new Image();z.img.onload=()=>{const c=canvasDe(q);c.width=z.img.width;c.height=z.img.height;drawEsc(q);txtEsc(q);if(z.cuerpo.length===4)z.marcada=c.toDataURL("image/jpeg",.8)};z.img.src=z.url}
+const canvasDe=q=>document.querySelector(`canvas.mc[data-q="${q}"]`);
+function drawEsc(q){
+  const z=S.esc[q],c=canvasDe(q);if(!c||!z.img||!z.img.complete)return;
+  const x=c.getContext("2d"),P=z.cuerpo,lw=Math.max(3,c.width/140),nj=S.lift!=="jerk";
+  x.drawImage(z.img,0,0);x.lineCap="round";x.lineJoin="round";
+  if(nj&&P.length>=2&&(z.id==="salida"||z.id==="contacto")){
+    lineaH(x,P[1].y,t("CADERA","HANCHE","HIP"),"#fff",lw*.7,false);
+    if(z.id==="contacto")lineaH(x,z.by,t("BARRA","BARRE","BAR"),AM,lw*.7,true);
+  }
+  if(nj&&z.id==="recepcion"&&P.length===4){
+    const a=P[3],rr=c.width/12;x.save();x.strokeStyle="#fff";x.lineWidth=lw*.8;x.shadowColor="rgba(0,0,0,.8)";x.shadowBlur=6;x.beginPath();x.arc(a.x,a.y,rr,0,7);x.stroke();
+    x.font=`italic 800 ${Math.round(c.width/20)}px Poppins,sans-serif`;x.fillStyle="#fff";const tx=t("TOBILLO","CHEVILLE","ANKLE"),tw=x.measureText(tx).width;
+    x.fillText(tx,Math.min(c.width-tw-6,Math.max(6,a.x+rr+8)),a.y+rr*.3);x.restore();
+  }
+  if(P.length>1){x.save();x.lineWidth=lw;x.strokeStyle=CY;x.shadowColor=CY;x.shadowBlur=lw*1.5;x.beginPath();P.forEach((p,j)=>j?x.lineTo(p.x,p.y):x.moveTo(p.x,p.y));x.stroke();x.restore()}
+  P.forEach(p=>{x.fillStyle="#fff";x.beginPath();x.arc(p.x,p.y,lw*1.4,0,7);x.fill()});
+  if(P.length===4){const r=medir(z);x.font=`700 ${Math.round(c.width/22)}px Poppins,sans-serif`;x.lineWidth=lw*1.5;x.strokeStyle="rgba(0,0,0,.75)";x.fillStyle="#fff";
+    [[r.rod+"°",P[2]],[r.cad+"°",P[1]]].forEach(([tx,p])=>{const X0=S.face>0?p.x-lw*4-x.measureText(tx).width:p.x+lw*4;x.strokeText(tx,X0,p.y);x.fillText(tx,X0,p.y)})}
+  if(z.ia){x.save();const fs=Math.round(c.width/26);x.font=`700 ${fs}px Poppins,sans-serif`;const tx="🤖 IA",tw=x.measureText(tx).width;x.fillStyle="rgba(0,0,0,.55)";x.fillRect(6,6,tw+12,fs+10);x.fillStyle=CY;x.fillText(tx,12,6+fs+2);x.restore()}
+}
+function txtEsc(q){
+  const z=S.esc[q],P=z.cuerpo,el=$("#st"+q);if(!el)return;
+  if(P.length<4){const pa=PARTES[P.length],k=P.length+1;el.className="st";el.innerHTML=t(`👆 Toca ${pa} (${k}/4), del lado que da a la cámara.`,`👆 Touche ${pa} (${k}/4), du côté face à la caméra.`,`👆 Tap ${pa} (${k}/4), on the side facing the camera.`);return}
+  const ok=completa(z);el.className=ok?"done":"st";
+  el.innerHTML=resumenCuerpo(z)+(ok?t("<br>✓ Escena completa","<br>✓ Scène complète","<br>✓ Scene complete"):`<br><span class='note'>${z.ia?t("Marcado por la IA: si algún punto no está en su sitio, arrástralo. Responde la pregunta para completar la escena.","Marqué par l'IA : si un point n'est pas à sa place, fais-le glisser. Réponds à la question pour compléter la scène.","Marked by AI: if a point is off, drag it. Answer the question to complete the scene."):t("Responde la pregunta para completarla. ¿Algún punto mal? Arrástralo.","Réponds à la question pour la compléter. Un point mal placé ? Fais-le glisser.","Answer the question to complete it. A point in the wrong place? Drag it.")}</span>`);
+}
+function pintarResp(q){const z=S.esc[q];$("#rs"+q).innerHTML=(z.op||[]).map((o,k)=>`<button class="rb ${(z.resp||[]).includes(k)?"on":""}" data-q="${q}" data-k="${k}">${o[0]}</button>`).join("")}
+function completa(z){return (z.cuerpo||[]).length===4&&((z.resp||[]).length>0||!(z.op||[]).length)}
+function responder(q,k){
+  const z=S.esc[q],g=z.op[k][4];let r=z.resp||[];
+  if(r.includes(k))r=r.filter(x=>x!==k);
+  else{r=r.filter(x=>{const gx=z.op[x][4];return g&&gx&&gx!==g});r.push(k)}
+  z.resp=r;pintarResp(q);cambio(q);
+}
+function cambio(q){
+  const z=S.esc[q],antes=z.hecha;z.hecha=completa(z);
+  const c=canvasDe(q);z.marcada=(c&&z.cuerpo.length===4)?c.toDataURL("image/jpeg",.8):null;
+  txtEsc(q);actDots();renderConc();
+  clearTimeout(S.tAuto);
+  if(z.hecha&&!antes)S.tAuto=setTimeout(()=>irEsc(q+1),1400);
+}
+function irEsc(q){
+  if(q>=S.esc.length){mostrar("pConc");renderConc();setTimeout(()=>irCon(0),60);return}
+  const tr=$("#escTrack");tr.scrollTo({left:q*(tr.clientWidth+12),behavior:"smooth"});
+}
+function actDots(){
+  const N=S.esc.length,i=S.escI||0;
+  $("#escCnt").textContent=N?`${i+1}/${N}`:"";
+  $("#escDots").innerHTML=S.esc.map((z,q)=>`<i class="${q===i?"on":completa(z)?"ok":""}"></i>`).join("");
+}
+$("#escTrack").addEventListener("scroll",()=>{const tr=$("#escTrack");if(!tr.clientWidth)return;const i=Math.round(tr.scrollLeft/(tr.clientWidth+12));if(i!==S.escI){S.escI=i;actDots()}},{passive:true});
+$("#escPrev").onclick=()=>irEsc(Math.max(0,(S.escI||0)-1));
+$("#escNext").onclick=()=>irEsc(Math.min(S.esc.length-1,(S.escI||0)+1));
+$("#escTrack").addEventListener("click",e=>{
+  const b=e.target.closest(".rb");if(b){responder(+b.dataset.q,+b.dataset.k);return}
+  const a=e.target.closest("[data-a]");if(!a)return;const q=+a.dataset.q,z=S.esc[q];
+  if(a.dataset.a==="des"){z.cuerpo.pop();z.ia=false;drawEsc(q);cambio(q)}
+  else if(a.dataset.a==="bor"){z.cuerpo=[];z.ia=false;drawEsc(q);cambio(q)}
+  else if(a.dataset.a==="menos")moverEsc(q,-1);
+  else if(a.dataset.a==="mas")moverEsc(q,1);
+  else if(a.dataset.a==="sig"){clearTimeout(S.tAuto);irEsc(q+1)}
+});
+$("#escTrack").addEventListener("pointerdown",e=>{
+  const c=e.target.closest("canvas.mc");if(!c)return;const q=+c.dataset.q,z=S.esc[q],p=pos(e,c);
+  clearTimeout(S.tAuto);
+  let j=-1,dm=c.width/14;z.cuerpo.forEach((o,k)=>{const d=Math.hypot(o.x-p.x,o.y-p.y);if(d<dm){dm=d;j=k}});
+  if(j>=0){S.drag={q,j,c};try{c.setPointerCapture(e.pointerId)}catch(err){}return}
+  if(z.cuerpo.length>=4)return;
+  z.cuerpo.push(p);drawEsc(q);cambio(q);
+});
+$("#escTrack").addEventListener("pointermove",e=>{if(!S.drag)return;const {q,j,c}=S.drag;S.esc[q].cuerpo[j]=pos(e,c);drawEsc(q)});
+const finDrag=()=>{if(!S.drag)return;const q=S.drag.q;S.drag=null;cambio(q)};
+$("#escTrack").addEventListener("pointerup",finDrag);$("#escTrack").addEventListener("pointercancel",finDrag);
+async function moverEsc(q,d){
+  const z=S.esc[q],j=Math.max(0,Math.min(S.pts.length-1,z.i+d));if(j===z.i||S.moviendo)return;
+  S.moviendo=true;clearTimeout(S.tAuto);
+  await seek(S.pts[j].t);const E=escena(j);Object.assign(z,E,{i:j,cuerpo:[],hecha:false,ia:false});
+  // la IA vuelve a detectar tu cuerpo en el nuevo momento
+  const lm=S.lado?detectar():null;
+  if(lm){const p=aCV(lm,S.lado);z.cuerpo=[0,3,4,5].map(k=>({x:(p[k].x-E.x0)*E.m,y:(p[k].y-E.y0)*E.m}));z.ia=true}
+  cargarImg(q);S.moviendo=false;cambio(q);
+}
+
+/* ---------- conclusiones: barra + posición ---------- */
+function renderConc(){
+  const tr=$("#conTrack"),keep=tr.scrollLeft;if(!S.R)return;
+  const todas=[];S.esc.forEach(z=>correcciones(z).forEach(c=>todas.push({...c,t:t(`en «${z.l}»: ${c.t}`,`dans « ${z.l} » : ${c.t}`,`in “${z.l}”: ${c.t}`)})));
+  const top=top3(todas),marcadas=S.esc.filter(z=>estado(z)[0]).length,N=S.esc.length,B=planBarra(S.R);
+  const resumen=`<div class="slide"><div class="sh"><b>${t("Lo más importante","Le plus important","Most important")}</b><span class="chip">${S.nom}</span></div>
+    <div class="sub3">🏋️ ${t("Barra","Barre","Bar")}</div>${B.length?B.map(item).join(""):barraOk()}
+    <div class="sub3">🧍 ${t("Posición","Position","Position")} · ${marcadas}/${N} ${t("escenas","scènes","scenes")}</div>
+    ${top.length?top.map(item).join(""):`<div class="pl"><span>${marcadas?"✓":"📍"}</span><div><b>${marcadas?t("Tu posición va bien en lo que se ha analizado","Ta position est bonne sur ce qui a été analysé","Your position looks good in what was analyzed"):t("No hay marcas de tu posición","Aucun repère de ta position","No position marks")}</b><p>${marcadas?t("Desliza para ver cada escena.","Fais glisser pour voir chaque scène.","Swipe to see each scene."):t("Vuelve al análisis y marca tu cuerpo en las escenas si quieres que también te diga qué corregir en tu posición.","Reviens à l'analyse et marque ton corps dans les scènes si tu veux aussi savoir quoi corriger dans ta position.","Go back to the analysis and mark your body in the scenes if you also want to know what to fix in your position.")}</p></div></div>`}
+  </div>`;
+  const QH=t("Qué hacer","Quoi faire","What to do");
+  const porEsc=S.esc.filter(z=>estado(z)[0]).map(z=>{
+    const [cl,tx]=estado(z),v=evaluar(z),c=correcciones(z);
+    return `<div class="slide"><div class="sh"><b>${z.l}</b><span class="chip ${cl}">${tx}</span></div>
+      <img src="${z.marcada||z.url}" alt="${z.l}">
+      ${(z.cuerpo||[]).length===4?`<p class="note">${resumenCuerpo(z)}</p>`:`<p class="note">${t("Sin marcas de cuerpo en esta escena.","Pas de repères du corps sur cette scène.","No body marks in this scene.")}</p>`}
+      ${v.map(x=>`<div class="ver">${x.s==="ok"?"✓":"⚠︎"} ${x.txt}</div>`).join("")}
+      ${(z.resp||[]).map(k=>`<div class="ver">${z.op[k][1]==="ok"?"✓":"⚠︎"} ${t("Respondiste:","Ta réponse :","Your answer:")} ${z.op[k][0]}</div>`).join("")}
+      <div class="sub3">${QH}</div>${c.length?c.map(item).join(""):`<p>${t("Nada que corregir en esta escena.","Rien à corriger sur cette scène.","Nothing to fix in this scene.")}</p>`}
+    </div>`});
+  tr.innerHTML=resumen+porEsc.join("");
+  tr.scrollLeft=keep;actConDots();
+}
+function actConDots(){
+  const tr=$("#conTrack"),N=tr.children.length,i=tr.clientWidth?Math.max(0,Math.min(N-1,Math.round(tr.scrollLeft/(tr.clientWidth+12)))):0;
+  S.conI=i;$("#conCnt").textContent=N>1?`${i+1}/${N}`:"";
+  $("#conDots").innerHTML=N>1?[...Array(N)].map((_,k)=>`<i class="${k===i?"on":""}"></i>`).join(""):"";
+  $("#conPrev").classList.toggle("hidden",N<2);$("#conNext").classList.toggle("hidden",N<2);
+}
+function irCon(i){const tr=$("#conTrack");tr.scrollTo({left:i*(tr.clientWidth+12),behavior:"smooth"})}
+$("#conTrack").addEventListener("scroll",actConDots,{passive:true});
+$("#conPrev").onclick=()=>irCon(Math.max(0,(S.conI||0)-1));
+$("#conNext").onclick=()=>irCon(Math.min($("#conTrack").children.length-1,(S.conI||0)+1));
+
+/* ---------- vídeo partido: la barra en una mitad, la posición en la otra ---------- */
+const RP={on:false,loop:true,vel:1,t:null,gen:0};
+const PV=$("#pv"),PX=PV.getContext("2d");
+function rpRango(){const a=Math.max(0,S.pts[0].t-0.3),b=Math.min(V.duration-0.001,S.pts[S.pts.length-1].t+0.5);return [a,b]}
+function rpSeek(tt){return new Promise(r=>{let h=false;const fin=()=>{if(h)return;h=true;r()};V.addEventListener("seeked",fin,{once:true});setTimeout(fin,1500);V.currentTime=tt})}
+function mitad(){const sc=Math.min(1,720/Math.max(V.videoWidth,V.videoHeight));return [Math.round(V.videoWidth*sc),Math.round(V.videoHeight*sc)]}
+function rpTam(){const [w,h]=mitad(),W=S.pose?2*w:w;if(PV.width!==W||PV.height!==h){PV.width=W;PV.height=h}}
+function pintaTray(c,W,H,k,tt){
+  c.drawImage(V,0,0,W,H);if(!S.pts.length)return;
+  const L=liso(S.pts),m=p=>[p.x*k,p.y*k],p0=L[0];
+  c.save();c.setLineDash([8*k,7*k]);c.strokeStyle="rgba(255,255,255,.55)";c.lineWidth=2*k;c.beginPath();c.moveTo(p0.x*k,0);c.lineTo(p0.x*k,H);c.stroke();c.restore();
+  trazo(c,L,m,3*k,"rgba(255,225,77,.22)",false);
+  const vis=L.filter(p=>p.t<=tt+1e-3);
+  trazo(c,vis,m,4.5*k,AM,true);
+  punto(c,p0.x*k,p0.y*k,7*k,AM,true);
+  if(vis.length){const u=vis[vis.length-1];punto(c,u.x*k,u.y*k,5*k,"#fff",false)}
+}
+/* dibuja las dos mitades (si hay postura) con sus rótulos */
+function pintaDoble(c,W,H,k,tt){
+  const fs=Math.round(Math.min(W,H)/11),y=Math.round(fs*1.4);
+  c.save();c.beginPath();c.rect(0,0,W,H);c.clip();pintaTray(c,W,H,k,tt);c.restore();
+  rotulo(c,t("BARRA","BARRE","BAR"),W/2,y,fs,AM);
+  if(!S.pose)return;
+  c.save();c.translate(W,0);c.beginPath();c.rect(0,0,W,H);c.clip();c.drawImage(V,0,0,W,H);const q=poseEn(tt);if(q)esqueleto(c,q.p,k);c.restore();
+  c.fillStyle="rgba(255,255,255,.85)";c.fillRect(W-1,0,2,H);
+  rotulo(c,t("POSICIÓN","POSITION","POSITION"),W+W/2,y,fs,CY);
+}
+function rpDibujar(tt){
+  rpTam();const [w,h]=mitad(),f=w/CV.width;pintaDoble(PX,w,h,f,tt);
+  if(!S.pts.length)return;
+  const txt=`${seg(tt)} · ${(RP.vel===1?I.vel1:RP.vel===0.5?I.vel2:I.vel3)[LI].toLowerCase()}`,fs=Math.round(13*f);
+  PX.font=`600 ${fs}px Poppins,sans-serif`;const tw=PX.measureText(txt).width;
+  PX.fillStyle="rgba(0,0,0,.55)";PX.fillRect(8*f,h-fs-20*f,tw+14*f,fs+12*f);PX.fillStyle="#fff";PX.fillText(txt,15*f,h-14*f);
+  rpLupa(w,h,f,tt);
+}
+/* lupa al arrastrar un punto del cuerpo: se ve en grande dónde lo estás poniendo, lejos del dedo */
+const LUP=document.createElement("canvas");
+function rpLupa(w,h,k,tt){
+  const D=RP.drag;if(!D)return;const q=poseEn(tt);if(!q)return;const o=q.p[D.j],px=w+o.x*k,py=o.y*k;
+  const L=Math.round(Math.min(w,h)*.42),s=Math.round(L/3.2);
+  LUP.width=s;LUP.height=s;LUP.getContext("2d").drawImage(PV,px-s/2,py-s/2,s,s,0,0,s,s);
+  const lx=o.x*k<w/2?w+w-L-8:w+8,ly=py<h/2?h-L-8:8;
+  PX.save();PX.imageSmoothingEnabled=true;PX.drawImage(LUP,0,0,s,s,lx,ly,L,L);
+  PX.strokeStyle="#fff";PX.lineWidth=Math.max(2,2*k);PX.strokeRect(lx,ly,L,L);
+  PX.strokeStyle="#FF7A1F";PX.beginPath();PX.moveTo(lx+L/2,ly+L*.3);PX.lineTo(lx+L/2,ly+L*.7);PX.moveTo(lx+L*.3,ly+L/2);PX.lineTo(lx+L*.7,ly+L/2);PX.stroke();PX.restore();
+}
+function rpBtn(){$("#rpgo").textContent=RP.on?t("⏸ Pausa","⏸ Pause","⏸ Pause"):t("▶︎ Ver","▶︎ Lire","▶︎ Play");$("#rploop").textContent=RP.loop?"🔁":"➡️";$("#rploop").style.opacity=RP.loop?1:.6;$("#rpvel").textContent={1:"1×",0.5:"½×",0.25:"¼×"}[RP.vel]}
+rpBtn();
+function rpStop(){RP.on=false;RP.gen++;rpBtn()}
+async function rpPreparar(){if(!S.pts.length)return;rpStop();const [a]=rpRango();RP.t=null;await rpSeek(a);rpDibujar(a)}
+async function rpPlay(desde){
+  if(S.running||S.grabando||!S.listo||S.pts.length<2)return;
+  const [a,b]=rpRango(),g=++RP.gen,dtp=1/30;RP.on=true;rpBtn();
+  let tt=desde!=null?desde:RP.t;if(tt==null||tt<a||tt>=b-0.02)tt=a;
+  while(RP.on&&g===RP.gen){
+    const c0=performance.now();
+    await rpSeek(tt);if(!RP.on||g!==RP.gen)return;
+    rpDibujar(tt);RP.t=tt;
+    const w=dtp/RP.vel*1000-(performance.now()-c0);if(w>0)await new Promise(r=>setTimeout(r,w));
+    tt+=dtp;
+    if(tt>b){
+      if(!RP.loop){rpStop();RP.t=null;return}
+      await new Promise(r=>setTimeout(r,600));tt=a;
+    }
+  }
+}
+$("#rpgo").onclick=()=>{if(RP.on)rpStop();else rpPlay()};
+/* tocar el vídeo: pausa o sigue; en pausa, los puntos azules del cuerpo se pueden arrastrar */
+function rpPunto(e){const r=PV.getBoundingClientRect();return {x:(e.clientX-r.left)*PV.width/r.width,y:(e.clientY-r.top)*PV.height/r.height}}
+PV.addEventListener("touchmove",e=>{if(RP.drag)e.preventDefault()},{passive:false});
+PV.addEventListener("pointerdown",e=>{
+  if(RP.on){rpStop();return}
+  if(S.pose&&RP.t!=null){const [w]=mitad(),k=w/CV.width,p=rpPunto(e),q=poseEn(RP.t);
+    if(q&&p.x>w){let j=-1,dm=w/9;q.p.forEach((o,i)=>{const d=Math.hypot(w+o.x*k-p.x,o.y*k-p.y);if(d<dm){dm=d;j=i}});
+      if(j>=0){RP.drag={j,w,k};try{PV.setPointerCapture(e.pointerId)}catch(err){}rpDibujar(RP.t);return}}}
+  rpPlay();
+});
+PV.addEventListener("pointermove",e=>{const D=RP.drag;if(!D)return;const p=rpPunto(e),q=poseEn(RP.t);if(!q)return;
+  const dx=(p.x-D.w)/D.k-q.p[D.j].x,dy=p.y/D.k-q.p[D.j].y;
+  // se corrige este momento y, poco a poco, los de alrededor, para que el punto no salte
+  // y los palos se recalculan con lo que has puesto: el pie va con el tobillo y el codo se recoloca entre hombro y mano
+  S.pose.forEach(f=>{const g=Math.exp(-(((f.t-RP.t)/0.12)**2)/2);if(g<0.02)return;const P=f.p,J=P[D.j];
+    J.x+=dx*g;J.y+=dy*g;if(g>0.3)J.u=true;
+    if(D.j===5)[6,7].forEach(k=>{P[k].x+=dx*g;P[k].y+=dy*g});
+    if(D.j===0||D.j===2||D.j===3){P[1].u=false;P[1].v=0;P[2].u=true;f.p=brazos(P,f.t)}});
+  rpDibujar(RP.t)});
+const rpSoltar=()=>{if(!RP.drag)return;RP.drag=null;rpDibujar(RP.t);S.dl=null;$("#dl").textContent=I.dl[LI];$("#dlnota").textContent="";$("#compVid").textContent=I.compVid[LI];$("#compNota").textContent=""};
+PV.addEventListener("pointerup",rpSoltar);PV.addEventListener("pointercancel",rpSoltar);
+$("#rpini").onclick=()=>{rpStop();rpPlay(rpRango()[0])};
+$("#rploop").onclick=()=>{RP.loop=!RP.loop;rpBtn()};
+// velocidad como en WhatsApp: cada toque cambia 1× → ½× → ¼×
+$("#rpvel").onclick=()=>{RP.vel={1:0.5,0.5:0.25,0.25:1}[RP.vel];rpBtn();if(!RP.on&&RP.t!=null)rpDibujar(RP.t)};
+$("#elPaso").onclick=()=>{$("#detalle").classList.remove("hidden");setTimeout(()=>$("#detalle").scrollIntoView({behavior:"smooth",block:"start"}),50)};
+$("#elConc").onclick=()=>$("#sigConc").click();
+
+/* ---------- descargar el vídeo (partido si hay postura) ---------- */
+S.dl=null;
+$("#dl").onclick=async()=>{
+  if(S.dl){guardarVid(S.dl);return}
+  if(S.pts.length<4||S.grabando||!S.listo)return;
+  rpStop();
+  const PREP=t("Preparando el vídeo…","Préparation de la vidéo…","Preparing the video…");
+  S.grabando=true;const btn=$("#dl");btn.disabled=true;btn.textContent=PREP;$("#dlnota").textContent=PREP+" 0 %";
+  try{S.dl=await exportar();
+    if(MOVIL){btn.textContent=t("💾 Guardar el vídeo","💾 Enregistrer la vidéo","💾 Save the video");$("#dlnota").textContent=t("Listo. Pulsa para guardarlo en tu móvil.","Prête. Appuie pour l'enregistrer sur ton téléphone.","Ready. Tap to save it to your phone.")}
+    else{descargar(S.dl);btn.textContent=t("⬇︎ Descargar otra vez","⬇︎ Télécharger à nouveau","⬇︎ Download again");$("#dlnota").textContent=t("Descargado: está en tu carpeta de Descargas.","Téléchargée : elle est dans ton dossier Téléchargements.","Downloaded: it's in your Downloads folder.")}}
+  catch(err){btn.textContent=I.dl[LI];$("#dlnota").textContent=t("No se ha podido crear el vídeo en este navegador.","Impossible de créer la vidéo dans ce navigateur.","The video couldn't be created in this browser.")}
+  btn.disabled=false;S.grabando=false;
+};
+const MOVIL=/iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+function descargar(file){const u=URL.createObjectURL(file),a=document.createElement("a");a.href=u;a.download=file.name;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(u),60000)}
+async function guardarVid(file){
+  if(MOVIL&&navigator.canShare&&navigator.canShare({files:[file]})){try{await navigator.share({files:[file],title:file.name});return}catch(e){if(e.name==="AbortError")return}}
+  descargar(file);
+}
+/* marca de agua del vídeo: el símbolo de Djimenez Apps (círculo azul con <✦>) + levantamiento + web */
+function marca(o,H,k){
+  const R=27*k,cx=16*k+R,cy=H-16*k-R,x0=cx+R+12*k;
+  o.save();o.shadowColor="rgba(0,0,0,.55)";o.shadowBlur=10*k;o.fillStyle="#2f5fae";o.beginPath();o.arc(cx,cy,R,0,7);o.fill();o.shadowBlur=0;
+  const fs=Math.round(R*.78),pz=[["<","#fff"],["✦","#f2a33a"],[">","#fff"]];o.font=`700 ${fs}px Arial,sans-serif`;o.textBaseline="middle";
+  const ws=pz.map(p=>o.measureText(p[0]).width),tot=ws.reduce((a,b)=>a+b,0)+2*k;let x=cx-tot/2;
+  pz.forEach((p,i)=>{o.fillStyle=p[1];o.fillText(p[0],x,cy+fs*.04);x+=ws[i]+k});
+  o.textBaseline="alphabetic";o.shadowColor="rgba(0,0,0,.7)";o.shadowBlur=8*k;
+  o.font=`italic 800 ${Math.round(28*k)}px Poppins,sans-serif`;o.fillStyle="#fff";o.fillText((S.nom||"").toUpperCase(),x0,cy+2*k);
+  o.font=`700 ${Math.round(15*k)}px Poppins,sans-serif`;o.fillStyle="rgba(255,255,255,.88)";o.fillText("djimenezapps.com",x0,cy+R-2*k);o.restore();
+}
+async function exportar(){
+  const tipos=["video/mp4;codecs=avc1","video/mp4","video/webm;codecs=vp9","video/webm"];
+  const tipo=window.MediaRecorder&&tipos.find(x=>MediaRecorder.isTypeSupported(x));
+  if(!tipo)throw new Error("sin MediaRecorder");
+  const sc=Math.min(1,1080/Math.max(V.videoWidth,V.videoHeight));
+  const W=Math.round(V.videoWidth*sc/2)*2,H=Math.round(V.videoHeight*sc/2)*2,k=W/CV.width;
+  const oc=document.createElement("canvas");oc.width=S.pose?2*W:W;oc.height=H;const o=oc.getContext("2d");
+  const pinta=tt=>{
+    pintaDoble(o,W,H,k,tt);
+    marca(o,H,k);
+  };
+  const t1=Math.min(V.duration-0.05,S.pts[S.pts.length-1].t+0.6);
+  const fps=30,t0=Math.max(0,S.pts[0].t-0.4),N=Math.max(1,Math.ceil((t1-t0)*fps));
+  await seek(t0);
+  const rec=new MediaRecorder(oc.captureStream(fps),{mimeType:tipo,videoBitsPerSecond:8e6});
+  const trozos=[];rec.ondataavailable=e=>{if(e.data&&e.data.size)trozos.push(e.data)};
+  const parado=new Promise(r=>rec.onstop=r);
+  pinta(t0);rec.start(250);
+  const inicio=performance.now(),PREP=t("Preparando el vídeo…","Préparation de la vidéo…","Preparing the video…");
+  for(let i=1;i<=N;i++){
+    const tt=t0+i/fps;await seek(tt);pinta(tt);
+    $("#dlnota").textContent=`${PREP} ${Math.round(i/N*100)} %`;
+    const espera=inicio+i*1000/fps-performance.now();if(espera>0)await new Promise(r=>setTimeout(r,espera));
+  }
+  await new Promise(r=>setTimeout(r,300));rec.stop();await parado;
+  const ext=tipo.includes("mp4")?"mp4":"webm",nombre=`${(S.nom||"lift").toLowerCase()}-${t("analisis","analyse","analysis")}-djimenez.${ext}`;
+  return new File(trozos,nombre,{type:tipo.split(";")[0]});
+}
+
+$("#copy").onclick=async()=>{
+  const R=S.R;if(!R)return;
+  let s=`${S.nom}\n`+R.k.map(([l,v,u,d=0])=>`${l}: ${n(v,d)} ${u}`).join("\n");
+  const B=planBarra(R);s+="\n\n"+t("Barra, qué hacer:","Barre, quoi faire :","Bar, what to do:")+"\n"+(B.length?B.map((p,i)=>`${i+1}. ${p.h} (${p.e})`).join("\n"):t("Nada claro que corregir.","Rien de clair à corriger.","Nothing clear to fix."));
+  s+="\n\n"+t("Posición por escena:","Position par scène :","Position by scene:");
+  S.esc.forEach(z=>{const c=correcciones(z);s+=`\n· ${z.l}: ${estado(z)[1]}`+(c.length?"\n"+c.map(x=>`   - ${x.h} (${x.e})`).join("\n"):"")});
+  try{await navigator.clipboard.writeText(s);$("#copied").textContent=t("Copiado","Copié","Copied")}catch(e){$("#copied").textContent=t("No se pudo copiar","Impossible de copier","Couldn't copy")}
+};
+
+/* ---------- cuenta: email con código, 3 análisis de prueba, ilimitado con Stripe ---------- */
+const API="https://ugixkyekjmxskqqsugqj.supabase.co/functions/v1/analizador";
+const PAGO="https://buy.stripe.com/7sY9AUdT95picX4cJj7ok0R";
+const LS={get:k=>{try{return localStorage.getItem(k)}catch(e){return null}},set:(k,v)=>{try{v==null?localStorage.removeItem(k):localStorage.setItem(k,v)}catch(e){}}};
+const C={activo:false,token:LS.get("an_token"),st:null,email:LS.get("an_email")||"",paso:"email",msg:"",ocupado:false};
+/* desde Djimenez Prog: llega un «pase» (?prog=…) y el cupo lo lleva Prog (3 de prueba o ilimitado si Diego lo da) */
+const PROG_API="https://prog.djimenezapps.com/api/analizador_usar";
+const P={pase:null,st:null};
+try{const q0=new URLSearchParams(location.search),pp=q0.get("prog");if(pp){sessionStorage.setItem("an_prog",pp);q0.delete("prog");history.replaceState(null,"",location.pathname+(q0.toString()?"?"+q0:""))}P.pase=pp||sessionStorage.getItem("an_prog")}catch(e){}
+async function progApi(accion){
+  try{const r=await fetch(PROG_API,{method:"POST",body:JSON.stringify({pase:P.pase,accion})});return await r.json()}catch(e){return {ok:false,error:"red"}}
+}
+function pintaProg(){
+  const el=$("#cuenta"),st=P.st;el.classList.remove("hidden");
+  if(!st){el.innerHTML="";return}
+  if(st.error==="pase"){el.innerHTML=`<p class="note" style="margin:0">${t("Tu acceso ha caducado: vuelve a abrir el analizador desde Djimenez Prog.","Ton accès a expiré : rouvre l'analyseur depuis Djimenez Prog.","Your access expired: open the analyzer again from Djimenez Prog.")}</p>`;return}
+  const quedan=Math.max(0,st.limite-st.usados),pct=Math.min(100,st.usados/st.limite*100);
+  el.innerHTML=`<div class="top"><span>🏋️ Djimenez Prog · <b>${String(st.nombre||"").replace(/[<>&]/g,"")}</b></span></div>`+
+    (st.libre?`<p style="margin:8px 0 0;font-weight:700;color:var(--ok)">⭐ ${t("Análisis ilimitados","Analyses illimitées","Unlimited analyses")}</p>`:
+    `<div class="barra"><i style="width:${pct}%"></i></div><div class="top"><span><b>${quedan}</b> ${t("análisis de prueba gratis","analyses d'essai gratuites","free trial analyses left")} (${st.usados}/${st.limite})</span></div>`);
+}
+function muroProg(){
+  $("#muroBox").innerHTML=`<div style="font-size:34px">🏋️</div><h3>${t("Has usado tus 3 análisis de prueba","Tu as utilisé tes 3 analyses d'essai","You've used your 3 trial analyses")}</h3>
+    <p class="note" style="margin:0">${t("Si quieres seguir analizando, escríbele a Diego desde Djimenez Prog.","Si tu veux continuer à analyser, écris à Diego depuis Djimenez Prog.","If you want to keep analyzing, message Diego from Djimenez Prog.")}</p>
+    <a class="btn big" style="display:block;text-decoration:none;margin-top:14px" href="https://prog.djimenezapps.com/">${t("Volver a Djimenez Prog","Retour à Djimenez Prog","Back to Djimenez Prog")}</a>
+    <button class="lnk" id="muroX" style="margin-top:10px">${t("Cerrar","Fermer","Close")}</button>`;
+  $("#muro").classList.remove("hidden");$("#muroX").onclick=()=>$("#muro").classList.add("hidden");
+}
+async function api(accion,datos={}){
+  try{const r=await fetch(API,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({accion,token:C.token,lang:LANG,...datos})});
+    const j=await r.json().catch(()=>({}));if(r.status===401&&C.token){C.token=null;C.st=null;LS.set("an_token",null)}return j}
+  catch(e){return {error:"red"}}
+}
+const ERR={email:t("Ese email no parece válido.","Cet e-mail ne semble pas valide.","That email doesn't look valid."),codigo:t("El código no es correcto.","Le code n'est pas correct.","That code isn't right."),caducado:t("El código ha caducado. Pide otro.","Le code a expiré. Demandes-en un autre.","The code has expired. Ask for a new one."),muchos:t("Demasiados códigos. Espera un rato.","Trop de codes. Attends un peu.","Too many codes. Wait a little."),sin_email:t("El acceso por email se está activando. Vuelve a probar en unos minutos.","La connexion par e-mail est en cours d'activation. Réessaie dans quelques minutes.","Email sign-in is being switched on. Try again in a few minutes."),red:t("Sin conexión. Vuelve a probar.","Pas de connexion. Réessaie.","No connection. Try again.")};
+function urlPago(){return PAGO+"?prefilled_email="+encodeURIComponent(C.st.email)+"&client_reference_id="+encodeURIComponent(C.st.id)+"&locale="+LANG}
+function pintaCuenta(){
+  const el=$("#cuenta"),st=C.st;
+  if(st){
+    const pct=Math.min(100,st.usados/st.limite*100),quedan=Math.max(0,st.limite-st.usados);
+    el.innerHTML=`<div class="top"><span>📧 ${st.email}</span><button class="lnk" id="salir">${t("Salir","Déconnexion","Sign out")}</button></div>`+
+      (st.pro?`<p style="margin:8px 0 0;font-weight:700;color:var(--ok)">⭐ ${t("Plan ilimitado activo","Formule illimitée active","Unlimited plan active")}</p>`:
+      `<div class="barra"><i style="width:${pct}%"></i></div><div class="top"><span><b>${quedan}</b> ${t("análisis de prueba gratis","analyses d'essai gratuites","free trial analyses left")} (${st.usados}/${st.limite})</span></div>
+       <button class="btn sec" id="hazPro" style="width:100%;margin-top:10px">⭐ ${t("Ilimitado por 4,99 €/mes","Illimité pour 4,99 €/mois","Unlimited for €4.99/month")}</button>`);
+    $("#salir").onclick=async()=>{await api("salir");C.token=null;C.st=null;LS.set("an_token",null);C.paso="email";pintaCuenta()};
+    if($("#hazPro"))$("#hazPro").onclick=()=>muro(false);
+    return;
+  }
+  el.innerHTML=`<h2 style="margin-bottom:4px">🔓 ${t("Entra para analizar","Connecte-toi pour analyser","Sign in to analyze")}</h2>
+    <p class="note" style="margin:0">${t("3 análisis de prueba gratis. Te mandamos un código a tu email, sin contraseña.","3 analyses d'essai gratuites. On t'envoie un code par e-mail, sans mot de passe.","3 free trial analyses. We email you a code, no password.")}</p>`+
+    (C.paso==="email"?`<input id="cEmail" type="email" inputmode="email" autocomplete="email" placeholder="${t("tu@email.com","ton@email.com","you@email.com")}" value="${C.email.replace(/"/g,"")}"><button class="btn" id="cEnviar" style="width:100%">${t("Enviar código","Recevoir le code","Send code")}</button>`:
+    `<p class="note" style="margin:8px 0 0">${t("Código enviado a","Code envoyé à","Code sent to")} <b>${C.email}</b>. ${t("Mira también en spam.","Regarde aussi dans les spams.","Check spam too.")}</p><input id="cCodigo" inputmode="numeric" autocomplete="one-time-code" maxlength="6" placeholder="123456"><button class="btn" id="cEntrar" style="width:100%">${t("Entrar","Entrer","Sign in")}</button><button class="lnk" id="cOtro">${t("Cambiar email o pedir otro código","Changer d'e-mail ou redemander un code","Change email or get a new code")}</button>`)+
+    `<div class="msg">${C.msg}</div>`;
+  const ocupa=b=>{C.ocupado=b;el.querySelectorAll("button").forEach(x=>x.disabled=b)};
+  if(C.paso==="email"){
+    const go=async()=>{C.email=$("#cEmail").value.trim().toLowerCase();LS.set("an_email",C.email);ocupa(true);const r=await api("codigo",{email:C.email});ocupa(false);
+      if(r.ok){C.paso="codigo";C.msg=""}else C.msg=ERR[r.error]||ERR.red;pintaCuenta();if(C.paso==="codigo")$("#cCodigo").focus()};
+    $("#cEnviar").onclick=go;$("#cEmail").onkeydown=e=>{if(e.key==="Enter")go()};
+  }else{
+    const go=async()=>{ocupa(true);const r=await api("entrar",{email:C.email,codigo:$("#cCodigo").value});ocupa(false);
+      if(r.token){C.token=r.token;LS.set("an_token",r.token);delete r.token;C.st=r;C.msg="";pintaCuenta();pagoPendiente()}else{C.msg=ERR[r.error]||ERR.red;pintaCuenta()}};
+    $("#cEntrar").onclick=go;$("#cCodigo").oninput=e=>{if(e.target.value.replace(/\D/g,"").length===6)go()};
+    $("#cOtro").onclick=()=>{C.paso="email";C.msg="";pintaCuenta()};
+  }
+}
+function muro(agotado=true){
+  $("#muroBox").innerHTML=`<div style="font-size:34px">⭐</div><h3>${agotado?t("Has usado tus 3 análisis de prueba","Tu as utilisé tes 3 analyses d'essai","You've used your 3 trial analyses"):t("Analiza sin límite","Analyse sans limite","Analyze without limits")}</h3>
+    <p class="note" style="margin:0">${agotado?t("¿Te ha gustado? Pásate al ilimitado y sigue analizando:","Ça t'a plu ? Passe en illimité et continue à analyser :","Liked it? Go unlimited and keep analyzing:"):t("Todos los levantamientos que quieras, cada mes.","Autant de mouvements que tu veux, chaque mois.","As many lifts as you want, every month.")}</p>
+    <div class="precio">4,99 € <small>${t("/ mes","/ mois","/ month")}</small></div>
+    <ul><li>${t("Análisis ilimitados de snatch, clean y jerk","Analyses illimitées de snatch, clean et jerk","Unlimited snatch, clean and jerk analyses")}</li><li>${t("Barra y posición con IA, y vídeo para descargar","Barre et position par IA, et vidéo à télécharger","Bar and AI position, plus a video to download")}</li><li>${t("Cancelas cuando quieras","Tu résilies quand tu veux","Cancel anytime")}</li></ul>
+    <a class="btn big" style="display:block;text-decoration:none" href="${urlPago()}">${t("Pasarme a ilimitado","Passer en illimité","Go unlimited")}</a>
+    <button class="lnk" id="muroX" style="margin-top:10px">${t("Ahora no","Pas maintenant","Not now")}</button>`;
+  $("#muro").classList.remove("hidden");$("#muroX").onclick=()=>$("#muro").classList.add("hidden");
+}
+function toast(m){const d=document.createElement("div");d.className="toast";d.textContent=m;document.body.appendChild(d);setTimeout(()=>d.remove(),4500)}
+async function pagoPendiente(){
+  const cs=LS.get("an_cs");if(!cs||!C.token)return;
+  const r=await api("pago",{cs});
+  if(r.pro){C.st=r;LS.set("an_cs",null);pintaCuenta();toast("⭐ "+t("¡Listo! Ya tienes análisis ilimitados.","C'est fait ! Tu as des analyses illimitées.","Done! You now have unlimited analyses."))}
+  else if(r.error==="otra_cuenta"||r.error==="no_pagado"||r.error==="otro_producto")LS.set("an_cs",null);
+}
+(async()=>{
+  const q=new URLSearchParams(location.search),cs=q.get("cs");
+  if(cs){LS.set("an_cs",cs);history.replaceState(null,"",location.pathname)}
+  if(P.pase){P.st=await progApi("estado");if(P.st&&P.st.error==="red")P.st=null;pintaProg();return} // desde Prog: sin email ni Stripe
+  const cfg=await api("config");C.activo=!!cfg.activo; // hasta que el email y Stripe estén configurados, la app sigue libre
+  if(!C.activo)return;
+  $("#cuenta").classList.remove("hidden");
+  pintaCuenta();
+  if(C.token){const r=await api("estado");if(r.email){C.st=r;pintaCuenta();pagoPendiente()}else if(!C.token)pintaCuenta()}
+  else if(cs)toast(t("Pago recibido. Entra con el mismo email para activarlo.","Paiement reçu. Connecte-toi avec le même e-mail pour l'activer.","Payment received. Sign in with the same email to activate it."));
+})();
+$("#drop").addEventListener("click",e=>{
+  if(P.pase){if(P.st&&!P.st.libre&&P.st.usados>=P.st.limite){e.preventDefault();muroProg()}return}
+  if(!C.activo)return;
+  if(!C.st){e.preventDefault();$("#cuenta").scrollIntoView({behavior:"smooth",block:"center"});const i=$("#cEmail")||$("#cCodigo");if(i)setTimeout(()=>i.focus(),350);C.msg=C.msg||t("Primero entra con tu email.","Connecte-toi d'abord avec ton e-mail.","Sign in with your email first.");pintaCuenta();return}
+  if(!C.st.pro&&C.st.usados>=C.st.limite){e.preventDefault();muro()}
+},true);
+/* ---------- compartir: vídeo a Instagram/WhatsApp, enlace por WhatsApp y QR ---------- */
+const URLAPP="https://analizador.djimenezapps.com";
+const txtComp=()=>t(`Mi ${S.nom||"levantamiento"} analizado 🏋️ Analiza el tuyo gratis: ${URLAPP}`,`Mon ${S.nom||"mouvement"} analysé 🏋️ Analyse le tien gratuitement : ${URLAPP}`,`My ${S.nom||"lift"} analyzed 🏋️ Analyze yours for free: ${URLAPP}`);
+const txtApp=()=>t(`Mira esta app: analiza tu snatch, clean o jerk con IA (barra y posición) 🏋️ ${URLAPP}`,`Regarde cette appli : elle analyse ton snatch, clean ou jerk avec l'IA (barre et position) 🏋️ ${URLAPP}`,`Check this app: it analyzes your snatch, clean or jerk with AI (bar and position) 🏋️ ${URLAPP}`);
+async function compartirVid(){
+  const btn=$("#compVid"),nota=$("#compNota");
+  if(S.dl){
+    if(navigator.canShare&&navigator.canShare({files:[S.dl]})){try{await navigator.share({files:[S.dl],text:txtComp()});return}catch(e){if(e.name==="AbortError")return}}
+    descargar(S.dl);nota.textContent=t("Vídeo descargado: súbelo a tu historia o mándalo desde la galería.","Vidéo téléchargée : publie-la en story ou envoie-la depuis ta galerie.","Video downloaded: post it to your story or send it from your gallery.");return;
+  }
+  if(S.pts.length<4||S.grabando||!S.listo)return;
+  rpStop();const PREP=t("Preparando el vídeo…","Préparation de la vidéo…","Preparing the video…");
+  S.grabando=true;btn.disabled=true;btn.textContent=PREP;nota.textContent=PREP+" 0 %";
+  const dn=$("#dlnota"),obs=new MutationObserver(()=>{nota.textContent=dn.textContent});obs.observe(dn,{childList:true,characterData:true,subtree:true});
+  try{S.dl=await exportar();btn.textContent=t("📤 Publicar ahora","📤 Publier maintenant","📤 Post now");
+    nota.textContent=t("Listo. Toca otra vez y elige Instagram o WhatsApp.","Prête. Touche à nouveau et choisis Instagram ou WhatsApp.","Ready. Tap again and pick Instagram or WhatsApp.")}
+  catch(err){btn.textContent=I.compVid[LI];nota.textContent=t("No se ha podido crear el vídeo en este navegador.","Impossible de créer la vidéo dans ce navigateur.","The video couldn't be created in this browser.")}
+  obs.disconnect();btn.disabled=false;S.grabando=false;
+}
+$("#compVid").onclick=compartirVid;
+const abrirWa=txt=>{window.open("https://wa.me/?text="+encodeURIComponent(txt),"_blank")};
+$("#compWa").onclick=()=>abrirWa(txtComp());
+$("#appWa").onclick=()=>abrirWa(txtApp());
+const abrirQr=()=>$("#qrM").classList.remove("hidden");
+$("#compQr").onclick=abrirQr;$("#appQr").onclick=abrirQr;
+$("#qrX").onclick=()=>$("#qrM").classList.add("hidden");
+$("#qrM").onclick=e=>{if(e.target.id==="qrM")$("#qrM").classList.add("hidden")};
+paso();
+</script>
+</body>
+</html>
