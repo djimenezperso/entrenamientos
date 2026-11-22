@@ -18,6 +18,8 @@ class handler(BaseHTTPRequestHandler):
         self.send_response(codigo)
         self.send_header("Content-Type", "application/json; charset=utf-8")
         self.send_header("Cache-Control", "no-store")
+        if getattr(self, "_cors", False):
+            self.send_header("Access-Control-Allow-Origin", servicio.env("ANALIZADOR_ORIGEN") or "https://analizador.djimenezapps.com")
         self.send_header("Content-Length", str(len(datos)))
         self.end_headers()
         self.wfile.write(datos)
@@ -43,7 +45,7 @@ class handler(BaseHTTPRequestHandler):
         q = {k: v[0] for k, v in parse_qs(url.query).items()}
         ruta = q.get("r") or url.path.rstrip("/").split("/")[-1]
         try:
-            if metodo == "POST" and ruta not in ("login", "compartir", "crear_perfil", "abonarse", "datos_pago", "contactar", "me_gusta", "chat", "tg_webhook") \
+            if metodo == "POST" and ruta not in ("login", "compartir", "crear_perfil", "abonarse", "datos_pago", "contactar", "me_gusta", "chat", "tg_webhook", "analizador_usar") \
                     and not (ruta == "comida" and self._cuerpo().get("accion") == "interpretar"):  # entender lo dicho no guarda nada
                 servicio.solo_lectura(self._sesion())  # la demo no puede guardar nada
             if ruta == "resumen_plan" and metodo == "GET":  # cron de Vercel (domingos): lo que queda por preparar
@@ -126,6 +128,13 @@ class handler(BaseHTTPRequestHandler):
                 if metodo == "POST":
                     return self._responder(200, comida.comida_accion(self._sesion(), self._cuerpo()))
                 return self._responder(200, comida.comida(self._sesion(), q.get("atleta"), int(q.get("variante") or 0) % 50))
+            if ruta == "analizador_pase" and metodo == "GET":
+                return self._responder(200, servicio.analizador_pase(self._sesion()))
+            if ruta == "analizador_usar" and metodo == "POST":  # lo llama analizador.djimenezapps.com con el pase
+                self._cors = True
+                return self._responder(200, servicio.analizador_usar(self._cuerpo()))
+            if ruta == "analizador_libre" and metodo == "POST":
+                return self._responder(200, servicio.analizador_libre(self._sesion(), self._cuerpo()))
             if ruta == "accion" and metodo == "POST":
                 return self._responder(200, servicio.accion(self._sesion(), self._cuerpo()))
             return self._responder(404, {"error": "No existe"})

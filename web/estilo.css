@@ -1014,3 +1014,6 @@ body, body:not(.x) { background: var(--fondo); }
 .fila-propio { display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; margin-top: 8px; }
 .fila-propio .elige-dias { margin: 0; flex: 1 1 0; min-width: 0; }
 .fila-propio .elige-dias { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; height: 40px; }
+
+.an-barra { height: 8px; border-radius: 99px; background: rgba(255,255,255,.12); overflow: hidden; margin: 8px 0 4px; }
+.an-barra i { display: block; height: 100%; background: var(--fuego, #FF7A1F); border-radius: 99px; }

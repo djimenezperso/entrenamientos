@@ -18,6 +18,11 @@ const E = { token: mem.get("token"), atleta: mem.get("atleta"), lang: mem.get("l
 
 // ---------- textos ----------
 const FR = {
+  "tiene el analizador sin límite": "a l'analyseur sans limite", "Pruébalo con tus levantamientos: tienes 3 análisis gratis.": "Essaie-le avec tes mouvements : tu as 3 analyses gratuites.",
+  "Análisis ilimitados": "Analyses illimitées", "Analiza todos los levantamientos que quieras.": "Analyse autant de mouvements que tu veux.",
+  "Te queda 1 análisis gratis": "Il te reste 1 analyse gratuite", "Te quedan {n} análisis gratis": "Il te reste {n} analyses gratuites",
+  "Has usado tus 3 análisis gratis": "Tu as utilisé tes 3 analyses gratuites", "Si quieres seguir analizando, escríbele a Diego.": "Si tu veux continuer à analyser, écris à Diego.",
+  "Escribir a Diego": "Écrire à Diego",
   "Te queda por preparar": "Il te reste à préparer", "y": "et", "Elegir mis días": "Choisir mes jours", "Mis días": "Mes jours",
   "Prepárala y dale a ✅ Semana lista. Si no, sale la progresión automática.": "Prépare-la et appuie sur ✅ Semaine prête. Sinon, c'est la progression automatique.",
   "Importar mis entrenos": "Importer mes entraînements", "Importar": "Importer",
@@ -1735,6 +1740,7 @@ function hojaAjustes() {
     <div class="caja-coach"><div class="paso-etq" style="margin:0 0 8px">${ic.candado} ${t("Modo coach")}</div>
       ${v.coach ? `<div class="mini" style="margin-bottom:10px">${t("Activado: puedes cambiar los pesos de todos.")}</div>
         ${v.atleta !== "Yo" ? `<label class="interruptor"><span>${esc(v.nombre)} ${t("puede cambiar sus pesos sin preguntarte")}</span><input type="checkbox" id="c-permiso" ${v.permiso_pesos ? "checked" : ""}></label>` : ""}
+        ${v.an_libre != null ? `<label class="interruptor"><span>🎥 ${esc(v.nombre)} ${t("tiene el analizador sin límite")}</span><input type="checkbox" id="c-an-libre" ${v.an_libre ? "checked" : ""}></label>` : ""}
         <div class="tg-caja">${v.telegram
           ? `<b>${t("Avisos por Telegram")}: ✅</b><div style="display:grid;grid-template-columns:1fr auto;gap:8px;margin-top:8px"><button class="btn" id="b-tg-probar">${t("Enviar prueba")}</button><button class="btn" id="b-tg-quitar">${t("Quitar")}</button></div>`
           : `<b>${t("Avisos por Telegram")}</b>
@@ -1839,6 +1845,11 @@ function hojaAjustes() {
     };
     const cp = h.querySelector("#c-permiso");
     if (cp) cp.onchange = () => { cerrarHoja(); hacer({ tipo: "permiso_pesos", valor: cp.checked }); };
+    const cal = h.querySelector("#c-an-libre");
+    if (cal) cal.onchange = async () => {
+      try { const r = await api("analizador_libre", { metodo: "POST", cuerpo: { atleta: v.atleta, on: cal.checked } }); E.vista.an_libre = cal.checked; aviso(t(r.aviso)); }
+      catch (e) { aviso(e.message, true); cal.checked = !cal.checked; }
+    };
     h.querySelectorAll("[data-nivel]").forEach((b) => b.onclick = () => { cerrarHoja(); hacer({ tipo: "nivel", nivel: b.dataset.nivel }); });
     h.querySelectorAll("[data-lang]").forEach((b) => b.onclick = () => {
       E.lang = b.dataset.lang; mem.set("lang", E.lang); mem.set("lang_elegido", "1"); cerrarHoja(); pintar();
@@ -3181,10 +3192,22 @@ function pintarAnalizador() {
          [t("Mira qué corregir"), t("Las fases clave en verde o amarillo y ejercicios para mejorar.")]].map(([a, b], i) =>
         `<div class="an-paso"><span class="an-n">${i + 1}</span><div><b>${a}</b><small>${b}</small></div></div>`).join("")}
     </section>
-    <section class="card an-precio"><b>${t("3 análisis gratis")}</b><span class="mini">${t("Después, análisis ilimitados por 4,99 € al mes. Entras con tu email, sin contraseña.")}</span></section>
+    <section class="card an-precio" id="an-cupo"><b>${t("3 análisis gratis")}</b><span class="mini">${t("Pruébalo con tus levantamientos: tienes 3 análisis gratis.")}</span></section>
     <a class="btn btn-fuego" id="an-abrir" href="${URL_ANALIZADOR}?lift=${lift}" target="_blank" rel="noopener">${ic.video} ${t("Analizar mi")} ${lift[0].toUpperCase() + lift.slice(1)}</a>
   </main>` + nav("prs");
   enlazar();
+  const pintaCupo = (r) => {
+    const cupo = document.getElementById("an-cupo"), btn = document.getElementById("an-abrir");
+    if (!cupo || !btn) return;
+    btn.href = `${URL_ANALIZADOR}?lift=${lift}&prog=${encodeURIComponent(r.pase)}&lang=${E.lang}`;
+    if (r.libre) cupo.innerHTML = `<b>⭐ ${t("Análisis ilimitados")}</b><span class="mini">${t("Analiza todos los levantamientos que quieras.")}</span>`;
+    else if (r.quedan > 0) cupo.innerHTML = `<b>${r.quedan === 1 ? t("Te queda 1 análisis gratis") : t("Te quedan {n} análisis gratis").replace("{n}", r.quedan)}</b><div class="an-barra"><i style="width:${Math.min(100, r.usados / r.limite * 100)}%"></i></div><span class="mini">${r.usados}/${r.limite}</span>`;
+    else { cupo.innerHTML = `<b>${t("Has usado tus 3 análisis gratis")}</b><span class="mini">${t("Si quieres seguir analizando, escríbele a Diego.")}</span>`;
+      btn.outerHTML = `<button class="btn btn-fuego" id="an-diego">${t("Escribir a Diego")}</button>`;
+      const d = document.getElementById("an-diego"); if (d) d.onclick = () => (E.vista && E.vista.chat_activo ? hojaChat() : hojaContacto()); }
+  };
+  if (E.anPase && E.anPase.t > Date.now() - 6e4) pintaCupo(E.anPase.r);
+  api("analizador_pase").then((r) => { E.anPase = { r, t: Date.now() }; if (E.pantalla === "analizador") pintaCupo(r); }).catch(() => {});
   $app.querySelectorAll("[data-lift]").forEach((b) => b.onclick = () => { E.liftAn = b.dataset.lift; pintar(); });
 }
 

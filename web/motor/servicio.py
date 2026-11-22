@@ -2872,6 +2872,7 @@ def vista(sesion: dict, atleta: str | None, semana: int | None, dia_id: str | No
                         if es_coach(sesion) else None,
             "puede_pesos": coach or bool((rut or {}).get("permiso_pesos")),
             "permiso_pesos": bool((rut or {}).get("permiso_pesos")),
+            "an_libre": _an_libre(atleta) if coach and atleta != "Yo" else None,
             "solicitudes": [x for x in todas_sol if coach and (not sesion.get("u") or x["atleta"] == sesion["u"])],
             "codigo_propio": coach and not es_demo(sesion) and atleta not in ("Yo", "Mi esposa") and (atleta in inv or atleta in ATLETAS or atleta in accesos_personales()),
             "sin_material": list(SIN_MATERIAL.get(atleta, ())),
@@ -4316,3 +4317,89 @@ def guardar_pr(sesion: dict, c: dict) -> dict:
     r["aviso"] = "¡Nuevo PR!" if mejora and previo is not None else ("PR apuntado" if mejora else "Marca guardada (no supera tu PR)")
     r["pr"] = mejora and previo is not None
     return r
+
+
+
+# ===== Analizador de snatch, clean y jerk desde Djimenez Prog =====
+# Todos los perfiles de Prog lo tienen sin límite, menos Ruchama y Archchana (y quien Diego marque), que tienen 3 de prueba.
+# Quien no tiene perfil (la demo) también tiene 3. Diego lo cambia por persona en ⚙️ de su perfil.
+# La app del analizador (analizador.djimenezapps.com) recibe un «pase» firmado y nos pide aquí gastar cada análisis.
+ANALISIS_GRATIS = 3
+CLAVE_ANALIZADOR = "__analizador__"  # {"usos": {quién: n}, "libres": [nombres], "limitados": [nombres]}
+ANALIZADOR_LIMITADOS = ("ruchama", "archchana")  # empiezan con 3 de prueba
+
+
+def _analizador_doc() -> dict:
+    return datos().rutinas([CLAVE_ANALIZADOR]).get(CLAVE_ANALIZADOR) or {}
+
+
+def _an_libre(nombre: str, doc: dict | None = None) -> bool:
+    if nombre in ("Diego", "Yo", "Mi esposa"):
+        return True
+    if nombre.startswith("demo:"):
+        return False
+    doc = _analizador_doc() if doc is None else doc
+    if nombre in (doc.get("libres") or []):
+        return True
+    if nombre in (doc.get("limitados") or []):
+        return False
+    return not norm_busqueda(nombre).startswith(ANALIZADOR_LIMITADOS)
+
+
+def _quien_analiza(sesion: dict) -> tuple[str, bool]:
+    """(clave del contador, ilimitado). La demo cuenta por cada entrada."""
+    if sesion.get("y") or (es_coach(sesion) and not sesion.get("u")):
+        return "Diego", True
+    if es_demo(sesion):
+        return f"demo:{sesion.get('exp')}", False
+    u = sesion.get("u") or "Yo"
+    return u, _an_libre(u)
+
+
+def _estado_analizador(clave: str, libre: bool) -> dict:
+    n = int((_analizador_doc().get("usos") or {}).get(clave) or 0)
+    return {"usados": n, "limite": ANALISIS_GRATIS, "libre": libre, "quedan": None if libre else max(0, ANALISIS_GRATIS - n)}
+
+
+def analizador_pase(sesion: dict) -> dict:
+    """Desde Prog: el pase para abrir el analizador (vale 12 h) y cuántos le quedan."""
+    clave, libre = _quien_analiza(sesion)
+    pase = firmar({"an": clave, "nom": sesion.get("u") or "Diego", "exp": int(time.time()) + 12 * 3600})
+    return {"pase": pase, "nombre": sesion.get("u") or "Diego", **_estado_analizador(clave, libre)}
+
+
+def analizador_usar(c: dict) -> dict:
+    """Desde el analizador (sin sesión de Prog, con el pase): «estado» o «usar» (gasta un análisis si quedan)."""
+    try:
+        p = leer_sesion(str(c.get("pase") or ""))
+    except Error:
+        return {"ok": False, "error": "pase"}
+    clave = p.get("an")
+    if not clave:
+        return {"ok": False, "error": "pase"}
+    doc = dict(_analizador_doc())
+    libre = _an_libre(clave, doc)
+    est = _estado_analizador(clave, libre)
+    if c.get("accion") != "usar":
+        return {"ok": True, "nombre": p.get("nom"), **est}
+    if not libre and est["usados"] >= ANALISIS_GRATIS:
+        return {"ok": False, "agotado": True, "nombre": p.get("nom"), **est}
+    usos = dict(doc.get("usos") or {})
+    usos[clave] = int(usos.get(clave) or 0) + 1
+    datos().guardar(CLAVE_ANALIZADOR, {**doc, "usos": usos})
+    return {"ok": True, "nombre": p.get("nom"), **_estado_analizador(clave, libre)}
+
+
+def analizador_libre(sesion: dict, c: dict) -> dict:
+    """Diego le da (o le quita) el analizador sin límite a alguien."""
+    if not es_coach(sesion):
+        raise Error("Solo el coach", 403)
+    n = str(c.get("atleta") or "")
+    if n not in todas_las_personas():
+        raise Error("No encuentro ese perfil")
+    doc = dict(_analizador_doc())
+    on = bool(c.get("on"))
+    libres = [x for x in (doc.get("libres") or []) if x != n] + ([n] if on else [])
+    limitados = [x for x in (doc.get("limitados") or []) if x != n] + ([] if on else [n])
+    datos().guardar(CLAVE_ANALIZADOR, {**doc, "libres": libres, "limitados": limitados})
+    return {"ok": True, "aviso": f"{nv(n)}: analizador sin límite ✅" if on else f"{nv(n)}: 3 análisis de prueba"}
