@@ -1235,6 +1235,7 @@ const C={activo:false,token:LS.get("an_token"),st:null,email:LS.get("an_email")|
 /* desde Djimenez Prog: llega un «pase» (?prog=…) y el cupo lo lleva Prog (3 de prueba o ilimitado si Diego lo da) */
 const PROG_API="https://prog.djimenezapps.com/api/analizador_usar";
 const P={pase:null,st:null};
+try{const qr=new URLSearchParams(location.search),rc=(qr.get("codigo")||"").toUpperCase().replace(/[^A-Z0-9]/g,"");if(rc.length>=2&&rc.length<=20)localStorage.setItem("an_recomienda",rc)}catch(e){}
 try{const q0=new URLSearchParams(location.search),pp=q0.get("prog");if(pp){sessionStorage.setItem("an_prog",pp);q0.delete("prog");history.replaceState(null,"",location.pathname+(q0.toString()?"?"+q0:""))}P.pase=pp||sessionStorage.getItem("an_prog")}catch(e){}
 async function progApi(accion){
   try{const r=await fetch(PROG_API,{method:"POST",body:JSON.stringify({pase:P.pase,accion})});return await r.json()}catch(e){return {ok:false,error:"red"}}
@@ -1285,7 +1286,7 @@ function pintaCuenta(){
       if(r.ok){C.paso="codigo";C.msg=""}else C.msg=ERR[r.error]||ERR.red;pintaCuenta();if(C.paso==="codigo")$("#cCodigo").focus()};
     $("#cEnviar").onclick=go;$("#cEmail").onkeydown=e=>{if(e.key==="Enter")go()};
   }else{
-    const go=async()=>{ocupa(true);const r=await api("entrar",{email:C.email,codigo:$("#cCodigo").value});ocupa(false);
+    const go=async()=>{ocupa(true);const r=await api("entrar",{email:C.email,codigo:$("#cCodigo").value,recomienda:(()=>{try{return localStorage.getItem("an_recomienda")||""}catch(e){return ""}})()});ocupa(false);
       if(r.token){C.token=r.token;LS.set("an_token",r.token);delete r.token;C.st=r;C.msg="";pintaCuenta();pagoPendiente()}else{C.msg=ERR[r.error]||ERR.red;pintaCuenta()}};
     $("#cEntrar").onclick=go;$("#cCodigo").oninput=e=>{if(e.target.value.replace(/\D/g,"").length===6)go()};
     $("#cOtro").onclick=()=>{C.paso="email";C.msg="";pintaCuenta()};
