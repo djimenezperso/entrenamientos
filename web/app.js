@@ -255,7 +255,6 @@ const FR = {
   "arriba a la derecha, con EMOM, AMRAP, Tabata…": "en haut à droite, avec EMOM, AMRAP, Tabata…", "¡Vamos!": "C'est parti !",
   "¿Quién eres?": "Qui es-tu ?", "Elige tu perfil. Se queda guardado en este móvil y ya no se cambia solo.": "Choisis ton profil. Il reste enregistré sur ce téléphone et ne change plus tout seul.",
   "Perfil guardado en este móvil ✅": "Profil enregistré sur ce téléphone ✅",
-  "Código FUNDADOR: 10 € menos cada mes, para siempre · solo 20 plazas": "Code FUNDADOR : 10 € de moins chaque mois, à vie · seulement 20 places",
   "7 días gratis · luego 29 €/mes": "7 jours gratuits · puis 29 €/mois",
   "7 días gratis · luego 39 €/mes": "7 jours gratuits · puis 39 €/mois",
   "Sin conexión o el servidor ha tardado. Vuelve a intentarlo en unos segundos.": "Pas de connexion ou le serveur a tardé. Réessaie dans quelques secondes.",
@@ -322,6 +321,11 @@ const FR = {
   "Solo para Diego: con el PIN del coach puedes cambiar los pesos y aprobar los cambios que te piden.": "Réservé à Diego : avec le code du coach, tu peux changer les poids et valider les demandes.",
   "Compartir la app": "Partager l'appli",
   "Cerrar": "Fermer",
+  "Solo la parte de comida": "Seulement la partie repas",
+  "9,99 €/mes": "9,99 €/mois",
+  "¿Quieres también tu programa de entreno?": "Tu veux aussi ton programme d'entraînement ?",
+  "El plan completo incluye tu rutina con Diego, el cronómetro y el analizador de halterofilia ilimitado.": "La formule complète inclut ta routine avec Diego, le chrono et l'analyseur d'haltérophilie illimité.",
+  "Pasarme al completo": "Passer à la formule complète",
   "El cronómetro es para los abonados. Abónate y sigue usándolo con tu rutina.": "Le chrono est réservé aux abonnés. Abonne-toi et continue à l'utiliser avec ta routine.",
   "En la demo el cronómetro va 1 minuto. Crea tu perfil: tienes 7 días gratis para usarlo entero con tu rutina.": "Dans la démo, le chrono dure 1 minute. Crée ton profil : tu as 7 jours gratuits pour l'utiliser en entier avec ta routine.",
   "Código de quien te recomienda (opcional)": "Code de la personne qui te recommande (facultatif)",
@@ -656,11 +660,14 @@ function poner(v) {
 }
 
 // ---------- demo: crear tu perfil o seguir mirando ----------
-async function abonarse() {
+const botonComida = (v) => v && v.abono_comida ? `<button class="btn btn-plan-comida" data-abono-comida>🍽️ ${t("Solo la parte de comida")} <small>${esc(t(v.abono_comida.texto))}</small></button>` : "";
+document.addEventListener("click", (ev) => { const b = ev.target.closest && ev.target.closest("[data-abono-comida]"); if (b) { ev.preventDefault(); abonarse("comida"); } });
+async function abonarse(plan) {
+  plan = plan === "comida" ? "comida" : undefined;
   if (E.vista && !E.vista.abono && E.vista.contacto) return hojaContacto();
   const w = window.open("", "_blank");  // se abre ya (si no, el móvil lo bloquea) y luego se le pone el enlace
   try {
-    const r = await api("abonarse", { metodo: "POST", cuerpo: { atleta: E.atleta } });
+    const r = await api("abonarse", { metodo: "POST", cuerpo: { atleta: E.atleta, plan } });
     if (w) w.location = r.url; else location.href = r.url;
   } catch (e) { if (w) w.close(); aviso(e.message, true); }
 }
@@ -681,8 +688,7 @@ function hojaContacto() {
   });
 }
 const botonContacto = (v, id) => !v.abono && v.contacto ? `<button class="btn btn-abono" id="${id}">${t("Contactar con Diego")}</button>` : "";
-const botonAbono = (v, id, extra = "") => !v.abono ? botonContacto(v, id) : `<button class="btn btn-abono" id="${id}" ${extra}>${t("Abonarse")}${v.abono.texto ? ` <small>${esc(t(v.abono.texto))}</small>` : ""}</button>
-  <p class="promo-fundador">${t("Código FUNDADOR: 10 € menos cada mes, para siempre · solo 20 plazas")}</p>`;
+const botonAbono = (v, id, extra = "") => !v.abono ? botonContacto(v, id) : `<button class="btn btn-abono" id="${id}" ${extra}>${t("Abonarse")}${v.abono.texto ? ` <small>${esc(t(v.abono.texto))}</small>` : ""}</button>${botonComida(v)}`;
 
 function hojaPago(cs) {
   const v = E.vista || {};
@@ -730,7 +736,7 @@ function hojaPago(cs) {
       try {
         const pinEl = h.querySelector("#pg-pin");
         const r = await api("datos_pago", { metodo: "POST", cuerpo: { cs, nombre: h.querySelector("#pg-nombre").value,
-          telefono: h.querySelector("#pg-tel").value, email: h.querySelector("#pg-email").value, pin: pinEl ? pinEl.value : undefined, lang: E.lang, ...legal.datos } });
+          telefono: h.querySelector("#pg-tel").value, email: h.querySelector("#pg-email").value, pin: pinEl ? pinEl.value : undefined, lang: E.lang, plan: mem.get("pago_plan") || undefined, ...legal.datos } });
         mem.set("pago_pendiente", null);
         if (r.token) {  // abonado nuevo: entra ya en su perfil
           E.token = r.token; mem.set("token", r.token); E.atleta = r.solo; mem.set("atleta", r.solo); mem.set("perfil_fijo", r.solo);
@@ -1012,6 +1018,7 @@ function pintar() {
   desbloquearScroll();
   if (E.pantalla === "registrar") return pintarRegistrar();
   if (E.pantalla === "progreso" || E.pantalla === "prs") return pintarPantalla();
+  if (v && v.solo_comida) { if (E.pantalla !== "comida") E.pantalla = "comida"; return pintarComida(); }
   if (E.pantalla === "comida") return pintarComida();
   if (E.pantalla === "analizador") return pintarAnalizador();
   if (v.en_revision) {  // perfil nuevo: Diego revisa y aprueba el programa antes de que lo vea
@@ -1047,8 +1054,7 @@ function pintar() {
       <div class="pago-ok">🔒</div>
       <h2>${t(v.pago_motivo === "semana2" ? "¡Semana 1 completada! 🔥" : "Tu semana gratis ha terminado")}</h2>
       <p>${t(v.pago_motivo === "semana2" ? (v.pago_auto ? "Has hecho toda la semana 1 💪 Abónate para abrir la semana 2 y no perder lo que has ganado." : "La semana gratis incluye la semana 1. Abónate para abrir la semana 2 y seguir con Diego.") : "Tu rutina sigue aquí, hecha para ti. Abónate para seguir entrenando con Diego.")}</p>
-      ${v.abono ? `<button class="btn btn-abono" id="mp-abono" style="height:58px">${t("Abonarme y seguir")}</button>
-        <p class="promo-fundador">${t("Código FUNDADOR: 10 € menos cada mes, para siempre · solo 20 plazas")}</p>` : ""}
+      ${v.abono ? `<button class="btn btn-abono" id="mp-abono" style="height:58px">${t("Abonarme y seguir")}</button>${botonComida(v)}` : ""}
       ${v.chat_activo ? `<button class="btn" id="mp-chat">${t("Escribir a Diego")}</button>` : ""}
       <button class="btn" id="mp-salir">${t("Salir")}</button></div></main>`;
     enlazar();
@@ -1313,6 +1319,7 @@ function nav(activo = "rutina") {
   const b = (id, icono, txt, extra = "") => activo === id
     ? `<button class="on" aria-current="page" ${extra}>${icono}${txt}</button>`
     : `<button aria-label="${txt}" ${extra}>${icono}</button>`;
+  if (E.vista && E.vista.solo_comida) return "";  // plan solo comida: no hay más secciones
   return `<nav class="nav" aria-label="Secciones">
     ${b("rutina", ic.calendario, t("Rutina"), 'data-ir="rutina"')}
     ${b("comida", ic.comida, t("Comida"), 'data-ir="comida"')}
@@ -2461,7 +2468,7 @@ async function pantallaEncendida(si) {
 }
 
 const CRONO_DEMO_SEG = 60;  // en la demo el reloj va 1 minuto; sin abono (prueba terminada) no se abre
-function cronoLimitado() { const v = E.vista || {}; return v.pago_requerido ? "pago" : v.demo ? "demo" : null; }
+function cronoLimitado() { const v = E.vista || {}; return v.pago_requerido || v.solo_comida ? "pago" : v.demo ? "demo" : null; }
 function muroCrono(tipo) {
   abrirHoja(`${cabHoja("Djimenez Prog", t("Cronómetro"))}
     <p style="margin:4px 4px 14px">${t(tipo === "pago" ? "El cronómetro es para los abonados. Abónate y sigue usándolo con tu rutina." : "En la demo el cronómetro va 1 minuto. Crea tu perfil: tienes 7 días gratis para usarlo entero con tu rutina.")}</p>
@@ -3023,7 +3030,7 @@ function hojaNuevoPr() {
   const inv = qs.get("inv");
   const ig = qs.has("ig") || qs.has("insta");
   if (qs.get("codigo")) mem.set("codigo", qs.get("codigo").toUpperCase());
-  if (qs.get("pago") === "ok") { E.pagoCs = qs.get("cs") || ""; mem.set("pago_pendiente", E.pagoCs || "-"); }
+  if (qs.get("pago") === "ok") { E.pagoCs = qs.get("cs") || ""; mem.set("pago_pendiente", E.pagoCs || "-"); mem.set("pago_plan", qs.get("plan") === "comida" ? "comida" : null); }
   else if (mem.get("pago_pendiente")) E.pagoCs = mem.get("pago_pendiente") === "-" ? "" : mem.get("pago_pendiente");
   if (qs.get("a")) { E.atleta = qs.get("a"); mem.set("atleta", E.atleta); E.semana = Number(qs.get("s")) || null; E.dia = null; }  // enlace para revisar una semana
   if (inv || ig || qs.get("codigo") || qs.get("pago") || qs.get("a")) history.replaceState(null, "", location.pathname);
@@ -3075,7 +3082,7 @@ function pintarComida() {
         <li>${t("Apuntas lo que comes en dos toques y ves lo que te queda.")}</li>
         <li>${t("Ideas de desayuno, comida, merienda y cena sin lo que no comes.")}</li>
       </ul>
-      ${d.abono ? `<button class="btn btn-fuego" id="cm-abono">${t("Abonarme para usarla")}</button>` : `<button class="btn btn-fuego" id="cm-contacto">${t("Escribir a Diego")}</button>`}
+      ${d.abono ? `<button class="btn btn-fuego" id="cm-abono">${t("Abonarme para usarla")}</button>${botonComida(E.vista)}` : `<button class="btn btn-fuego" id="cm-contacto">${t("Escribir a Diego")}</button>`}
     </section>`;
   } else if (!d.objetivo || !d.objetivo.kcal) {
     cuerpo = `<section class="card">
@@ -3120,10 +3127,19 @@ function pintarComida() {
     ${cajaHabitual(d)}
     ${d.coach ? cajaPermisoComida(d) : ""}`;
   }
+  const vv = E.vista || {};
+  if (vv.solo_comida && vv.abono) cuerpo += `<section class="card subir-plan"><b>${t("¿Quieres también tu programa de entreno?")}</b>
+    <p class="mini" style="margin:4px 0 10px">${t("El plan completo incluye tu rutina con Diego, el cronómetro y el analizador de halterofilia ilimitado.")}</p>
+    <button class="btn btn-abono" id="cm-completo">${t("Pasarme al completo")} <small>${esc(t(vv.abono.texto || ""))}</small></button>
+    ${vv.chat_activo ? `<button class="btn" id="cm-chat" style="margin-top:8px">${t("Escribir a Diego")}</button>` : ""}
+    <button class="btn" id="cm-salir" style="margin-top:8px">${t("Salir")}</button></section>`;
   $app.innerHTML = cabeceraPantalla("comida") + `<main class="pant-comida">${cuerpo}</main>` + nav("comida");
   enlazar();
   const on = (id, f) => { const b = document.getElementById(id); if (b) b.onclick = f; };
-  on("cm-abono", abonarse);
+  on("cm-abono", () => abonarse());
+  on("cm-completo", () => abonarse());
+  on("cm-chat", hojaChat);
+  on("cm-salir", salir);
   on("cm-contacto", hojaContacto);
   on("cm-dieta", hojaDieta);
   on("cm-permiso", () => accionComida({ accion: "permiso", valor: !d.permitido }));

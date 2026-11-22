@@ -1568,7 +1568,8 @@ def crear_perfil(sesion: dict, c: dict) -> dict:
 
 
 ABONO_DEFECTO = {"url": "https://buy.stripe.com/6oU00k9CTaJCg9g7oZ7ok0S", "texto": "7 días gratis · luego 39 €/mes"}  # completo: entreno + comida + analizador (antes 29 €)
-ABONO_COMIDA = "https://buy.stripe.com/fZudRadT9dVO6yG8t37ok0T"  # solo comida 9,99 €/mes: falta el modo «solo comida» en la app antes de enseñarlo  # se cambia con ABONO_URL / ABONO_TEXTO
+ABONO_COMIDA = {"url": "https://buy.stripe.com/fZudRadT9dVO6yG8t37ok0T", "texto": "9,99 €/mes"}  # plan «solo comida»
+PRECIO_COMIDA = "price_1UeaGdIE1akTdjrh5srjvxr9"  # se cambia con ABONO_URL / ABONO_TEXTO
 def _abono_url() -> str:
     return env("ABONO_URL") or ABONO_DEFECTO["url"]
 
@@ -1600,7 +1601,7 @@ def contactar(sesion: dict, c: dict) -> dict:
 
 def abonarse(sesion: dict, c: dict) -> dict:
     """Apunta que alguien pulsa «Abonarse» y devuelve el enlace de pago (Stripe), con su nombre para reconocerle."""
-    url = _abono_url()
+    url = ABONO_COMIDA["url"] if c.get("plan") == "comida" else _abono_url()
     if not url:
         raise Error("El pago todavía no está activado. Escríbele a Diego.", 404)
     quien = "Demo" if es_demo(sesion) else (sesion.get("u") or (c.get("atleta") if c.get("atleta") in todas_las_personas() else "Yo"))
@@ -1650,7 +1651,9 @@ def _comprobar_pago_stripe(cs: str) -> dict | None:
         return None
     sub = x.get("subscription") if isinstance(x.get("subscription"), dict) else {}
     pagado = x.get("status") == "complete" and x.get("payment_status") in ("paid", "no_payment_required")
-    return {"ok": pagado, "estado": sub.get("status") or ("active" if pagado else x.get("status")),
+    precios = {((i.get("price") or {}).get("id")) for i in ((sub.get("items") or {}).get("data") or [])}
+    return {"ok": pagado, "plan": "comida" if PRECIO_COMIDA in precios else "completo",
+            "estado": sub.get("status") or ("active" if pagado else x.get("status")),
             "customer": x.get("customer"), "sub": sub.get("id") or x.get("subscription"),
             "email": (x.get("customer_details") or {}).get("email"), "fin_prueba": sub.get("trial_end")}
 
@@ -1775,6 +1778,19 @@ def datos_pago(sesion: dict | None, c: dict) -> dict:
                               "stripe_estado": stripe["estado"], "stripe_mirado": time.time(),
                               "abonado": reg_inv[quien].get("abonado") or dt.date.today().isoformat()}
             datos().guardar(CLAVE_INVITADOS, reg_inv)
+    plan = (stripe or {}).get("plan") if stripe and stripe["ok"] else ("comida" if c.get("plan") == "comida" else None)
+    if quien and plan:
+        reg_inv = dict(invitados())
+        if quien in reg_inv:
+            x = dict(reg_inv[quien])
+            if plan == "comida":  # solo comida: no hay rutina que revisar, entra directo a su comida
+                x["plan"] = "comida"
+                if x.get("revision") == "pendiente":
+                    x.pop("revision", None); x["aprobado"] = dt.date.today().isoformat()
+            else:
+                x.pop("plan", None)
+            reg_inv[quien] = x
+            datos().guardar(CLAVE_INVITADOS, reg_inv)
     if stripe and stripe["ok"] and quien and quien in PAGO_OBLIGATORIO:  # alumna de siempre (sin perfil de invitado)
         reg = dict(datos().rutinas([CLAVE_CONFIG]).get(CLAVE_CONFIG) or {})
         reg.setdefault("pagos_fijos", {})[quien] = {"stripe_customer": stripe["customer"], "stripe_sub": stripe["sub"],
@@ -1782,7 +1798,7 @@ def datos_pago(sesion: dict | None, c: dict) -> dict:
         datos().guardar(CLAVE_CONFIG, reg)
     verif = ("\n✅ Stripe lo confirma: " + ESTADOS_ABONO.get(stripe["estado"], str(stripe["estado"]))) if stripe and stripe["ok"] else \
         ("\n⚠️ Stripe NO confirma este pago: revísalo" if stripe else "")
-    notificar(f"💳 {'Nuevo abonado (semana gratis)' if respuesta.get('nuevo_abonado') else ('Pago nuevo' if stripe and stripe['ok'] else 'Pago nuevo por comprobar')}{verif}\n"
+    notificar(("🍽️ Plan SOLO COMIDA\n" if plan == "comida" else "") + f"💳 {'Nuevo abonado (semana gratis)' if respuesta.get('nuevo_abonado') else ('Pago nuevo' if stripe and stripe['ok'] else 'Pago nuevo por comprobar')}{verif}\n"
               f"{nombre} · {tel} · {email}" + (f"\n👤 Perfil creado: {quien} · rutina de inicio, ajústasela" if respuesta.get("nuevo_abonado") else "")
               + (f"\nStripe: {cs}" if cs else ""))
     return respuesta
@@ -2956,6 +2972,7 @@ def vista(sesion: dict, atleta: str | None, semana: int | None, dia_id: str | No
             "app_antigua": env("APP_ANTIGUA_URL"), "tipos": {k: v[0] for k, v in TIPOS.items()},
             "unidades": UNIDADES, "con_prs": atleta not in SIN_PRS, "coach": coach, "demo": es_demo(sesion),
             "abono": {"texto": (env("ABONO_TEXTO") or ABONO_DEFECTO["texto"])} if _abono_url() else None,
+            "abono_comida": {"texto": ABONO_COMIDA["texto"]} if _abono_url() else None,
             "contacto": _contacto() if not _abono_url() else None,
             "es_diego": bool(sesion.get("y")), "diego_aparte": bool(env("CONTRASENA_DIEGO")),
             "invitado": bool(sesion.get("u") == atleta and atleta in inv and not es_demo(sesion)),
@@ -2992,6 +3009,11 @@ def vista(sesion: dict, atleta: str | None, semana: int | None, dia_id: str | No
     if sesion.get("u") == atleta and not coach and not es_demo(sesion) and atleta != "Yo":
         base["mi_codigo"] = _codigo_de(atleta)
         base["porcentaje"] = PORCENTAJE_RECOMIENDA
+    if (inv.get(atleta) or {}).get("plan") == "comida":
+        if coach:
+            base["plan_comida"] = True
+        elif sesion.get("u") == atleta and not es_demo(sesion):
+            return {**base, "solo_comida": True}
     en_revision = (inv.get(atleta) or {}).get("revision") == "pendiente"
     if en_revision and coach:
         base["revision_pendiente"] = True
@@ -4469,6 +4491,11 @@ def _an_libre(nombre: str, doc: dict | None = None) -> bool:
     doc = _analizador_doc() if doc is None else doc
     if nombre in (doc.get("libres") or []):
         return True
+    try:
+        if (invitados().get(nombre) or {}).get("plan") == "comida":
+            return False
+    except Exception:  # noqa: BLE001
+        pass
     if nombre in (doc.get("limitados") or []):
         return False
     return not norm_busqueda(nombre).startswith(ANALIZADOR_LIMITADOS)

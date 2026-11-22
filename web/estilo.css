@@ -1020,3 +1020,9 @@ body, body:not(.x) { background: var(--fondo); }
 
 /* rejillas de chips (régimen): que el texto largo («Prendre du muscle») quepa en su celda */
 .rejilla-3 > .chip, .rejilla-2 > .chip { min-width: 0; white-space: normal; text-align: center; justify-content: center; line-height: 1.15; padding-left: 8px; padding-right: 8px; }
+
+/* plan «solo comida» */
+.btn-plan-comida, .subir-plan .btn-abono { width: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; height: auto; min-height: 58px; padding: 10px 14px; line-height: 1.2; }
+.btn-plan-comida { margin-top: 8px; background: transparent; border: 2px solid #1baf7a; color: #1baf7a; font-weight: 800; }
+.btn-plan-comida small, .subir-plan .btn-abono small { display: block; font-weight: 600; opacity: .85; font-size: 12px; }
+.subir-plan { margin-top: 14px; text-align: center; }
