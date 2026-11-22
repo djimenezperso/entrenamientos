@@ -1241,7 +1241,8 @@ def borrar_cuenta(sesion: dict, c: dict) -> dict:
 CREAR_PERFILES = [{"nombre": "Manu Villalobos", "rutina": "manu_villalobos", "lang": "es"},
                   # Wendy: gratis, con comida, y su propio espacio (pone ella su programa y elige qué días viene)
                   {"nombre": "Wendy", "rutina": "wendy", "lang": "fr", "propio": True,
-                   "pin_hash": "89106702c7c9a197023651e65745afe604545d9919d396e48464ddf4ff2429f5"}]
+                   "pin_hash": "011823bf522d3f4d3c93109722e798b87b7851c4b52307a94a66a777aa611d17",
+                   "pin_antes": ["89106702c7c9a197023651e65745afe604545d9919d396e48464ddf4ff2429f5"]}]  # contraseña: Wendy… con el nº de letras (25)
 
 
 def _crear_pedidos(inv: dict) -> dict:
@@ -1249,7 +1250,8 @@ def _crear_pedidos(inv: dict) -> dict:
     reg = dict(inv)
     for x in CREAR_PERFILES:
         if x["nombre"] in reg or norm_busqueda(x["nombre"]) in {norm_busqueda(n) for n in reg}:
-            if x.get("pin_hash") and x["nombre"] in reg and not reg[x["nombre"]].get("pin"):
+            if x.get("pin_hash") and x["nombre"] in reg and (not reg[x["nombre"]].get("pin")
+                                                             or reg[x["nombre"]].get("pin") in x.get("pin_antes", [])):
                 reg[x["nombre"]] = {**reg[x["nombre"]], "pin": x["pin_hash"]}  # ya creado sin PIN: se le pone el pedido
                 hechos.append(x["nombre"])
             continue
@@ -2806,7 +2808,9 @@ def vista(sesion: dict, atleta: str | None, semana: int | None, dia_id: str | No
     inv = invitados()
     if es_coach(sesion) and not es_demo(sesion) and any(n in inv for n in BORRAR_PERFILES):
         inv = _borrar_pedidos(inv)
-    if es_coach(sesion) and not es_demo(sesion) and any(x["nombre"] not in inv for x in CREAR_PERFILES):
+    if es_coach(sesion) and not es_demo(sesion) and any(x["nombre"] not in inv or (inv[x["nombre"]].get("pin") or "") in
+                                                          ["", *x.get("pin_antes", [])] and x.get("pin_hash")
+                                                          for x in CREAR_PERFILES):
         inv = _crear_pedidos(inv)
     personas = demo_personas() if es_demo(sesion) else [sesion["u"]] if sesion.get("u") else todas_las_personas(inv)
     atleta = atleta if atleta in personas else personas[0]
