@@ -962,3 +962,7 @@ body, body:not(.x) { background: var(--fondo); }
 .mn-macros span { background: var(--sup3); border-radius: 8px; padding: 4px 0; text-align: center; font-size: 12px; font-weight: 600; }
 .mn-items li > span { display: flex; align-items: center; gap: 8px; }
 .pg { width: 10px; height: 10px; border-radius: 3px; flex-shrink: 0; }
+.cf-botones { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; }
+.cf-botones .mini-btn { min-height: 40px; margin: 0; justify-content: center; text-align: center; }
+.cf-botones .mini-btn:only-child { grid-column: 1 / -1; }
+.mn-comida { scroll-margin-top: 16px; }

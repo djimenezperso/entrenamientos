@@ -2974,11 +2974,11 @@ function pintarComida() {
       return `<section class="comida-fila ${est}">
         <div class="cf-cab">
           <span class="cf-marca">${c.items.length ? ic.ok : i === siguiente ? "!" : "·"}</span>
-          <div class="cf-txt"><b>${t(c.nombre)}</b><small>${c.items.length ? esc(c.items.map((x) => x.nombre).join(", ")) : c.idea.length ? t("Idea") + ": " + esc(c.idea.join(", ")) : ""}</small></div>
+          <div class="cf-txt"><b>${t(c.nombre)}</b><small>${c.items.length ? esc(c.items.map((x) => x.nombre).join(", ")) : i === siguiente ? t("Te toca ahora") : t("Sin apuntar")}</small></div>
           <span class="cf-kcal">${c.items.length ? num(c.kcal) : "≈ " + num(c.objetivo || 0)}<small> kcal</small></span>
         </div>
         ${c.items.length ? `<div class="cf-items">${c.items.map((x) => `<div class="cf-item"><span>${esc(x.nombre)} · ${num(x.raciones)} × ${esc(x.racion)}</span><span>${num(x.kcal)} kcal</span>${d.solo_mirar ? "" : `<button class="cf-quitar" data-cm-quitar="${esc(x.id)}" aria-label="${t("Quitar")}">×</button>`}</div>`).join("")}</div>` : ""}
-        ${d.solo_mirar ? "" : `<button class="mini-btn cf-anadir" data-cm-anadir="${c.id}">+ ${t("Añadir a")} ${t(c.nombre).toLowerCase()}</button>`}
+        ${d.solo_mirar ? "" : `<div class="cf-botones"><button class="mini-btn" data-cm-anadir="${c.id}">+ ${t("Añadir")}</button>${!c.items.length && (d.plan || []).some((m) => m.id === c.id) ? `<button class="mini-btn" data-cm-menu="${c.id}">${t("Ver menú")}</button>` : ""}</div>`}
       </section>`;
     }).join("");
     cuerpo = `
@@ -3019,6 +3019,7 @@ function pintarComida() {
   $app.querySelectorAll("[data-cm-entreno]").forEach((b) => b.onclick = () => accionComida({ accion: "entreno", valor: b.dataset.cmEntreno === "1" }));
   $app.querySelectorAll("[data-cm-quitar]").forEach((b) => b.onclick = () => accionComida({ accion: "quitar", id: b.dataset.cmQuitar }));
   $app.querySelectorAll("[data-cm-anadir]").forEach((b) => b.onclick = () => hojaAlimento(b.dataset.cmAnadir));
+  $app.querySelectorAll("[data-cm-menu]").forEach((b) => b.onclick = () => { const el = document.getElementById("mn-" + b.dataset.cmMenu); if (el) el.scrollIntoView({ behavior: "smooth", block: "start" }); });
 }
 
 function cajaPermisoComida(d) {
@@ -3214,7 +3215,7 @@ function cajaMenu(d) {
     <p class="mini" style="margin:0">${t("Elige una opción para cada comida: las cantidades ya están ajustadas a tus calorías y a lo que no comes.")}</p>
     ${d.plan.map((m) => {
       const i = Math.min(sel[m.id] || 0, m.opciones.length - 1), op = m.opciones[i];
-      return `<div class="mn-comida">
+      return `<div class="mn-comida" id="mn-${m.id}">
         <div class="mn-cab"><b>${t(m.nombre)}</b><span>≈ ${num(m.kcal_meta)} kcal</span></div>
         <div class="mn-ops" role="group" aria-label="${t("Opciones")}">${m.opciones.map((o, k) => `<button class="chip ${k === i ? "on" : ""}" data-mn-op="${m.id}|${k}" aria-pressed="${k === i}"><span>${t("Opción")} ${k + 1}</span><small>${num(o.kcal)} kcal</small></button>`).join("")}</div>
         <div class="mn-plato">${platoSVG(op.items)}<div class="mn-kcal"><b>${num(op.kcal)}</b><span>kcal</span>
