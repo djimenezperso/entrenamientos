@@ -206,12 +206,16 @@ def interpretar(texto: str, comida_def: str | None = None) -> dict:
     out, entendidos = [], 0
     for cid, trozo in trozos:
         usado = [False] * len(trozo)
+        hechos = []  # (inicio, fin, alimento): «bonbons haribo» es un solo alimento, no dos
         for w, k in lista:
             for m in _re.finditer(r"(?<![\w])" + _re.escape(w) + r"(?![\w])", trozo):
                 if any(usado[m.start():m.end()]):
                     continue
                 for i in range(m.start(), m.end()):
                     usado[i] = True
+                if any(k0 == k and not trozo[min(e0, m.end()):max(s0, m.start())].strip() for s0, e0, k0 in hechos):
+                    continue
+                hechos.append((m.start(), m.end(), k))
                 antes = trozo[max(0, m.start() - 28): m.start()]
                 rac = 1.0
                 g = _re.search(r"(\d+(?:[.,]\d+)?)\s*(g|gr|gramos|ml|grammes)\b(?:\s+de)?\s*$", antes)
