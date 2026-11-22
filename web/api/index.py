@@ -27,6 +27,12 @@ class handler(BaseHTTPRequestHandler):
         return servicio.leer_sesion(auth.removeprefix("Bearer ").strip())
 
     def _cuerpo(self) -> dict:
+        if hasattr(self, "_c_cache"):
+            return self._c_cache
+        self._c_cache = self._leer_cuerpo()
+        return self._c_cache
+
+    def _leer_cuerpo(self) -> dict:
         n = int(self.headers.get("Content-Length") or 0)
         if n > 4_500_000:
             raise servicio.Error("Demasiado grande", 413)
@@ -37,7 +43,8 @@ class handler(BaseHTTPRequestHandler):
         q = {k: v[0] for k, v in parse_qs(url.query).items()}
         ruta = q.get("r") or url.path.rstrip("/").split("/")[-1]
         try:
-            if metodo == "POST" and ruta not in ("login", "compartir", "crear_perfil", "abonarse", "datos_pago", "contactar", "me_gusta", "chat", "tg_webhook"):
+            if metodo == "POST" and ruta not in ("login", "compartir", "crear_perfil", "abonarse", "datos_pago", "contactar", "me_gusta", "chat", "tg_webhook") \
+                    and not (ruta == "comida" and self._cuerpo().get("accion") == "interpretar"):  # entender lo dicho no guarda nada
                 servicio.solo_lectura(self._sesion())  # la demo no puede guardar nada
             if ruta == "resumen_plan" and metodo == "GET":  # cron de Vercel (domingos): lo que queda por preparar
                 secreto = servicio.env("CRON_SECRET")

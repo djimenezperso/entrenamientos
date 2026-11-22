@@ -992,3 +992,11 @@ body, body:not(.x) { background: var(--fondo); }
 .rc-pasos { margin: 0 0 14px; padding-left: 22px; line-height: 1.5; }
 .rc-pasos li { margin-bottom: 6px; }
 .rc-inspira { display: block; text-align: center; margin: 10px auto 4px; text-decoration: none; }
+/* dictado por voz en los cuadros de texto */
+.mic-wrap { position: relative; display: block; flex: 1; min-width: 0; width: 100%; }
+.mic-wrap > textarea { width: 100%; box-sizing: border-box; padding-right: 50px !important; }
+.mic-ta { position: absolute; top: 8px; right: 8px; width: 36px; height: 36px; border-radius: 50%; border: 1.5px solid var(--raya2, #4A433C); background: transparent; color: #FF7A1F; display: grid; place-items: center; padding: 0; cursor: pointer; }
+.mic-ta svg { width: 18px; height: 18px; }
+.mic-ta svg * { stroke: currentColor; }
+.mic-ta.on { background: #FF7A1F; color: #1A120B; border-color: #FF7A1F; animation: micLatido 1.2s ease-in-out infinite; }
+@keyframes micLatido { 50% { box-shadow: 0 0 0 8px rgba(255, 122, 31, .25); } }

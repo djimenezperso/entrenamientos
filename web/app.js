@@ -3315,7 +3315,9 @@ Object.assign(FR, {  // textos de Comida y Analizador
   "Proteína": "Protéines", "Hidratos": "Glucides", "Grasa": "Lipides", "Te toca ahora": "C'est maintenant", "Sin apuntar": "Pas encore noté",
   "Añadir": "Ajouter", "Ver menú": "Voir le menu", "Cerrar menú": "Fermer le menu", "Opción": "Option", "Apuntar esta opción": "Noter cette option",
   "Orientativo y con datos fijos: no sustituye a un dietista-nutricionista.": "Indicatif, avec des données fixes : ne remplace pas un diététicien-nutritionniste.",
-  "Decir lo que he comido": "Dire ce que j'ai mangé", "Día de entreno: más hidratos.": "Jour d'entraînement : plus de glucides.",
+  "Decir lo que he comido": "Dire ce que j'ai mangé", "Dilo con el micro": "Dis-le au micro", "Dictar": "Dicter", "Dilo como un audio": "Dis-le comme un vocal",
+  "Ej.: «Un plato de arroz con pollo y una manzana». Si dices desayuno, comida, merienda o cena, lo coloca solo.": "Ex. : « Une assiette de riz au poulet et une pomme ». Si tu dis petit-déj, déjeuner, goûter ou dîner, il le range tout seul.",
+  "Ej.: «Desayuno dos huevos con una tostada. A mediodía arroz con pollo y ensalada. Merienda un yogur. Cena salmón con patatas».": "Ex. : « Au petit-déj deux œufs et une tartine. À midi riz, poulet et salade. Au goûter un yaourt. Le soir saumon et pommes de terre ».", "Día de entreno: más hidratos.": "Jour d'entraînement : plus de glucides.",
   "Día de descanso: 300 kcal menos, todo de hidratos.": "Jour de repos : 300 kcal de moins, côté glucides.",
   "Tus comidas de siempre": "Tes repas habituels", "Cuéntanos qué sueles comer": "Dis-nous ce que tu manges d'habitude",
   "Lo dices con el micro, como un audio, y te decimos cómo repartirlo mejor para tu objetivo.": "Dis-le au micro, comme un vocal, et on te dit comment mieux le répartir pour ton objectif.",
@@ -3359,3 +3361,32 @@ function trRacion(s) {  // raciones y cantidades en francés
     ["lata", "boîte"], ["mediano", "moyen"], ["mediana", "moyenne"], ["taza", "tasse"], ["cacito", "dose"], ["½ pizza", "½ pizza"]];
   let r = s; for (const [a, b] of P) r = r.split(a).join(b); return r;
 }
+
+// ---------- dictado por voz en cualquier cuadro de texto ----------
+function microTextareas(root = document) {
+  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if (!SR) return;
+  root.querySelectorAll("textarea:not([data-mic]):not(#vz-txt)").forEach((ta) => {
+    ta.dataset.mic = "1";
+    const w = document.createElement("div"); w.className = "mic-wrap";
+    ta.parentNode.insertBefore(w, ta); w.appendChild(ta);
+    const b = document.createElement("button"); b.type = "button"; b.className = "mic-ta";
+    b.setAttribute("aria-label", t("Dictar")); b.innerHTML = ic.microfono; w.appendChild(b);
+    let rec = null;
+    b.onclick = () => {
+      if (rec) { try { rec.stop(); } catch (e) { } return; }
+      rec = new SR(); rec.lang = E.lang === "fr" ? "fr-FR" : "es-ES"; rec.continuous = true; rec.interimResults = true;
+      const base = ta.value.trim();
+      rec.onresult = (ev) => {
+        let txt = ""; for (let i = 0; i < ev.results.length; i++) txt += ev.results[i][0].transcript;
+        ta.value = (base ? base + " " : "") + txt.trim(); ta.dispatchEvent(new Event("input", { bubbles: true }));
+      };
+      const fin = () => { rec = null; b.classList.remove("on"); };
+      rec.onend = fin;
+      rec.onerror = (ev) => { fin(); if (ev.error === "not-allowed") aviso(t("Da permiso al micro en el navegador para hablar."), true); };
+      try { rec.start(); b.classList.add("on"); } catch (e) { fin(); }
+    };
+  });
+}
+new MutationObserver(() => microTextareas()).observe(document.body, { childList: true, subtree: true });
+microTextareas();
