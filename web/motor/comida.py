@@ -38,6 +38,7 @@ ALIMENTOS = {
     "boniato": ("Boniato asado", "200 g", 180, 3, 41, 0, "Cereales", ()),
     "tortitas": ("Tortitas de arroz", "4 unidades", 140, 3, 30, 1, "Cereales", ()),
     "pollo": ("Pechuga de pollo", "150 g", 165, 35, 0, 3, "Proteína", ("carne",)),
+    "muslo_pollo": ("Muslo de pollo sin piel", "150 g", 235, 38, 0, 9, "Proteína", ("carne",)),
     "pavo": ("Pavo en filetes", "150 g", 160, 34, 0, 2, "Proteína", ("carne",)),
     "ternera": ("Ternera magra", "150 g", 220, 32, 0, 10, "Proteína", ("carne",)),
     "salmon": ("Salmón", "150 g", 300, 30, 0, 20, "Proteína", ("pescado",)),
@@ -106,7 +107,7 @@ IDEAS = {
 
 
 # gramos o mililitros de una ración, para entender «200 g de arroz»; y unidades por ración («un huevo» = ½ ración)
-GRAMOS = {"avena": 60, "pan": 60, "arroz": 200, "pasta": 200, "patata": 250, "boniato": 200, "pollo": 150, "pavo": 150,
+GRAMOS = {"avena": 60, "pan": 60, "arroz": 200, "pasta": 200, "patata": 250, "boniato": 200, "pollo": 150, "muslo_pollo": 150, "pavo": 150,
           "ternera": 150, "salmon": 150, "atun": 80, "merluza": 200, "gambas": 150, "claras": 200, "tofu": 150, "lentejas": 250,
           "garbanzos": 250, "proteina": 30, "proteina_veg": 30, "yogur": 125, "skyr": 150, "leche": 250, "bebida_veg": 250,
           "queso_fresco": 150, "frutos_rojos": 150, "verdura": 250, "aguacate": 70, "aceite": 10, "frutos_secos": 30,
@@ -120,7 +121,8 @@ SINONIMOS = {
     "arroz": ["arroz", "riz"], "pasta": ["pasta", "macarrones", "espaguetis", "spaghetti", "fideos", "pâtes"],
     "patata": ["patatas", "patata", "papas", "pommes de terre"], "boniato": ["boniato", "batata", "patate douce"],
     "tortitas": ["tortitas de arroz", "tortitas", "galettes de riz"],
-    "pollo": ["pechuga de pollo", "pollo", "poulet"], "pavo": ["pavo", "dinde"], "ternera": ["ternera", "filete", "carne", "bœuf", "steak"],
+    "pollo": ["pechuga de pollo", "pollo", "poulet", "blanc de poulet", "filet de poulet"],
+    "muslo_pollo": ["muslos de pollo", "muslo de pollo", "contramuslo", "cuisses de poulet", "cuisse de poulet", "haut de cuisse", "pilon de poulet"], "pavo": ["pavo", "dinde"], "ternera": ["ternera", "filete", "carne", "bœuf", "steak"],
     "salmon": ["salmón", "salmon", "saumon"], "atun": ["atún", "atun", "thon"], "merluza": ["merluza", "pescado blanco", "pescado", "poisson", "cabillaud"],
     "gambas": ["gambas", "langostinos", "crevettes"], "huevos": ["tortilla francesa", "huevos", "huevo", "œufs", "oeufs", "œuf"],
     "claras": ["claras de huevo", "claras", "blancs d'œuf"], "tofu": ["tofu"], "lentejas": ["lentejas", "lentilles"],
@@ -129,7 +131,7 @@ SINONIMOS = {
     "skyr": ["skyr", "yogur proteico"], "leche": ["vaso de leche", "leche", "lait"], "bebida_veg": ["bebida de soja", "leche de soja", "bebida vegetal", "leche de avena", "lait d'amande"],
     "queso_fresco": ["queso fresco batido", "queso batido", "queso fresco", "fromage blanc"], "platano": ["plátanos", "plátano", "platano", "banana", "banane"],
     "manzana": ["manzanas", "manzana", "fruta", "pera", "pomme", "poire", "fruit"], "frutos_rojos": ["frutos rojos", "fresas", "arándanos", "fruits rouges"],
-    "verdura": ["verduras", "verdura", "brócoli", "brocoli", "judías verdes", "espinacas", "légumes"], "ensalada": ["ensalada", "salade"],
+    "verdura": ["verduras", "verdura", "brócoli", "brocoli", "judías verdes", "espinacas", "calabacín", "calabacines", "pepino", "pimiento", "berenjena", "zanahoria", "zanahorias", "champiñones", "coliflor", "légumes", "légume", "courgettes", "courgette", "concombre", "poivron", "aubergine", "carottes", "carotte", "champignons", "haricots verts", "épinards", "chou-fleur"], "ensalada": ["ensalada", "lechuga", "tomate", "tomates", "salade", "salade verte", "laitue", "tomate cerise"],
     "aguacate": ["aguacate", "avocat"], "aceite": ["aceite de oliva", "aceite", "huile"], "frutos_secos": ["frutos secos", "nueces", "almendras", "noix", "amandes"],
     "crema_cacahuete": ["crema de cacahuete", "mantequilla de cacahuete", "beurre de cacahuète"], "chocolate": ["chocolate", "chocolat"], "miel": ["miel"],
     "cereales": ["cereales", "muesli", "granola", "céréales"], "galletas": ["galletas", "biscuits"], "zumo": ["zumo", "jugo", "jus d'orange", "jus"],

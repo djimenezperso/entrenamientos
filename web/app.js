@@ -3487,6 +3487,7 @@ Object.assign(FR, {  // analizador y alimentos
   "Zumo de naranja": "Jus d'orange", "Jamón serrano": "Jambon cru", "Jamón cocido": "Jambon blanc", "Queso curado": "Fromage affiné", "Pizza": "Pizza",
   "Hamburguesa con pan": "Burger",
   "Pasta integral cocida": "Pâtes complètes cuites",
+  "Muslo de pollo sin piel": "Cuisse de poulet sans peau",
   "Arroz integral cocido": "Riz complet cuit",
   "Quinoa cocida": "Quinoa cuit",
   "Cuscús cocido": "Couscous cuit",
