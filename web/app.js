@@ -18,6 +18,12 @@ const E = { token: mem.get("token"), atleta: mem.get("atleta"), lang: mem.get("l
 
 // ---------- textos ----------
 const FR = {
+  "Importar mis entrenos": "Importer mes entraînements", "Importar": "Importer",
+  "Pega aquí tu mensaje de WhatsApp o tu nota, o dale al micro y cuéntalo. Si pones los días (Lunes, Martes…), cada entreno va a su día; si no, va al día que tienes abierto.": "Colle ici ton message WhatsApp ou ta note, ou appuie sur le micro et raconte-le. Si tu mets les jours (Lundi, Mardi…), chaque entraînement va à son jour ; sinon, il va au jour ouvert.",
+  "Lunes\nA) Back squat 5x5\nB) AMRAP 12': 10 wall balls, 10 burpees\nJueves\n…": "Lundi\nA) Back squat 5x5\nB) AMRAP 12' : 10 wall balls, 10 burpees\nJeudi\n…",
+  "Pegar lo que he copiado": "Coller ce que j'ai copié", "Mantén pulsado en el cuadro y dale a Pegar": "Appuie longuement dans la case et choisis Coller",
+  "Pega o dicta tu entreno primero": "Colle ou dicte ton entraînement d'abord", "No encuentro ningún entreno en ese texto": "Je ne trouve aucun entraînement dans ce texte",
+  "Importado: 1 día ✅": "Importé : 1 jour ✅",
   "Ver la receta paso a paso": "Voir la recette pas à pas",
   "La salsa": "La sauce", "casi sin calorías": "presque sans calories",
   "Ver receta": "Voir la recette", "Ingredientes (ya ajustados a ti)": "Ingrédients (déjà adaptés à toi)", "Cómo se hace": "Préparation",
@@ -602,7 +608,7 @@ function poner(v) {
   E.semana = v.semana; E.dia = v.dia && v.dia.id;
   if (v.solo && v.lang && !mem.get("lang_elegido")) E.lang = v.lang;
   pintar();
-  if (v.pr) { aviso("🎉 " + v.pr); confeti(); } else if (v.aviso) aviso(t(v.aviso));
+  if (v.pr) { aviso("🎉 " + v.pr); confeti(); } else if (v.aviso) aviso(E.lang === "fr" && /^Importado: \d+ días ✅$/.test(v.aviso) ? v.aviso.replace("Importado", "Importé").replace("días", "jours") : t(v.aviso));
   if (E.pagoCs !== undefined && !E.pagoMostrado) { E.pagoMostrado = true; E.bienvenidaDemo = true; setTimeout(() => hojaPago(E.pagoCs), 300); }
   if (v.recien_aprobado && $hoja.hidden && !E.aprobadoMostrado) {
     E.aprobadoMostrado = true;
@@ -1139,7 +1145,8 @@ function cabecera(v) {
       return `<button class="dia ${d.id === v.dia.id ? "on" : ""} ${d.bloqueado ? "bloq" : ""} est-${esc(d.estado || "nada")}" role="tab" aria-selected="${d.id === v.dia.id}" data-dia="${esc(d.id)}" ${d.bloqueado ? 'data-bloq="1"' : ""} aria-label="${esc(trDia(d.nombre))}${d.bloqueado ? " 🔒" : ""}">
         <small>${d.opcional ? "Opc." : /\d/.test(d.nombre) ? `D${esc(n)}` : esc(trDia(d.nombre).slice(0, 3))}</small>${d.bloqueado ? '<span class="candado">🔒</span>' : `<span class="punto ${d.estado}"></span>`}${d.pendientes ? '<span class="pend"></span>' : ""}</button>`;
     }).join("")}</div>` : ""}
-    ${v.elige_dias && !v.demo ? `<button class="mini-btn elige-dias" id="b-elige-dias">📅 ${v.dias_sin_elegir ? t("¿Qué días vienes esta semana?") : t("Mis días de esta semana")}</button>` : ""}
+    ${v.elige_dias && !v.demo ? `<div class="fila-propio"><button class="mini-btn elige-dias" id="b-elige-dias">📅 ${v.dias_sin_elegir ? t("¿Qué días vienes esta semana?") : t("Mis días de esta semana")}</button>
+      <button class="mini-btn elige-dias" id="b-importar">📥 ${t("Importar mis entrenos")}</button></div>` : ""}
   </header>`;
 }
 
@@ -1354,6 +1361,7 @@ function enlazar() {
   });
   on("b-sem-menos", () => cargar({ semana: v.semana - 1, dia: null }).then(() => window.scrollTo(0, 0)));
   on("b-elige-dias", hojaEligeDias);
+  on("b-importar", hojaImportar);
   on("b-sem-mas", () => cargar({ semana: v.semana + 1, dia: null }).then(() => window.scrollTo(0, 0)));
   on("b-fin", (ev) => hacer({ tipo: "semana", nueva: v.actual + 1, ver_semana: v.actual + 1, ver_dia: null }, ev.currentTarget).then(() => window.scrollTo(0, 0)));
   on("b-ver-semana", () => { const n = v.semana_lista_nueva; hacer({ tipo: "visto_semana_lista", semana: n, ver_semana: n, ver_dia: null }).then(() => window.scrollTo(0, 0)); });
@@ -1569,6 +1577,24 @@ function hojaEligeDias() {
       const dias = [...h.querySelectorAll("[data-ed].on")].map((b) => b.dataset.ed);
       if (!dias.length) return aviso(t("Elige al menos un día"), true);
       cerrarHoja(); hacer({ tipo: "elegir_dias", semana: v.semana, dias });
+    };
+  });
+}
+
+// programa propio: pegar un mensaje de WhatsApp o una nota, o dictarlo, y se reparte en sus días
+function hojaImportar() {
+  const v = E.vista;
+  abrirHoja(`<h3>📥 ${t("Importar mis entrenos")}</h3>
+    <p class="mini">${t("Pega aquí tu mensaje de WhatsApp o tu nota, o dale al micro y cuéntalo. Si pones los días (Lunes, Martes…), cada entreno va a su día; si no, va al día que tienes abierto.")}</p>
+    <textarea class="campo area grande" id="im-texto" placeholder="${t("Lunes\nA) Back squat 5x5\nB) AMRAP 12': 10 wall balls, 10 burpees\nJueves\n…")}"></textarea>
+    ${navigator.clipboard && navigator.clipboard.readText ? `<button class="btn" id="im-pegar">📋 ${t("Pegar lo que he copiado")}</button>` : ""}
+    <button class="btn btn-fuego" id="im-ok">${t("Importar")}</button>`, (h) => {
+    const ta = h.querySelector("#im-texto");
+    const pg = h.querySelector("#im-pegar");
+    if (pg) pg.onclick = async () => { try { ta.value = (ta.value ? ta.value + "\n" : "") + await navigator.clipboard.readText(); } catch (e) { aviso(t("Mantén pulsado en el cuadro y dale a Pegar"), true); } };
+    h.querySelector("#im-ok").onclick = () => {
+      if (!ta.value.trim()) return aviso(t("Pega o dicta tu entreno primero"), true);
+      cerrarHoja(); hacer({ tipo: "importar", texto: ta.value, semana: v.semana, dia: v.dia && v.dia.id });
     };
   });
 }

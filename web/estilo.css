@@ -1010,3 +1010,6 @@ body, body:not(.x) { background: var(--fondo); }
 .mn-sub { text-align: center; font-size: 13px; opacity: .7; margin-bottom: 8px; }
 .mn-items li.mn-salsa span { white-space: normal; line-height: 1.35; font-size: 14px; }
 .mn-items li.mn-salsa b { white-space: nowrap; font-size: 13px; }
+
+.fila-propio { display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; margin-top: 8px; }
+.fila-propio .elige-dias { margin: 0; flex: 1 1 0; min-width: 0; }

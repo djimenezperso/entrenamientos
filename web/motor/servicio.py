@@ -2956,6 +2956,8 @@ def vista(sesion: dict, atleta: str | None, semana: int | None, dia_id: str | No
         cerrados = {d["id"] for i, d in enumerate(rut["dias"]) if i + 1 in DEMO_DIAS_CERRADOS_POR.get(atleta, DEMO_DIAS_CERRADOS)}
         abiertos = [x for x in abiertos if x not in cerrados] or [d["id"] for d in rut["dias"] if d["id"] not in cerrados][:1] or abiertos
     nivel = rut.get("nivel") or NIVEL_DEFECTO.get(atleta, "Inter")
+    if rut.get("elige_dias"):
+        nivel = "RX"  # programa propio: se ve tal cual lo escribe, sin escalar pesos
     if demo:
         nivel = DEMO_NIVEL.get(atleta, nivel)  # Débutant y Maison en Scaled, Renforcement en Inter
     # programa propio (elige_dias, p. ej. Wendy): sus días van en blanco, sin WODs de Diego sugeridos
@@ -3010,6 +3012,8 @@ def vista(sesion: dict, atleta: str | None, semana: int | None, dia_id: str | No
     videos = {**VIDEOS_BASE, **(guardadas.get(CLAVE_VIDEOS) or {})}
     for p_ in partes + pendientes:
         for l in p_["lineas"]:
+            if rut.get("elige_dias") and l.get("extra") and l["extra"].get("texto") == "solo esta semana":
+                l["extra"] = None  # programa propio: todo lo que escribe es de esa semana, no hace falta avisarlo
             u = ultimos.get(norm(l["ejercicio"]))
             if u and not _ultimo_sin_sentido(l, u):
                 l["ultimo"] = u
@@ -3793,6 +3797,43 @@ def accion(sesion: dict, c: dict) -> dict:
         if not es_coach(sesion):
             raise Error("Solo Diego puede cambiar la rutina", 403)
         rut, aviso = aplicar_propuesta(rut, atleta, descartar=tipo == "descartar_propuesta")
+    elif tipo == "importar":  # entrenos pegados (WhatsApp, nota) o dictados → a sus días de esta semana
+        if not puede_programar(sesion, rut):
+            raise Error("Solo puedes importar en tu propio programa", 403)
+        import importar as _imp
+        trozos = _imp.trocear(str(c.get("texto") or "")[:6000])
+        if not trozos:
+            raise Error("No encuentro ningún entreno en ese texto")
+        hechos = []
+        for n, partes in trozos.items():
+            if n is None:
+                dia = next((d for d in rut["dias"] if d["id"] == c.get("dia")), rut["dias"][0])
+            elif n < len(rut["dias"]):
+                dia = rut["dias"][n]
+            else:
+                continue
+            # volver a importar ese día lo sustituye: fuera lo importado antes en esta misma semana
+            rut = copy.deepcopy(rut)
+            dia = next(d for d in rut["dias"] if d["id"] == dia["id"])
+            dia["lineas"] = [l for l in dia["lineas"] if not (l.get("importada") and int(l.get("desde") or 0) == semana)]
+            for k, (eti, texto) in enumerate(partes):
+                if k == 0 and dia.get("lineas"):
+                    l = dia["lineas"][0]
+                    rut = editar_texto_linea(rut, l["id"], semana, l["ejercicio"], texto, l.get("nota", ""), True)
+                    ns = dict(rut.get("nombres_semana") or {})
+                    ns[str(semana)] = {**(ns.get(str(semana)) or {}), l["id"]: eti}
+                    rut = dict(rut, nombres_semana=ns)
+                else:
+                    rut = anadir_parte(rut, dia["id"], eti, eti, texto, semana, True)
+                    next(d for d in rut["dias"] if d["id"] == dia["id"])["lineas"][-1]["importada"] = True
+            hechos.append(dia["id"])
+        if rut.get("elige_dias") and hechos:  # los días importados pasan a ser días que viene esta semana
+            sel = dict(rut.get("dias_semana") or {})
+            previos = dias_elegidos(rut, semana) if str(semana) in sel else []
+            sel[str(semana)] = [d["id"] for d in rut["dias"] if d["id"] in set(previos) | set(hechos)]
+            rut = dict(rut, dias_semana=sel)
+        c = {**c, "ver_dia": hechos[0] if hechos else c.get("ver_dia")}
+        aviso = f"Importado: {len(hechos)} día{'s' if len(hechos) != 1 else ''} ✅"
     elif tipo == "elegir_dias":  # programa propio: qué días viene esta semana
         if not (puede_programar(sesion, rut) or sesion.get("u") == atleta):
             raise Error("No puedes cambiar los días", 403)
