@@ -3218,8 +3218,11 @@ function hojaAlimento(comidaId) {
   const d = E.comida, c = d.comidas.find((x) => x.id === comidaId);
   let raciones = 1, q = "";
   const lista = () => {
-    const n = q.trim().toLowerCase();
-    const al = d.alimentos.filter((a) => !n || a.nombre.toLowerCase().includes(n));
+    const sa = (x) => String(x || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+    const pal = sa(q).split(/[\s,]+/).filter((w) => w.length > 1 && !["de", "du", "des", "la", "le", "les", "el", "con", "avec"].includes(w));
+    const texto = (a) => sa([a.nombre, t(a.nombre), ...(a.sin || [])].join(" "));
+    let al = pal.length ? d.alimentos.filter((a) => pal.every((w) => texto(a).includes(w))) : d.alimentos;
+    if (pal.length && !al.length) al = d.alimentos.filter((a) => pal.some((w) => w.length > 3 && texto(a).includes(w)));
     const grupos = [...new Set(al.map((a) => a.grupo))];
     return grupos.map((g) => `<div class="paso-etq">${t(g)}</div>` + al.filter((a) => a.grupo === g).map((a) =>
       `<button class="alimento" data-al="${a.id}"><span><b>${esc(t(a.nombre))}</b><small>${esc(trRacion(a.racion))} · P ${a.p} · H ${a.h} · G ${a.g}</small></span><span class="al-kcal">${num(a.kcal * raciones)}<small> kcal</small></span></button>`).join("")).join("")
@@ -3482,7 +3485,31 @@ Object.assign(FR, {  // analizador y alimentos
   "Frutos rojos": "Fruits rouges", "Verdura variada": "Légumes variés", "Ensalada con tomate": "Salade et tomate", "Aguacate": "Avocat", "Aceite de oliva": "Huile d'olive",
   "Crema de cacahuete": "Beurre de cacahuète", "Chocolate negro 85 %": "Chocolat noir 85 %", "Miel": "Miel", "Cereales de desayuno": "Céréales", "Galletas": "Biscuits",
   "Zumo de naranja": "Jus d'orange", "Jamón serrano": "Jambon cru", "Jamón cocido": "Jambon blanc", "Queso curado": "Fromage affiné", "Pizza": "Pizza",
-  "Hamburguesa con pan": "Burger", "Café con leche": "Café au lait", "Cereales": "Céréales", "Fruta y verdura": "Fruits et légumes", "Grasas": "Matières grasses", "Otros": "Autres",
+  "Hamburguesa con pan": "Burger",
+  "Pasta integral cocida": "Pâtes complètes cuites",
+  "Arroz integral cocido": "Riz complet cuit",
+  "Quinoa cocida": "Quinoa cuit",
+  "Cuscús cocido": "Couscous cuit",
+  "Pan blanco o baguette": "Pain blanc ou baguette",
+  "Pan de molde": "Pain de mie",
+  "Wrap de trigo": "Wrap de blé",
+  "Lomo de cerdo": "Filet de porc",
+  "Carne picada 5 %": "Viande hachée 5 %",
+  "Sardinas en lata": "Sardines en boîte",
+  "Alubias cocidas": "Haricots cuits",
+  "Barrita de proteína": "Barre protéinée",
+  "Mozzarella": "Mozzarella",
+  "Kéfir": "Kéfir",
+  "Naranja": "Orange",
+  "Kiwi": "Kiwi",
+  "Dátiles": "Dattes",
+  "Mantequilla": "Beurre",
+  "Mermelada": "Confiture",
+  "1 unidad · 60 g": "1 unité · 60 g",
+  "2 rebanadas · 50 g": "2 tranches · 50 g",
+  "4 unidades · 30 g": "4 unités · 30 g",
+  "2 unidades": "2 unités",
+ "Café con leche": "Café au lait", "Cereales": "Céréales", "Fruta y verdura": "Fruits et légumes", "Grasas": "Matières grasses", "Otros": "Autres",
 });
 
 function trRacion(s) {  // raciones y cantidades en francés

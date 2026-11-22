@@ -76,6 +76,25 @@ ALIMENTOS = {
     "pizza": ("Pizza", "½ pizza · 200 g", 520, 22, 62, 20, "Otros", ("gluten", "lacteos")),
     "hamburguesa": ("Hamburguesa con pan", "1 unidad", 550, 28, 40, 30, "Otros", ("carne", "gluten")),
     "cafe_leche": ("Café con leche", "1 taza", 60, 4, 6, 2, "Lácteos", ("lacteos",)),
+    "pasta_int": ("Pasta integral cocida", "1 plato · 200 g", 300, 12, 58, 2, "Cereales", ("gluten",)),
+    "arroz_int": ("Arroz integral cocido", "1 plato · 200 g", 250, 5, 52, 2, "Cereales", ()),
+    "quinoa": ("Quinoa cocida", "1 plato · 200 g", 240, 9, 42, 4, "Cereales", ()),
+    "cuscus": ("Cuscús cocido", "1 plato · 200 g", 225, 8, 46, 0, "Cereales", ("gluten",)),
+    "pan_blanco": ("Pan blanco o baguette", "60 g", 160, 5, 32, 1, "Cereales", ("gluten",)),
+    "pan_molde": ("Pan de molde", "2 rebanadas · 50 g", 130, 4, 24, 2, "Cereales", ("gluten",)),
+    "wrap": ("Wrap de trigo", "1 unidad · 60 g", 180, 5, 30, 4, "Cereales", ("gluten",)),
+    "cerdo": ("Lomo de cerdo", "150 g", 215, 33, 0, 9, "Proteína", ("carne",)),
+    "carne_picada": ("Carne picada 5 %", "150 g", 200, 30, 0, 8, "Proteína", ("carne",)),
+    "sardinas": ("Sardinas en lata", "1 lata · 90 g", 190, 22, 0, 11, "Proteína", ("pescado",)),
+    "alubias": ("Alubias cocidas", "1 plato · 250 g", 300, 20, 45, 2, "Proteína", ()),
+    "barrita": ("Barrita de proteína", "1 unidad · 60 g", 220, 20, 20, 7, "Proteína", ("lacteos",)),
+    "mozzarella": ("Mozzarella", "60 g", 150, 11, 1, 11, "Lácteos", ("lacteos",)),
+    "kefir": ("Kéfir", "1 vaso · 250 ml", 150, 9, 11, 8, "Lácteos", ("lacteos",)),
+    "naranja": ("Naranja", "1 mediana", 65, 1, 16, 0, "Fruta y verdura", ()),
+    "kiwi": ("Kiwi", "2 unidades", 85, 2, 20, 1, "Fruta y verdura", ()),
+    "datiles": ("Dátiles", "4 unidades · 30 g", 85, 1, 22, 0, "Fruta y verdura", ()),
+    "mantequilla": ("Mantequilla", "10 g", 75, 0, 0, 8, "Grasas", ("lacteos",)),
+    "mermelada": ("Mermelada", "1 cucharada · 20 g", 50, 0, 13, 0, "Grasas", ()),
 }
 # ideas fijas por comida: lista de alimentos; se usa la primera que no choque con lo que no come
 IDEAS = {
@@ -92,7 +111,7 @@ GRAMOS = {"avena": 60, "pan": 60, "arroz": 200, "pasta": 200, "patata": 250, "bo
           "garbanzos": 250, "proteina": 30, "proteina_veg": 30, "yogur": 125, "skyr": 150, "leche": 250, "bebida_veg": 250,
           "queso_fresco": 150, "frutos_rojos": 150, "verdura": 250, "aguacate": 70, "aceite": 10, "frutos_secos": 30,
           "crema_cacahuete": 15, "chocolate": 20, "ensalada": 200, "miel": 20, "cereales": 40, "galletas": 40, "zumo": 200, "jamon": 40,
-          "york": 60, "queso": 30, "pizza": 200}
+          "york": 60, "queso": 30, "pizza": 200, "pasta_int": 200, "arroz_int": 200, "quinoa": 200, "cuscus": 200, "pan_blanco": 60, "pan_molde": 50, "wrap": 60, "cerdo": 150, "carne_picada": 150, "sardinas": 90, "alubias": 250, "barrita": 60, "mozzarella": 60, "kefir": 250, "datiles": 30, "mantequilla": 10, "mermelada": 20}
 UNIDADES = {"huevos": 2, "pan": 2, "tortitas": 4, "galletas": 4, "platano": 1, "manzana": 1}
 # palabras que se dicen → alimento (se busca la más larga primero)
 SINONIMOS = {
@@ -101,7 +120,7 @@ SINONIMOS = {
     "arroz": ["arroz", "riz"], "pasta": ["pasta", "macarrones", "espaguetis", "spaghetti", "fideos", "pâtes"],
     "patata": ["patatas", "patata", "papas", "pommes de terre"], "boniato": ["boniato", "batata", "patate douce"],
     "tortitas": ["tortitas de arroz", "tortitas", "galettes de riz"],
-    "pollo": ["pechuga de pollo", "pollo", "poulet"], "pavo": ["pavo", "dinde"], "ternera": ["ternera", "filete", "carne picada", "carne", "bœuf", "steak"],
+    "pollo": ["pechuga de pollo", "pollo", "poulet"], "pavo": ["pavo", "dinde"], "ternera": ["ternera", "filete", "carne", "bœuf", "steak"],
     "salmon": ["salmón", "salmon", "saumon"], "atun": ["atún", "atun", "thon"], "merluza": ["merluza", "pescado blanco", "pescado", "poisson", "cabillaud"],
     "gambas": ["gambas", "langostinos", "crevettes"], "huevos": ["tortilla francesa", "huevos", "huevo", "œufs", "oeufs", "œuf"],
     "claras": ["claras de huevo", "claras", "blancs d'œuf"], "tofu": ["tofu"], "lentejas": ["lentejas", "lentilles"],
@@ -109,13 +128,32 @@ SINONIMOS = {
     "proteina_veg": ["proteína vegetal", "proteina vegetal"], "yogur": ["yogur griego", "yogures", "yogur", "yaourt"],
     "skyr": ["skyr", "yogur proteico"], "leche": ["vaso de leche", "leche", "lait"], "bebida_veg": ["bebida de soja", "leche de soja", "bebida vegetal", "leche de avena", "lait d'amande"],
     "queso_fresco": ["queso fresco batido", "queso batido", "queso fresco", "fromage blanc"], "platano": ["plátanos", "plátano", "platano", "banana", "banane"],
-    "manzana": ["manzanas", "manzana", "fruta", "pera", "naranja", "pomme", "fruit"], "frutos_rojos": ["frutos rojos", "fresas", "arándanos", "fruits rouges"],
+    "manzana": ["manzanas", "manzana", "fruta", "pera", "pomme", "poire", "fruit"], "frutos_rojos": ["frutos rojos", "fresas", "arándanos", "fruits rouges"],
     "verdura": ["verduras", "verdura", "brócoli", "brocoli", "judías verdes", "espinacas", "légumes"], "ensalada": ["ensalada", "salade"],
     "aguacate": ["aguacate", "avocat"], "aceite": ["aceite de oliva", "aceite", "huile"], "frutos_secos": ["frutos secos", "nueces", "almendras", "noix", "amandes"],
     "crema_cacahuete": ["crema de cacahuete", "mantequilla de cacahuete", "beurre de cacahuète"], "chocolate": ["chocolate", "chocolat"], "miel": ["miel"],
     "cereales": ["cereales", "muesli", "granola", "céréales"], "galletas": ["galletas", "biscuits"], "zumo": ["zumo", "jugo", "jus d'orange", "jus"],
     "jamon": ["jamón serrano", "jamón", "jamon", "jambon cru"], "york": ["jamón york", "jamón cocido", "jambon"], "queso": ["queso", "fromage"],
     "pizza": ["pizza"], "hamburguesa": ["hamburguesa", "burger"], "cafe_leche": ["café con leche", "cortado", "café au lait", "café crème"],
+    "pasta_int": ["pasta integral", "macarrones integrales", "espaguetis integrales", "pâtes complètes", "pates completes", "pâtes complète"],
+    "arroz_int": ["arroz integral", "riz complet"],
+    "quinoa": ["quinoa", "quinua"],
+    "cuscus": ["cuscús", "cuscus", "couscous", "semoule"],
+    "pan_blanco": ["pan blanco", "baguette", "barra de pan", "pain blanc"],
+    "pan_molde": ["pan de molde", "pan bimbo", "pain de mie"],
+    "wrap": ["wrap", "wraps", "tortilla de trigo", "fajita", "tortilla mexicana"],
+    "cerdo": ["lomo de cerdo", "lomo", "cerdo", "solomillo de cerdo", "porc", "filet mignon"],
+    "carne_picada": ["carne picada", "steak haché", "viande hachée"],
+    "sardinas": ["sardinas", "sardines"],
+    "alubias": ["alubias", "judías blancas", "frijoles", "haricots rouges", "haricots blancs"],
+    "barrita": ["barrita de proteína", "barrita proteica", "barrita", "barre protéinée"],
+    "mozzarella": ["mozzarella"],
+    "kefir": ["kéfir", "kefir"],
+    "naranja": ["naranjas", "naranja", "orange"],
+    "kiwi": ["kiwis", "kiwi"],
+    "datiles": ["dátiles", "datiles", "dattes"],
+    "mantequilla": ["mantequilla", "beurre"],
+    "mermelada": ["mermelada", "confiture"],
 }
 NUMEROS = {"un": 1, "una": 1, "uno": 1, "dos": 2, "tres": 3, "cuatro": 4, "cinco": 5, "seis": 6, "medio": .5, "media": .5,
            "un par de": 2, "unos": 2, "unas": 2, "un": 1, "une": 1, "deux": 2, "trois": 3, "demi": .5, "doble": 2, "mucho": 1.5, "mucha": 1.5,
@@ -423,7 +461,7 @@ def comida(sesion: dict, atleta: str | None, variante: int = 0) -> dict:  # vari
                      "consejos": consejos(hab_items, obj, entreno, dieta)} if hab_items else None,
         "opciones": {"objetivos": {k: v[0] for k, v in OBJETIVOS.items()}, "dietas": {k: v[0] for k, v in DIETAS.items()},
                      "exclusiones": EXCLUSIONES},
-        "alimentos": [{"id": k, "nombre": v[0], "racion": v[1], "kcal": v[2], "p": v[3], "h": v[4], "g": v[5], "grupo": v[6]}
+        "alimentos": [{"id": k, "nombre": v[0], "racion": v[1], "kcal": v[2], "p": v[3], "h": v[4], "g": v[5], "grupo": v[6], "sin": SINONIMOS.get(k, [])}
                       for k, v in ALIMENTOS.items() if not set(v[7]) & ex],
     }
 
