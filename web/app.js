@@ -18,6 +18,9 @@ const E = { token: mem.get("token"), atleta: mem.get("atleta"), lang: mem.get("l
 
 // ---------- textos ----------
 const FR = {
+  "¿Qué días vienes esta semana?": "Quels jours tu viens cette semaine ?", "Mis días de esta semana": "Mes jours cette semaine",
+  "Solo verás esos días. En cada uno escribes lo que vas a hacer.": "Tu ne verras que ces jours-là. Dans chacun, tu écris ce que tu vas faire.",
+  "Elige al menos un día": "Choisis au moins un jour", "Días guardados ✅": "Jours enregistrés ✅",
   "Mantén y arrastra para mover": "Maintiens et glisse pour déplacer",
   "Subir": "Monter",
   "Bajar": "Descendre",
@@ -1132,6 +1135,7 @@ function cabecera(v) {
       return `<button class="dia ${d.id === v.dia.id ? "on" : ""} ${d.bloqueado ? "bloq" : ""} est-${esc(d.estado || "nada")}" role="tab" aria-selected="${d.id === v.dia.id}" data-dia="${esc(d.id)}" ${d.bloqueado ? 'data-bloq="1"' : ""} aria-label="${esc(trDia(d.nombre))}${d.bloqueado ? " 🔒" : ""}">
         <small>${d.opcional ? "Opc." : /\d/.test(d.nombre) ? `D${esc(n)}` : esc(trDia(d.nombre).slice(0, 3))}</small>${d.bloqueado ? '<span class="candado">🔒</span>' : `<span class="punto ${d.estado}"></span>`}${d.pendientes ? '<span class="pend"></span>' : ""}</button>`;
     }).join("")}</div>` : ""}
+    ${v.elige_dias && !v.demo ? `<button class="mini-btn elige-dias" id="b-elige-dias">📅 ${v.dias_sin_elegir ? t("¿Qué días vienes esta semana?") : t("Mis días de esta semana")}</button>` : ""}
   </header>`;
 }
 
@@ -1345,6 +1349,7 @@ function enlazar() {
     hacer({ tipo: "borrar_anotacion", id: b.dataset.anotBorrar, ver_semana: v.semana, ver_dia: v.dia_id || E.dia }, b);
   });
   on("b-sem-menos", () => cargar({ semana: v.semana - 1, dia: null }).then(() => window.scrollTo(0, 0)));
+  on("b-elige-dias", hojaEligeDias);
   on("b-sem-mas", () => cargar({ semana: v.semana + 1, dia: null }).then(() => window.scrollTo(0, 0)));
   on("b-fin", (ev) => hacer({ tipo: "semana", nueva: v.actual + 1, ver_semana: v.actual + 1, ver_dia: null }, ev.currentTarget).then(() => window.scrollTo(0, 0)));
   on("b-ver-semana", () => { const n = v.semana_lista_nueva; hacer({ tipo: "visto_semana_lista", semana: n, ver_semana: n, ver_dia: null }).then(() => window.scrollTo(0, 0)); });
@@ -1548,6 +1553,22 @@ function recordarPago() {
 }
 
 // ---------- hojas ----------
+// programa propio (p. ej. Wendy): cada semana elige qué días viene; solo salen esos días
+function hojaEligeDias() {
+  const v = E.vista;
+  abrirHoja(`<h3>📅 ${t("¿Qué días vienes esta semana?")}</h3>
+    <p class="mini">${t("Solo verás esos días. En cada uno escribes lo que vas a hacer.")}</p>
+    <div class="fila-chips elige-chips">${v.elige_dias.map((d) => `<button class="chip ${d.on && !v.dias_sin_elegir ? "on" : ""}" data-ed="${esc(d.id)}">${esc(trDia(d.nombre))}</button>`).join("")}</div>
+    <button class="btn btn-fuego" id="ed-ok">${t("Guardar")}</button>`, (h) => {
+    h.querySelectorAll("[data-ed]").forEach((b) => b.onclick = () => b.classList.toggle("on"));
+    h.querySelector("#ed-ok").onclick = () => {
+      const dias = [...h.querySelectorAll("[data-ed].on")].map((b) => b.dataset.ed);
+      if (!dias.length) return aviso(t("Elige al menos un día"), true);
+      cerrarHoja(); hacer({ tipo: "elegir_dias", semana: v.semana, dias });
+    };
+  });
+}
+
 function abrirHoja(html, alAbrir) {
   $hoja.innerHTML = `<div class="hoja" role="dialog" aria-modal="true"><div class="asa"></div>${html}</div>`;
   $hoja.hidden = false;

@@ -981,3 +981,7 @@ body, body:not(.x) { background: var(--fondo); }
 .mn-puntos { display: flex; justify-content: center; gap: 6px; }
 .mn-puntos i { width: 7px; height: 7px; border-radius: 4px; background: var(--raya2); transition: width .2s; }
 .mn-puntos i.on { width: 18px; background: var(--fuego); }
+
+.elige-dias { display: block; margin: 8px auto 0; }
+.elige-chips { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; margin: 14px 0 18px; }
+.elige-chips .chip { flex: 1 1 calc(33% - 8px); }

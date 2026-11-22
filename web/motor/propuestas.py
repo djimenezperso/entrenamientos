@@ -75,6 +75,19 @@ def manu_villalobos():
     }
 
 
+def wendy():
+    """Wendy (perfil que crea Diego): tiene su propio programa. Una semana de lunes a domingo, cada día con
+    «Mon entraînement» vacío para que ella escriba lo suyo; cada semana elige qué días viene (elige_dias)."""
+    nombres = ("Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado", "Domingo")
+    return {
+        "semana_actual": 1, "ajustes": {}, "nivel": "Inter", "elige_dias": True, "permiso_pesos": True,
+        "dias": [{"id": f"w{i + 1}", "nombre": n, "lineas": [
+            _l(f"w{i + 1}1", "Mon entraînement", "", parte="A) WOD",
+               nota="Écris ici ce que tu fais ce jour-là (touche ⋯ pour le modifier)")]}
+            for i, n in enumerate(nombres)],
+    }
+
+
 PROPUESTAS = {"ruchama": _ruchama}
 
 

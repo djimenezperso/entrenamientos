@@ -1238,7 +1238,9 @@ def borrar_cuenta(sesion: dict, c: dict) -> dict:
 
 
 # perfiles que Diego ha pedido crear (se crean una vez, al abrir él la app). Sin PIN: Diego se lo pone con 🔑.
-CREAR_PERFILES = [{"nombre": "Manu Villalobos", "rutina": "manu_villalobos", "lang": "es"}]
+CREAR_PERFILES = [{"nombre": "Manu Villalobos", "rutina": "manu_villalobos", "lang": "es"},
+                  # Wendy: gratis, con comida, y su propio espacio (pone ella su programa y elige qué días viene)
+                  {"nombre": "Wendy", "rutina": "wendy", "lang": "fr", "propio": True}]
 
 
 def _crear_pedidos(inv: dict) -> dict:
@@ -1249,7 +1251,10 @@ def _crear_pedidos(inv: dict) -> dict:
             continue
         rut = getattr(_propuestas, x["rutina"])()
         reg[x["nombre"]] = {"pin": "", "alta": dt.date.today().isoformat(), "aprobado": dt.date.today().isoformat(),
-                            "origen": "coach", "lang": x.get("lang", "es")}
+                            "origen": "coach", "lang": x.get("lang", "es"), **({"exento": True} if x.get("propio") else {})}
+        if x.get("propio"):  # su propio programa: lo escribe ella, y la comida desbloqueada sin abono
+            rut = dict(rut, permiso_pesos=True)
+            datos().guardar("__comida__·" + x["nombre"], {"permitido": True})
         datos().guardar(x["nombre"], rut)
         hechos.append(x["nombre"])
     if hechos:
@@ -2372,6 +2377,15 @@ def movilidad_primero(grupos: list[tuple[str, list[dict]]]) -> list[tuple[str, l
     return [g for g in grupos if es_movilidad(*g)] + [g for g in grupos if not es_movilidad(*g)]
 
 
+def dias_elegidos(rut: dict, semana: int) -> list[str]:
+    """Programa propio: los días que viene esa semana. Si esa semana no ha elegido, los de la última semana que eligió."""
+    sel = rut.get("dias_semana") or {}
+    for s_ in range(semana, 0, -1):
+        if str(s_) in sel:
+            return [x for x in sel[str(s_)] if any(d["id"] == x for d in rut["dias"])]
+    return []
+
+
 def semana_completa(rut: dict, semana: int) -> bool:
     """Todas las partes de la semana validadas (hechas, no hechas o pasadas) y sin pendientes por hacer en ella."""
     if not rut.get("dias") or not any(agrupar_por_parte(d, semana) for d in rut["dias"]):
@@ -2939,6 +2953,11 @@ def vista(sesion: dict, atleta: str | None, semana: int | None, dia_id: str | No
     dias = []
     # un día que esta semana no tiene nada (p. ej. se fusionó con otro) no sale; uno sin líneas aún (perfil nuevo), sí
     visibles = [d for d in rut["dias"] if not d.get("lineas") or agrupar_por_parte(d, semana)] or rut["dias"][:1]
+    if rut.get("elige_dias"):  # programa propio: cada semana elige qué días viene (si aún no ha elegido, salen todos)
+        elegidos = dias_elegidos(rut, semana)
+        base["elige_dias"] = [{"id": d["id"], "nombre": d["nombre"], "on": not elegidos or d["id"] in elegidos} for d in rut["dias"]]
+        base["dias_sin_elegir"] = not elegidos
+        visibles = [d for d in visibles if not elegidos or d["id"] in elegidos] or visibles[:1]
     for d in visibles:
         dias.append({"id": d["id"], "nombre": d["nombre"], "estado": resumen_dia(rut, semana, d),
                      "pendientes": bool(pendientes_para(rut, semana, d["id"])), "opcional": bool(d.get("opcional"))})
@@ -3763,6 +3782,16 @@ def accion(sesion: dict, c: dict) -> dict:
         if not es_coach(sesion):
             raise Error("Solo Diego puede cambiar la rutina", 403)
         rut, aviso = aplicar_propuesta(rut, atleta, descartar=tipo == "descartar_propuesta")
+    elif tipo == "elegir_dias":  # programa propio: qué días viene esta semana
+        if not (puede_programar(sesion, rut) or sesion.get("u") == atleta):
+            raise Error("No puedes cambiar los días", 403)
+        ids = [x for x in (c.get("dias") or []) if any(d["id"] == x for d in rut["dias"])]
+        if not ids:
+            raise Error("Elige al menos un día")
+        sel = dict(rut.get("dias_semana") or {})
+        sel[str(semana)] = ids
+        rut = dict(rut, dias_semana=sel)
+        aviso = "Días guardados ✅"
     elif tipo == "permiso_pesos":
         if not es_coach(sesion):
             raise Error("Solo el coach puede dar permiso", 403)
