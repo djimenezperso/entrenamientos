@@ -320,6 +320,20 @@ const FR = {
   "Quitar el modo coach en este móvil": "Quitter le mode coach sur ce téléphone",
   "Solo para Diego: con el PIN del coach puedes cambiar los pesos y aprobar los cambios que te piden.": "Réservé à Diego : avec le code du coach, tu peux changer les poids et valider les demandes.",
   "Compartir la app": "Partager l'appli",
+  "Código de quien te recomienda (opcional)": "Code de la personne qui te recommande (facultatif)",
+  "Recomienda Djimenez Prog": "Recommande Djimenez Prog",
+  "Tu código": "Ton code",
+  "Si alguien se abona con tu código, te llevas el {p} % de lo que pague.": "Si quelqu'un s'abonne avec ton code, tu touches {p} % de ce qu'il paie.",
+  "Compartir mi código": "Partager mon code",
+  "Si lo publicas en redes, añade «Collaboration commerciale».": "Si tu le publies sur les réseaux, ajoute « Collaboration commerciale ».",
+  "💪 Entreno con Djimenez Prog. Si te creas el perfil, pon mi código": "💪 Je m'entraîne avec Djimenez Prog. Si tu crées ton profil, mets mon code",
+  "Colaboraciones": "Collaborations",
+  "le toca el {p} % de lo que paguen": "touche {p} % de ce qu'ils paient",
+  "Aún nadie con su código": "Personne avec son code pour l'instant",
+  "paga": "paie",
+  "en prueba": "en essai",
+  "sin abono": "sans abonnement",
+  "{n} pagan": "{n} paient",
   "Modo coach activado": "Mode coach activé",
   "Modo coach quitado": "Mode coach désactivé",
   "💪 Mira la app con la que entreno con Diego (Djimenez Prog)": "💪 Regarde l'appli avec laquelle je m'entraîne avec Diego (Djimenez Prog)",
@@ -527,6 +541,8 @@ function pintarEntrar(paso = {}) {
         ${paso.nuevo ? `<span style="font-weight:600;font-size:14px">${t("¿Con qué rutina empiezas?")}</span>
           <div class="opciones-radio">${Object.entries(paso.plantillas || {}).map(([k, v], i) =>
             `<label class="interruptor"><span>${esc(v)}</span><input type="radio" name="plantilla" value="${esc(k)}" ${i === 0 ? "checked" : ""}></label>`).join("")}</div>
+          <label for="il-codigo">${t("Código de quien te recomienda (opcional)")}</label>
+          <input class="campo" id="il-codigo" autocapitalize="characters" autocomplete="off" style="text-transform:uppercase" value="${esc(paso.codigo || mem.get("codigo") || "")}">
           ${casillasLegales("il", paso)}` : ""}
       ` : `
         <label for="i-pass">${E.lang === "fr" ? "Mot de passe" : "Contraseña · Mot de passe"}</label>
@@ -565,7 +581,7 @@ function pintarEntrar(paso = {}) {
     if (inv && paso.nuevo && !leerLegal(f, "il").ok) return;
     const cuerpo = paso.conPin ? { perfil: true, nombre: f.querySelector("#i-nombre").value, pin: f.querySelector("#i-pin").value }
       : inv ? { ...leerLegal(f, "il").datos, lang: E.lang, password: paso.password, nombre: f.querySelector("#i-nombre").value, pin: f.querySelector("#i-pin").value,
-      plantilla: (f.querySelector("input[name=plantilla]:checked") || {}).value } : { password: f.querySelector("#i-pass").value };
+      plantilla: (f.querySelector("input[name=plantilla]:checked") || {}).value, codigo: (f.querySelector("#il-codigo") || {}).value } : { password: f.querySelector("#i-pass").value };
     boton.disabled = true; err.hidden = true;
     try {
       const r = await api("login", { metodo: "POST", cuerpo });
@@ -935,6 +951,8 @@ function hojaCrearPerfil(paso) {
       ${paso.plantillas ? `<span class="paso-etq" style="margin:4px 4px 0">${t("¿Con qué rutina empiezas?")}</span>
         <div class="opciones-radio">${Object.entries(paso.plantillas).map(([k, v], i) =>
           `<label class="interruptor"><span>${esc(v)}</span><input type="radio" name="cp-plantilla" value="${esc(k)}" ${i === 0 ? "checked" : ""}></label>`).join("")}</div>` : ""}
+      <label class="paso-etq" for="cp-codigo" style="margin:0 4px">${t("Código de quien te recomienda (opcional)")}</label>
+      <input class="campo" id="cp-codigo" autocapitalize="characters" autocomplete="off" style="background:#fff;text-transform:uppercase" value="${esc(paso.codigo || mem.get("codigo") || "")}">
       ${casillasLegales("cp", paso)}
       <p class="error" id="cp-error" hidden></p>
       <button class="btn btn-fuego" type="submit" style="height:54px">${paso.plantillas ? t("Empezar") : t("Seguir")}</button>
@@ -947,7 +965,7 @@ function hojaCrearPerfil(paso) {
       const err = h.querySelector("#cp-error"); const boton = f.querySelector("button[type=submit]");
       const legal = leerLegal(h, "cp"); if (!legal.ok) return;
       const cuerpo = { ...legal.datos, lang: E.lang, nombre: h.querySelector("#cp-nombre").value, pin: h.querySelector("#cp-pin").value,
-        plantilla: (h.querySelector("input[name=cp-plantilla]:checked") || {}).value };
+        plantilla: (h.querySelector("input[name=cp-plantilla]:checked") || {}).value, codigo: h.querySelector("#cp-codigo").value };
       boton.disabled = true; err.hidden = true;
       try {
         const r = await api("crear_perfil", { metodo: "POST", cuerpo });
@@ -1767,6 +1785,11 @@ function hojaAjustes() {
       <p class="mini" style="margin:6px 2px 0">${t("Cambiar la tarjeta, ver tus facturas o darte de baja.")}</p></div>` : ""}
     ${v.invitado ? `<button class="btn btn-fuego" id="b-objetivos" style="height:52px">${t(v.objetivos ? "Mis objetivos" : "Hacer mi rutina a medida")}</button>` : ""}
     ${v.coach || v.invitado ? "" : botonAbono(v, "b-abono")}
+    ${v.mi_codigo ? `<div class="caja-abono"><b>🤝 ${t("Recomienda Djimenez Prog")}</b>
+      <div style="margin:6px 0">${t("Tu código")}: <b style="font-size:20px;letter-spacing:1px">${esc(v.mi_codigo)}</b></div>
+      <p class="mini" style="margin:0 2px 8px">${t("Si alguien se abona con tu código, te llevas el {p} % de lo que pague.").replace("{p}", v.porcentaje || 20)}</p>
+      <button class="btn btn-negro" id="b-mi-codigo" style="width:100%">${ic.compartir} ${t("Compartir mi código")}</button>
+      <p class="mini" style="margin:6px 2px 0">${t("Si lo publicas en redes, añade «Collaboration commerciale».")}</p></div>` : ""}
     <div style="display:grid;grid-template-columns:1fr auto;gap:8px">
       <button class="btn btn-fuego" id="b-compartir-app">${ic.compartir} ${t("Compartir la app")}</button>
       <button class="btn btn-negro" id="b-qr" style="padding:0 18px">${ic.qr} QR</button></div>
@@ -1815,6 +1838,8 @@ function hojaAjustes() {
       E.token = r.token; mem.set("token", r.token);
       cerrarHoja(); aviso(t("Modo coach quitado")); cargar();
     };
+    const bmc = h.querySelector("#b-mi-codigo");
+    if (bmc) bmc.onclick = () => { cerrarHoja(); compartir("app", `${t("💪 Entreno con Djimenez Prog. Si te creas el perfil, pon mi código")}: ${v.mi_codigo}`, "codigo"); };
     h.querySelector("#b-compartir-app").onclick = () => { cerrarHoja(); compartir("app", t("💪 Mira la app con la que entreno con Diego (Djimenez Prog)"), "app"); };
     h.querySelector("#b-qr").onclick = () => hojaQR();
     const bab = h.querySelector("#b-abono"); if (bab) bab.onclick = abonarse;
@@ -2191,6 +2216,9 @@ async function hojaActividad() {
     <div class="act-altas" style="border-left-color:#1baf7a"><b>💳 ${d.abonos.reduce((a, x) => a + x.n, 0)} ${t("veces han pulsado «Abonarse»")}</b>
       ${d.abonos.length ? `<span>${d.abonos.map((x) => `${esc(x.nombre)} <small>(${x.n > 1 ? x.n + "× · " : ""}${esc(x.hace)})</small>`).join(" · ")}</span>` : ""}
       <small>${d.abono_activo ? t("Los pagos de verdad los ves en Stripe (cada pago lleva el nombre de quien pulsó).") : t("El botón aún no sale: falta poner ABONO_URL en Vercel.")}</small></div>
+    ${d.colaboraciones && d.colaboraciones.length ? `<div class="act-altas" style="border-left-color:#7a4dd6"><b>🤝 ${t("Colaboraciones")}</b>
+      ${d.colaboraciones.map((c) => `<span><b>${esc(c.nombre)}</b> · ${esc(c.codigo)} · ${c.clientes.length ? `${t("{n} pagan").replace("{n}", c.pagan)} / ${c.clientes.length}<br>${c.clientes.map((x) => `${esc(x.nombre)} <small>(${x.pagando ? "💳 " + t("paga") : x.en_prueba ? t("en prueba") : t("sin abono")})</small>`).join(" · ")}` : `<small>${t("Aún nadie con su código")}</small>`}</span>`).join("")}
+      <small>${t("le toca el {p} % de lo que paguen").replace("{p}", d.porcentaje || 20)}</small></div>` : ""}
     ${d.altas && d.altas.length ? `<div class="act-altas"><b>✨ ${d.altas.length} ${t(d.altas.length === 1 ? "perfil creado desde la demo" : "perfiles creados desde la demo")}</b>
       <span>${d.altas.map((a) => `${esc(a.nombre)} <small>(${esc(a.hace)})</small>`).join(" · ")}</span></div>` : ""}
     <div class="act-lista">${filas}</div>`;
@@ -2972,10 +3000,11 @@ function hojaNuevoPr() {
   const qs = new URLSearchParams(location.search);
   const inv = qs.get("inv");
   const ig = qs.has("ig") || qs.has("insta");
+  if (qs.get("codigo")) mem.set("codigo", qs.get("codigo").toUpperCase());
   if (qs.get("pago") === "ok") { E.pagoCs = qs.get("cs") || ""; mem.set("pago_pendiente", E.pagoCs || "-"); }
   else if (mem.get("pago_pendiente")) E.pagoCs = mem.get("pago_pendiente") === "-" ? "" : mem.get("pago_pendiente");
   if (qs.get("a")) { E.atleta = qs.get("a"); mem.set("atleta", E.atleta); E.semana = Number(qs.get("s")) || null; E.dia = null; }  // enlace para revisar una semana
-  if (inv || ig || qs.get("pago") || qs.get("a")) history.replaceState(null, "", location.pathname);
+  if (inv || ig || qs.get("codigo") || qs.get("pago") || qs.get("a")) history.replaceState(null, "", location.pathname);
   if (E.pagoCs !== undefined && !E.token) { pintarEntrar(); E.pagoMostrado = true; return hojaPago(E.pagoCs); }
   if (ig && !E.token) {  // enlace de la bio de Instagram: directo a la demo
     try {
@@ -2987,6 +3016,7 @@ function hojaNuevoPr() {
     try {
       const r = await api("login", { metodo: "POST", cuerpo: { inv } });
       E.token = r.token; mem.set("token", r.token);
+      if (r.codigo && !mem.get("codigo")) mem.set("codigo", r.codigo);
       if (r.solo) { E.atleta = r.solo; mem.set("atleta", r.solo); }
     } catch (e) { pintarEntrar(); return aviso(e.message, true); }
   }

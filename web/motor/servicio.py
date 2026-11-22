@@ -975,6 +975,32 @@ def login(cuerpo: dict) -> dict:
     raise Error("Contraseña incorrecta · Mot de passe incorrect", 401)
 
 
+# ===== recomendaciones (cada atleta tiene su código; quien trae a alguien que se abona se lleva el 20 %) =====
+CODIGOS_FIJOS = {"WENDY": "Wendy"}
+PORCENTAJE_RECOMIENDA = 20
+
+
+def _codigo_de(nombre: str) -> str:
+    for cod, quien in CODIGOS_FIJOS.items():
+        if quien == nombre:
+            return cod
+    limpio = unicodedata.normalize("NFKD", nombre).encode("ascii", "ignore").decode()
+    return "".join(ch for ch in limpio.upper() if ch.isalnum())[:14]
+
+
+def _dueno_codigo(codigo: str) -> str | None:
+    cod = "".join(ch for ch in unicodedata.normalize("NFKD", str(codigo or "")).encode("ascii", "ignore").decode().upper() if ch.isalnum())
+    if not cod:
+        return None
+    if cod in CODIGOS_FIJOS:
+        return CODIGOS_FIJOS[cod]
+    try:
+        personas = [p for p in todas_las_personas() if p not in ("Yo", "Demo") and not str(p).startswith("Demo")]
+    except Exception:  # noqa: BLE001
+        return None
+    return next((p for p in personas if _codigo_de(p) == cod), None)
+
+
 def _login_invitado(cuerpo: dict) -> dict:
     nombre = " ".join(str(cuerpo.get("nombre") or "").split()).title()
     pin = str(cuerpo.get("pin") or "").strip()
@@ -996,13 +1022,20 @@ def _login_invitado(cuerpo: dict) -> dict:
     if not cuerpo.get("acepta"):
         raise Error("Tienes que aceptar la política de privacidad y las condiciones para crear tu perfil · "
                     "Accepte la politique de confidentialité et les conditions pour créer ton profil")
+    recomienda = _dueno_codigo(cuerpo.get("codigo"))
+    if recomienda and norm_busqueda(recomienda) == norm_busqueda(nombre):
+        recomienda = None
     registro[nombre] = {"pin": _hash(nombre, pin), "alta": dt.date.today().isoformat(), "plantilla": plantilla,
+                        **({"recomendado_por": recomienda, "codigo": _codigo_de(recomienda)} if recomienda else {}),
                         "revision": "pendiente",  # no ve su rutina hasta que Diego la aprueba
                         "consentimiento": {"fecha": _ahora().isoformat(timespec="minutes"), "version": VERSION_LEGAL,
                                            "salud": bool(cuerpo.get("salud"))},
                         **({"lang": cuerpo["lang"]} if cuerpo.get("lang") in ("es", "fr") else {})}
     datos().guardar(CLAVE_INVITADOS, registro)
     _rutina_inicio(nombre, plantilla)
+    if recomienda:
+        notificar(f"🤝 {nombre} se ha creado el perfil con el código {_codigo_de(recomienda)} ({nv(recomienda)}). "
+                  f"Si se abona, a {nv(recomienda)} le toca el {PORCENTAJE_RECOMIENDA} %.")
     return _sesion_para(nombre)
 
 
@@ -1407,7 +1440,11 @@ def _login_invitacion(token: str) -> dict:
             x["qr"] = x.get("qr", 0) + 1
     _apuntar_actividad(cambio)
     _apuntar(None, {"d": 1}, "Demo", entrada=True)
-    return _sesion_para(demo_personas()[0], demo=True)
+    r = _sesion_para(demo_personas()[0], demo=True)
+    quien = str(d["i"])
+    if quien not in ("Yo", "Demo") and _dueno_codigo(_codigo_de(quien)) == quien:
+        r["codigo"] = _codigo_de(quien)
+    return r
 
 
 def _sumar(donde: dict, quien: str, campo: str = "n") -> dict:
@@ -2339,7 +2376,24 @@ def actividad(sesion: dict) -> dict:
             "revisiones": [{"atleta": n, "nombre": nv(n), "desde": x.get("alta"), "cuestionario": bool(x.get("cuestionario"))}
                            for n, x in invitados().items() if x.get("revision") == "pendiente"],
             "stripe": bool(env("STRIPE_SECRET_KEY")),
-            "altas": [{"nombre": a["nombre"], "hace": _hace(a.get("cuando"), ahora)} for a in todo.get("altas", [])][:20]}
+            "altas": [{"nombre": a["nombre"], "hace": _hace(a.get("cuando"), ahora)} for a in todo.get("altas", [])][:20],
+            "colaboraciones": _colaboraciones(),
+            "porcentaje": PORCENTAJE_RECOMIENDA}
+
+
+def _colaboraciones() -> list[dict]:
+    """Quién ha traído a quién con su código, y si esa persona ya paga (para darle el 20 % a quien recomendó)."""
+    inv = invitados()
+    altas = _altas_demo()
+    grupos: dict[str, list] = {q: [] for q in CODIGOS_FIJOS.values()}
+    for n, x in inv.items():
+        q = x.get("recomendado_por")
+        if q:
+            p = estado_prueba(n, inv, altas) or {}
+            grupos.setdefault(q, []).append({"nombre": nv(n), "alta": x.get("alta"), "pagando": bool(p.get("pagando")),
+                                             "en_prueba": bool(p.get("en_prueba") or p.get("en_revision"))})
+    return [{"nombre": nv(q), "codigo": _codigo_de(q), "clientes": sorted(c, key=lambda y: y.get("alta") or "", reverse=True),
+             "pagan": sum(1 for y in c if y["pagando"])} for q, c in grupos.items()]
 
 
 # ===== vista de la rutina =====
@@ -2934,6 +2988,9 @@ def vista(sesion: dict, atleta: str | None, semana: int | None, dia_id: str | No
             base["por_preparar"] = por_preparar(inv=inv)
         except Exception:  # noqa: BLE001
             base["por_preparar"] = []
+    if sesion.get("u") == atleta and not coach and not es_demo(sesion) and atleta != "Yo":
+        base["mi_codigo"] = _codigo_de(atleta)
+        base["porcentaje"] = PORCENTAJE_RECOMIENDA
     en_revision = (inv.get(atleta) or {}).get("revision") == "pendiente"
     if en_revision and coach:
         base["revision_pendiente"] = True
