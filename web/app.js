@@ -2997,6 +2997,7 @@ function pintarComida() {
     </section>
     ${d.solo_mirar ? "" : `<button class="btn btn-fuego btn-voz" id="cm-voz">${ic.microfono} ${t("Decir lo que he comido")}</button>`}
     ${filas}
+    ${cajaMenu(d)}
     ${cajaHabitual(d)}
     ${d.coach ? cajaPermisoComida(d) : ""}`;
   }
@@ -3008,6 +3009,11 @@ function pintarComida() {
   on("cm-dieta", hojaDieta);
   on("cm-permiso", () => accionComida({ accion: "permiso", valor: !d.permitido }));
   on("cm-voz", () => hojaVoz({ modo: "hoy" }));
+  $app.querySelectorAll("[data-mn-op]").forEach((b) => b.onclick = () => { const [c, i] = b.dataset.mnOp.split("|"); E.planSel = { ...(E.planSel || {}), [c]: +i }; pintar(); });
+  $app.querySelectorAll("[data-mn-apuntar]").forEach((b) => b.onclick = () => {
+    const m = (d.plan || []).find((x) => x.id === b.dataset.mnApuntar), op = m && m.opciones[(E.planSel || {})[m.id] || 0];
+    if (op) accionComida({ accion: "anadir_varios", items: op.items }).then((ok) => ok && aviso(t("Apuntado")));
+  });
   on("cm-habitual", () => hojaVoz({ modo: "habitual", texto: (d.habitual || {}).texto || "" }));
   on("cm-como-siempre", () => accionComida({ accion: "como_siempre" }).then((ok) => ok && aviso(t("Apuntado tu día de siempre"))));
   $app.querySelectorAll("[data-cm-entreno]").forEach((b) => b.onclick = () => accionComida({ accion: "entreno", valor: b.dataset.cmEntreno === "1" }));
@@ -3198,4 +3204,44 @@ function hojaVoz({ modo, comida = null, texto = "" }) {
     };
     const cerrarOrig = h.querySelector("[data-cerrar]"); if (cerrarOrig) cerrarOrig.addEventListener("click", parar);
   });
+}
+
+function cajaMenu(d) {
+  if (!d.plan || !d.plan.length) return "";
+  const sel = E.planSel || {};
+  return `<section class="card caja-menu">
+    <div class="tag">${t("Ideas de menú para hoy")}</div>
+    <p class="mini" style="margin:0">${t("Elige una opción para cada comida: las cantidades ya están ajustadas a tus calorías y a lo que no comes.")}</p>
+    ${d.plan.map((m) => {
+      const i = Math.min(sel[m.id] || 0, m.opciones.length - 1), op = m.opciones[i];
+      return `<div class="mn-comida">
+        <div class="mn-cab"><b>${t(m.nombre)}</b><span>≈ ${num(m.kcal_meta)} kcal</span></div>
+        <div class="mn-ops" role="group" aria-label="${t("Opciones")}">${m.opciones.map((o, k) => `<button class="chip ${k === i ? "on" : ""}" data-mn-op="${m.id}|${k}" aria-pressed="${k === i}"><span>${t("Opción")} ${k + 1}</span><small>${num(o.kcal)} kcal</small></button>`).join("")}</div>
+        <div class="mn-plato">${platoSVG(op.items)}<div class="mn-kcal"><b>${num(op.kcal)}</b><span>kcal</span>
+          <div class="mn-macros"><span>P ${num(op.p)} g</span><span>H ${num(op.h)} g</span><span>G ${num(op.g)} g</span></div></div></div>
+        <ul class="mn-items">${op.items.map((x) => `<li><span><i class="pg" style="background:${COLOR_GRUPO[x.grupo] || "#A0703C"}"></i>${esc(t(x.nombre))}</span><b>${esc(x.cantidad)}</b></li>`).join("")}</ul>
+        <div class="mn-pie"><span>${t("Cantidades ya ajustadas a ti")}</span>
+          ${d.solo_mirar ? "" : `<button class="mini-btn" data-mn-apuntar="${m.id}">${t("Apuntarla")}</button>`}</div>
+      </div>`;
+    }).join("")}
+    <p class="mini aviso-salud">${t("Orientativo y con datos fijos: no sustituye a un dietista-nutricionista. Si tienes alguna enfermedad, alergia o estás embarazada, consulta con uno.")}</p>
+  </section>`;
+}
+
+const COLOR_GRUPO = { "Proteína": "#FF7A1F", "Cereales": "#F2C14E", "Fruta y verdura": "#3FB37F", "Lácteos": "#E8D8C0", "Grasas": "#A0703C", "Otros": "#C9775A" };
+function platoSVG(items) {  // plato dibujado: cada alimento ocupa la parte de las calorías que aporta
+  const tot = items.reduce((a, x) => a + (x.kcal || 0), 0) || 1;
+  const R = 46, C = 60;
+  let ang = -Math.PI / 2, trozos = "";
+  items.forEach((x) => {
+    const frac = (x.kcal || 0) / tot; if (frac <= 0) return;
+    const a2 = ang + frac * Math.PI * 2, gr = frac > .5 ? 1 : 0;
+    const p = (a) => `${(C + R * Math.cos(a)).toFixed(1)},${(C + R * Math.sin(a)).toFixed(1)}`;
+    trozos += frac >= .999 ? `<circle cx="${C}" cy="${C}" r="${R}" fill="${COLOR_GRUPO[x.grupo] || "#A0703C"}"/>`
+      : `<path d="M${C},${C} L${p(ang)} A${R},${R} 0 ${gr} 1 ${p(a2)} Z" fill="${COLOR_GRUPO[x.grupo] || "#A0703C"}" stroke="#3D3732" stroke-width="2"/>`;
+    ang = a2;
+  });
+  return `<svg class="plato" viewBox="0 0 120 120" role="img" aria-label="${t("Reparto del plato por calorías")}">
+    <circle cx="60" cy="60" r="58" fill="#E9E2D6"/><circle cx="60" cy="60" r="52" fill="#D9D0C2"/>${trozos}
+    <circle cx="60" cy="60" r="16" fill="#E9E2D6" opacity=".9"/></svg>`;
 }

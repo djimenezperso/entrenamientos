@@ -78,10 +78,10 @@ ALIMENTOS = {
 }
 # ideas fijas por comida: lista de alimentos; se usa la primera que no choque con lo que no come
 IDEAS = {
-    "desayuno": [["avena", "leche", "platano"], ["pan", "huevos", "manzana"], ["avena", "bebida_veg", "frutos_rojos"], ["tortitas", "crema_cacahuete", "platano"]],
-    "comida": [["arroz", "pollo", "verdura", "aceite"], ["pasta", "atun", "ensalada", "aceite"], ["lentejas", "arroz", "verdura"], ["patata", "tofu", "verdura", "aceite"]],
-    "merienda": [["skyr", "miel", "platano"], ["pan", "atun", "manzana"], ["proteina_veg", "bebida_veg", "platano"], ["tortitas", "crema_cacahuete"]],
-    "cena": [["salmon", "boniato", "ensalada"], ["huevos", "pan", "verdura", "aceite"], ["tofu", "verdura", "patata", "aceite"], ["garbanzos", "ensalada", "aceite"]],
+    "desayuno": [["avena", "leche", "platano"], ["yogur", "cereales", "frutos_rojos"], ["pan", "aguacate", "claras"], ["pan", "huevos", "manzana"], ["avena", "bebida_veg", "frutos_rojos"], ["tortitas", "crema_cacahuete", "platano"]],
+    "comida": [["arroz", "pollo", "verdura", "aceite"], ["patata", "ternera", "ensalada", "aceite"], ["garbanzos", "pollo", "verdura"], ["pasta", "atun", "ensalada", "aceite"], ["lentejas", "arroz", "verdura"], ["patata", "tofu", "verdura", "aceite"]],
+    "merienda": [["skyr", "miel", "platano"], ["pan", "jamon", "zumo"], ["yogur", "frutos_secos", "manzana"], ["pan", "atun", "manzana"], ["proteina_veg", "bebida_veg", "platano"], ["tortitas", "crema_cacahuete"]],
+    "cena": [["salmon", "boniato", "ensalada"], ["merluza", "patata", "verdura", "aceite"], ["pavo", "arroz", "verdura", "aceite"], ["huevos", "pan", "verdura", "aceite"], ["tofu", "verdura", "patata", "aceite"], ["garbanzos", "ensalada", "aceite"]],
 }
 
 
@@ -90,9 +90,9 @@ GRAMOS = {"avena": 60, "pan": 60, "arroz": 200, "pasta": 200, "patata": 250, "bo
           "ternera": 150, "salmon": 150, "atun": 80, "merluza": 200, "gambas": 150, "claras": 200, "tofu": 150, "lentejas": 250,
           "garbanzos": 250, "proteina": 30, "proteina_veg": 30, "yogur": 125, "skyr": 150, "leche": 250, "bebida_veg": 250,
           "queso_fresco": 150, "frutos_rojos": 150, "verdura": 250, "aguacate": 70, "aceite": 10, "frutos_secos": 30,
-          "crema_cacahuete": 15, "chocolate": 20, "miel": 20, "cereales": 40, "galletas": 40, "zumo": 200, "jamon": 40,
+          "crema_cacahuete": 15, "chocolate": 20, "ensalada": 200, "miel": 20, "cereales": 40, "galletas": 40, "zumo": 200, "jamon": 40,
           "york": 60, "queso": 30, "pizza": 200}
-UNIDADES = {"huevos": 2, "pan": 2, "tortitas": 4, "galletas": 4}
+UNIDADES = {"huevos": 2, "pan": 2, "tortitas": 4, "galletas": 4, "platano": 1, "manzana": 1}
 # palabras que se dicen → alimento (se busca la más larga primero)
 SINONIMOS = {
     "avena": ["copos de avena", "avena", "porridge", "flocons d'avoine"],
@@ -230,6 +230,61 @@ def consejos(items: list[dict], obj: dict, entreno: bool, dieta: dict) -> list[d
     return out
 
 
+def _cantidad(k: str, rac: float) -> str:
+    """Cómo decir la cantidad: «150 g», «2 huevos», «1 vaso · 250 ml»."""
+    if k in UNIDADES:
+        n = rac * UNIDADES[k]
+        nombre = {"huevos": "huevo", "pan": "rebanada", "tortitas": "tortita", "galletas": "galleta", "platano": "plátano", "manzana": "pieza de fruta"}[k]
+        if k == "manzana" and n != 1:
+            return f"{n:g} piezas de fruta".replace(".", ",")
+        return f"{n:g} {nombre}{'s' if n != 1 else ''}".replace(".", ",")
+    if k in GRAMOS:
+        ml = k in ("leche", "bebida_veg", "zumo", "claras", "aceite")
+        g = round(GRAMOS[k] * rac / 5) * 5
+        return f"{g} {'ml' if ml else 'g'}"
+    txt = {.5: "media ración", 1: "1 ración", 1.5: "ración y media", 2: "2 raciones"}.get(rac) or f"{rac:g} raciones".replace(".", ",")
+    return f"{txt} ({ALIMENTOS[k][1]})"
+
+
+def _escalar(op: list[str], cid: str, meta_kcal: float, meta_p: float, ex: set[str]) -> dict:
+    base = sum(ALIMENTOS[a][2] for a in op)
+    f = meta_kcal / base if base else 1
+    items = []
+    for a in op:
+        fa = f if ALIMENTOS[a][6] != "Grasas" else min(f, 1.5)  # el aceite y los frutos secos no se disparan
+        rac = max(.5, min(3, round(fa * 4) / 4))
+        if a in UNIDADES:  # unidades enteras: nada de «1,5 huevos»
+            rac = max(1, round(rac * UNIDADES[a])) / UNIDADES[a]
+        items.append({"comida": cid, "alimento": a, "raciones": rac})
+    p = _sumar(items)["p"]
+    if p < meta_p * .7:  # se queda corta de proteína: se le suma algo proteico que pueda comer
+        extra = next((a for a in (("skyr", "proteina", "claras", "proteina_veg") if cid in ("desayuno", "merienda")
+                                  else ("pollo", "atun", "tofu", "claras")) if a not in op and not set(ALIMENTOS[a][7]) & ex), None)
+        if extra:
+            items.append({"comida": cid, "alimento": extra, "raciones": max(.5, min(2, round((meta_p - p) / ALIMENTOS[extra][3] * 2) / 2))})
+    for it in items:
+        it.update(_sumar([it]), nombre=ALIMENTOS[it["alimento"]][0], cantidad=_cantidad(it["alimento"], it["raciones"]), grupo=ALIMENTOS[it["alimento"]][6])
+    return {"items": items, **_sumar(items), "titulo": ", ".join(ALIMENTOS[a][0] for a in op[:2])}
+
+
+def plan_dia(dieta: dict, obj: dict) -> list[dict]:
+    """Ideas de menú orientativas: varias opciones por comida, con cantidades ajustadas a sus calorías y proteína.
+    No es una dieta de dietista: es una guía con datos fijos."""
+    if not obj:
+        return []
+    ex = _excluidos(dieta)
+    hoy = dt.date.today().weekday()
+    plan = []
+    for cid, nombre, parte in COMIDAS:
+        ops = [op for op in IDEAS.get(cid, []) if not any(set(ALIMENTOS[a][7]) & ex for a in op)]
+        if not ops:
+            continue
+        ops = ops[hoy % len(ops):] + ops[:hoy % len(ops)]  # cada día empieza por una distinta
+        plan.append({"id": cid, "nombre": nombre, "kcal_meta": round(obj["kcal"] * parte),
+                     "opciones": [_escalar(op, cid, obj["kcal"] * parte, obj["p"] * parte, ex) for op in ops]})
+    return plan
+
+
 def _clave(atleta: str) -> str:
     return PREFIJO + atleta
 
@@ -305,7 +360,7 @@ def _idea(comida: str, ex: set[str]) -> list[str]:
     return []
 
 
-def comida(sesion: dict, atleta: str | None) -> dict:
+def comida(sesion: dict, atleta: str | None, variante: int = 0) -> dict:  # variante: ya no se usa
     atleta = atleta or sesion.get("u") or "Yo"
     s.puede_ver(sesion, atleta)
     doc = _doc(atleta)
@@ -331,6 +386,7 @@ def comida(sesion: dict, atleta: str | None) -> dict:
         "coach": s.es_coach(sesion) and atleta != "Yo",
         "paga": _paga(atleta, doc), "permitido": bool(doc.get("permitido")),
         "fecha": _hoy(), "entreno": entreno, "dieta": dieta, "objetivo": obj, "llevas": _sumar(items), "comidas": comidas,
+        "plan": plan_dia(dieta, obj),
         "habitual": {"texto": hab.get("texto", ""), "items": hab_items, "total": _sumar(hab_items),
                      "consejos": consejos(hab_items, obj, entreno, dieta)} if hab_items else None,
         "opciones": {"objetivos": {k: v[0] for k, v in OBJETIVOS.items()}, "dietas": {k: v[0] for k, v in DIETAS.items()},

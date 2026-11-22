@@ -118,7 +118,7 @@ class handler(BaseHTTPRequestHandler):
             if ruta == "comida":
                 if metodo == "POST":
                     return self._responder(200, comida.comida_accion(self._sesion(), self._cuerpo()))
-                return self._responder(200, comida.comida(self._sesion(), q.get("atleta")))
+                return self._responder(200, comida.comida(self._sesion(), q.get("atleta"), int(q.get("variante") or 0) % 50))
             if ruta == "accion" and metodo == "POST":
                 return self._responder(200, servicio.accion(self._sesion(), self._cuerpo()))
             return self._responder(404, {"error": "No existe"})

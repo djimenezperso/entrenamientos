@@ -937,3 +937,28 @@ body, body:not(.x) { background: var(--fondo); }
 .anot-nueva textarea { margin-top: 0 !important; flex: 1; min-height: 96px; }
 .anot-nueva .btn { margin-top: 0; min-height: 44px; font-size: 13.5px; padding: 6px 8px; }
 .anot-grid > .anot:only-child, .anot-grid > .anot-nueva:nth-child(odd) { grid-column: 1 / -1; }
+/* ideas de menú: opciones por comida */
+.caja-menu { gap: 12px; }
+.mn-comida { background: var(--sup2); border: 1px solid var(--raya); border-radius: 16px; padding: 12px; display: flex; flex-direction: column; gap: 10px; }
+.mn-cab { display: flex; justify-content: space-between; align-items: baseline; }
+.mn-cab b { font-size: 16px; } .mn-cab span { font-size: 13px; color: var(--suave); }
+.mn-ops { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; }
+.mn-ops .chip { min-height: 40px; margin: 0; justify-content: center; font-size: 13px; }
+.mn-items { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
+.mn-items li { display: flex; justify-content: space-between; gap: 10px; padding: 7px 0; border-top: 1px solid var(--raya); font-size: 14px; }
+.mn-items li:first-child { border-top: 0; }
+.mn-items b { white-space: nowrap; color: var(--fuego); font-weight: 700; }
+.mn-pie { display: flex; justify-content: space-between; align-items: center; gap: 8px; font-size: 12.5px; color: var(--suave); }
+.mn-pie .mini-btn { min-height: 40px; }
+.aviso-salud { margin: 0; font-size: 12px; }
+.mn-ops .chip { flex-direction: column; gap: 0; min-height: 48px; line-height: 1.15; }
+.mn-ops .chip small { font-size: 11px; font-weight: 600; opacity: .8; }
+.mn-plato { display: grid; grid-template-columns: 120px 1fr; gap: 14px; align-items: center; }
+.plato { width: 120px; height: 120px; }
+.mn-kcal { display: flex; flex-direction: column; }
+.mn-kcal > b { font-family: var(--titulo); font-weight: 800; font-size: 52px; line-height: .9; }
+.mn-kcal > span { font-size: 13px; color: var(--suave); margin-bottom: 8px; }
+.mn-macros { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 4px; }
+.mn-macros span { background: var(--sup3); border-radius: 8px; padding: 4px 0; text-align: center; font-size: 12px; font-weight: 600; }
+.mn-items li > span { display: flex; align-items: center; gap: 8px; }
+.pg { width: 10px; height: 10px; border-radius: 3px; flex-shrink: 0; }
