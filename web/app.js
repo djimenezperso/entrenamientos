@@ -2974,10 +2974,10 @@ function pintarComida() {
       return `<section class="comida-fila ${est}" id="fila-${c.id}">
         <div class="cf-cab">
           <span class="cf-marca">${c.items.length ? ic.ok : i === siguiente ? "!" : "·"}</span>
-          <div class="cf-txt"><b>${t(c.nombre)}</b><small>${c.items.length ? esc(c.items.map((x) => x.nombre).join(", ")) : i === siguiente ? t("Te toca ahora") : t("Sin apuntar")}</small></div>
+          <div class="cf-txt"><b>${t(c.nombre)}</b><small>${c.items.length ? esc(c.items.map((x) => t(x.nombre)).join(", ")) : i === siguiente ? t("Te toca ahora") : t("Sin apuntar")}</small></div>
           <span class="cf-kcal">${c.items.length ? num(c.kcal) : "≈ " + num(c.objetivo || 0)}<small> kcal</small></span>
         </div>
-        ${c.items.length ? `<div class="cf-items">${c.items.map((x) => `<div class="cf-item"><span>${esc(x.nombre)} · ${num(x.raciones)} × ${esc(x.racion)}</span><span>${num(x.kcal)} kcal</span>${d.solo_mirar ? "" : `<button class="cf-quitar" data-cm-quitar="${esc(x.id)}" aria-label="${t("Quitar")}">×</button>`}</div>`).join("")}</div>` : ""}
+        ${c.items.length ? `<div class="cf-items">${c.items.map((x) => `<div class="cf-item"><span>${esc(t(x.nombre))} · ${num(x.raciones)} × ${esc(trRacion(x.racion))}</span><span>${num(x.kcal)} kcal</span>${d.solo_mirar ? "" : `<button class="cf-quitar" data-cm-quitar="${esc(x.id)}" aria-label="${t("Quitar")}">×</button>`}</div>`).join("")}</div>` : ""}
         ${d.solo_mirar ? "" : `<div class="cf-botones"><button class="mini-btn" data-cm-anadir="${c.id}">+ ${t("Añadir")}</button>${(d.plan || []).some((m) => m.id === c.id) ? `<button class="mini-btn ${E.menuAbierto === c.id ? "on" : ""}" data-cm-menu="${c.id}" aria-expanded="${E.menuAbierto === c.id}">${E.menuAbierto === c.id ? t("Cerrar menú") : t("Ver menú")}</button>` : ""}</div>`}
         ${E.menuAbierto === c.id ? bloqueMenu(d, d.plan.find((m) => m.id === c.id)) : ""}
       </section>`;
@@ -3084,7 +3084,7 @@ function hojaAlimento(comidaId) {
     const al = d.alimentos.filter((a) => !n || a.nombre.toLowerCase().includes(n));
     const grupos = [...new Set(al.map((a) => a.grupo))];
     return grupos.map((g) => `<div class="paso-etq">${t(g)}</div>` + al.filter((a) => a.grupo === g).map((a) =>
-      `<button class="alimento" data-al="${a.id}"><span><b>${esc(t(a.nombre))}</b><small>${esc(a.racion)} · P ${a.p} · H ${a.h} · G ${a.g}</small></span><span class="al-kcal">${num(a.kcal * raciones)}<small> kcal</small></span></button>`).join("")).join("")
+      `<button class="alimento" data-al="${a.id}"><span><b>${esc(t(a.nombre))}</b><small>${esc(trRacion(a.racion))} · P ${a.p} · H ${a.h} · G ${a.g}</small></span><span class="al-kcal">${num(a.kcal * raciones)}<small> kcal</small></span></button>`).join("")).join("")
       || `<div class="vacio">${t("No hay nada con ese nombre.")}</div>`;
   };
   abrirHoja(`${cabHoja(t(c.nombre), t("Añade lo que has comido"))}
@@ -3196,7 +3196,7 @@ function hojaVoz({ modo, comida = null, texto = "" }) {
       const its = resultado.items;
       if (!its.length) { $res.innerHTML = `<div class="cc cc-aviso"><span class="cc-marca">!</span><div><b>${t("No he entendido ningún alimento")}</b><small>${t("Prueba con nombres sencillos: arroz, pollo, huevos, yogur, plátano…")}</small></div></div>`; return; }
       $res.innerHTML = Object.keys(NOM_COMIDA).filter((c) => its.some((i) => i.comida === c)).map((c) => `<div class="paso-etq">${t(NOM_COMIDA[c])}</div>` +
-        its.map((i, k) => i.comida !== c ? "" : `<div class="cf-item"><span>${esc(t(i.nombre))} · ${num(i.raciones)} × ${esc(i.racion)}</span><span>${num(i.kcal)} kcal</span><button class="cf-quitar" data-vz-q="${k}" aria-label="${t("Quitar")}">×</button></div>`).join("")).join("");
+        its.map((i, k) => i.comida !== c ? "" : `<div class="cf-item"><span>${esc(t(i.nombre))} · ${num(i.raciones)} × ${esc(trRacion(i.racion))}</span><span>${num(i.kcal)} kcal</span><button class="cf-quitar" data-vz-q="${k}" aria-label="${t("Quitar")}">×</button></div>`).join("")).join("");
       $res.querySelectorAll("[data-vz-q]").forEach((b) => b.onclick = () => { its.splice(+b.dataset.vzQ, 1); pintarRes(); });
     };
     $ok.onclick = async () => {
@@ -3232,7 +3232,7 @@ function bloqueMenu(d, m) {  // opciones en carrusel: se cambian deslizando o to
     <div class="mn-carrusel" data-mn-carrusel="${m.id}" data-inicio="${i}">${m.opciones.map((op, k) => `<div class="mn-slide" role="tabpanel" aria-label="${t("Opción")} ${k + 1}">
       <div class="mn-plato">${platoSVG(op.items)}<div class="mn-kcal"><b>${num(op.kcal)}</b><span>kcal</span>
         <div class="mn-macros"><span>P ${num(op.p)} g</span><span>H ${num(op.h)} g</span><span>G ${num(op.g)} g</span></div></div></div>
-      <ul class="mn-items">${op.items.map((x) => `<li><span><i class="pg" style="background:${COLOR_GRUPO[x.grupo] || "#A0703C"}"></i>${esc(t(x.nombre))}</span><b>${esc(x.cantidad)}</b></li>`).join("")}</ul>
+      <ul class="mn-items">${op.items.map((x) => `<li><span><i class="pg" style="background:${COLOR_GRUPO[x.grupo] || "#A0703C"}"></i>${esc(t(x.nombre))}</span><b>${esc(trRacion(x.cantidad))}</b></li>`).join("")}</ul>
       ${d.solo_mirar ? "" : `<button class="btn btn-fuego" data-mn-apuntar="${m.id}|${k}">${t("Apuntar esta opción")}</button>`}
     </div>`).join("")}</div>
     <div class="mn-puntos" aria-hidden="true">${m.opciones.map((_, k) => `<i class="${k === i ? "on" : ""}"></i>`).join("")}</div>
@@ -3298,3 +3298,13 @@ Object.assign(FR, {  // analizador y alimentos
   "Zumo de naranja": "Jus d'orange", "Jamón serrano": "Jambon cru", "Jamón cocido": "Jambon blanc", "Queso curado": "Fromage affiné", "Pizza": "Pizza",
   "Hamburguesa con pan": "Burger", "Café con leche": "Café au lait", "Cereales": "Céréales", "Fruta y verdura": "Fruits et légumes", "Grasas": "Matières grasses", "Otros": "Autres",
 });
+
+function trRacion(s) {  // raciones y cantidades en francés
+  if (E.lang !== "fr" || !s) return s;
+  const P = [["ración y media", "portion et demie"], ["media ración", "demi-portion"], ["raciones", "portions"], ["ración", "portion"],
+    ["piezas de fruta", "fruits"], ["pieza de fruta", "fruit"], ["plátanos", "bananes"], ["plátano", "banane"], ["huevos", "œufs"], ["huevo", "œuf"],
+    ["rebanadas", "tranches"], ["rebanada", "tranche"], ["tortitas", "galettes"], ["tortita", "galette"], ["galletas", "biscuits"], ["galleta", "biscuit"],
+    ["unidades", "unités"], ["unidad", "unité"], ["plato", "assiette"], ["vaso", "verre"], ["cucharada", "cuillère"], ["puñado", "poignée"],
+    ["lata", "boîte"], ["mediano", "moyen"], ["mediana", "moyenne"], ["taza", "tasse"], ["cacito", "dose"], ["½ pizza", "½ pizza"]];
+  let r = s; for (const [a, b] of P) r = r.split(a).join(b); return r;
+}
