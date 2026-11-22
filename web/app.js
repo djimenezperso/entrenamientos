@@ -323,12 +323,12 @@ const FR = {
   "Código de quien te recomienda (opcional)": "Code de la personne qui te recommande (facultatif)",
   "Recomienda Djimenez Prog": "Recommande Djimenez Prog",
   "Tu código": "Ton code",
-  "Si alguien se abona con tu código, te llevas el {p} % de lo que pague.": "Si quelqu'un s'abonne avec ton code, tu touches {p} % de ce qu'il paie.",
+  "Si alguien se abona con tu código, te llevas el {p} % de su primer pago.": "Si quelqu'un s'abonne avec ton code, tu touches {p} % de son premier paiement.",
   "Compartir mi código": "Partager mon code",
   "Si lo publicas en redes, añade «Collaboration commerciale».": "Si tu le publies sur les réseaux, ajoute « Collaboration commerciale ».",
   "💪 Entreno con Djimenez Prog. Si te creas el perfil, pon mi código": "💪 Je m'entraîne avec Djimenez Prog. Si tu crées ton profil, mets mon code",
   "Colaboraciones": "Collaborations",
-  "le toca el {p} % de lo que paguen": "touche {p} % de ce qu'ils paient",
+  "le toca el {p} % del primer pago de cada uno": "touche {p} % du premier paiement de chacun",
   "Aún nadie con su código": "Personne avec son code pour l'instant",
   "paga": "paie",
   "en prueba": "en essai",
@@ -1787,7 +1787,7 @@ function hojaAjustes() {
     ${v.coach || v.invitado ? "" : botonAbono(v, "b-abono")}
     ${v.mi_codigo ? `<div class="caja-abono"><b>🤝 ${t("Recomienda Djimenez Prog")}</b>
       <div style="margin:6px 0">${t("Tu código")}: <b style="font-size:20px;letter-spacing:1px">${esc(v.mi_codigo)}</b></div>
-      <p class="mini" style="margin:0 2px 8px">${t("Si alguien se abona con tu código, te llevas el {p} % de lo que pague.").replace("{p}", v.porcentaje || 20)}</p>
+      <p class="mini" style="margin:0 2px 8px">${t("Si alguien se abona con tu código, te llevas el {p} % de su primer pago.").replace("{p}", v.porcentaje || 20)}</p>
       <button class="btn btn-negro" id="b-mi-codigo" style="width:100%">${ic.compartir} ${t("Compartir mi código")}</button>
       <p class="mini" style="margin:6px 2px 0">${t("Si lo publicas en redes, añade «Collaboration commerciale».")}</p></div>` : ""}
     <div style="display:grid;grid-template-columns:1fr auto;gap:8px">
@@ -2218,7 +2218,7 @@ async function hojaActividad() {
       <small>${d.abono_activo ? t("Los pagos de verdad los ves en Stripe (cada pago lleva el nombre de quien pulsó).") : t("El botón aún no sale: falta poner ABONO_URL en Vercel.")}</small></div>
     ${d.colaboraciones && d.colaboraciones.length ? `<div class="act-altas" style="border-left-color:#7a4dd6"><b>🤝 ${t("Colaboraciones")}</b>
       ${d.colaboraciones.map((c) => `<span><b>${esc(c.nombre)}</b> · ${esc(c.codigo)} · ${c.clientes.length ? `${t("{n} pagan").replace("{n}", c.pagan)} / ${c.clientes.length}<br>${c.clientes.map((x) => `${esc(x.nombre)} <small>(${x.pagando ? "💳 " + t("paga") : x.en_prueba ? t("en prueba") : t("sin abono")})</small>`).join(" · ")}` : `<small>${t("Aún nadie con su código")}</small>`}</span>`).join("")}
-      <small>${t("le toca el {p} % de lo que paguen").replace("{p}", d.porcentaje || 20)}</small></div>` : ""}
+      <small>${t("le toca el {p} % del primer pago de cada uno").replace("{p}", d.porcentaje || 20)}</small></div>` : ""}
     ${d.altas && d.altas.length ? `<div class="act-altas"><b>✨ ${d.altas.length} ${t(d.altas.length === 1 ? "perfil creado desde la demo" : "perfiles creados desde la demo")}</b>
       <span>${d.altas.map((a) => `${esc(a.nombre)} <small>(${esc(a.hace)})</small>`).join(" · ")}</span></div>` : ""}
     <div class="act-lista">${filas}</div>`;

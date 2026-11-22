@@ -975,7 +975,7 @@ def login(cuerpo: dict) -> dict:
     raise Error("Contraseña incorrecta · Mot de passe incorrect", 401)
 
 
-# ===== recomendaciones (cada atleta tiene su código; quien trae a alguien que se abona se lleva el 20 %) =====
+# ===== recomendaciones (cada atleta tiene su código; quien trae a alguien que se abona se lleva el 20 % de su primer pago) =====
 CODIGOS_FIJOS = {"WENDY": "Wendy"}
 PORCENTAJE_RECOMIENDA = 20
 
@@ -1035,7 +1035,7 @@ def _login_invitado(cuerpo: dict) -> dict:
     _rutina_inicio(nombre, plantilla)
     if recomienda:
         notificar(f"🤝 {nombre} se ha creado el perfil con el código {_codigo_de(recomienda)} ({nv(recomienda)}). "
-                  f"Si se abona, a {nv(recomienda)} le toca el {PORCENTAJE_RECOMIENDA} %.")
+                  f"Si se abona, a {nv(recomienda)} le toca el {PORCENTAJE_RECOMIENDA} % de su primer pago.")
     return _sesion_para(nombre)
 
 
