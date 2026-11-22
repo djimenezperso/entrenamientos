@@ -18,6 +18,7 @@ const E = { token: mem.get("token"), atleta: mem.get("atleta"), lang: mem.get("l
 
 // ---------- textos ----------
 const FR = {
+  "La salsa": "La sauce", "casi sin calorías": "presque sans calories",
   "Ver receta": "Voir la recette", "Ingredientes (ya ajustados a ti)": "Ingrédients (déjà adaptés à toi)", "Cómo se hace": "Préparation",
   "Copiar la lista de la compra": "Copier la liste de courses", "Inspírate: más versiones con sus calorías": "Inspire-toi : d'autres versions avec leurs calories",
   "¿Qué días vienes esta semana?": "Quels jours tu viens cette semaine ?", "Mis días de esta semana": "Mes jours cette semaine",
@@ -3272,10 +3273,12 @@ function bloqueMenu(d, m) {  // opciones en carrusel: se cambian deslizando o to
 function hojaReceta(op, mid, k) {
   const r = op.receta, fr = E.lang === "fr";
   const lista = op.items.map((x) => `${t(x.nombre)}: ${trRacion(x.cantidad)}`);
+  if (r.salsa) lista.push(`${t("La salsa")}: ${fr ? r.salsa_fr : r.salsa}`);
   abrirHoja(`<h3>👩‍🍳 ${esc(fr ? r.nombre_fr : r.nombre)}</h3>
-    <div class="rc-datos"><span>⏱ ${r.minutos} min</span><span><b>${num(op.kcal)}</b> kcal</span><span>P ${num(op.p)} g</span><span>H ${num(op.h)} g</span><span>G ${num(op.g)} g</span></div>
+    <div class="rc-datos"><span>⏱ ${r.minutos} min</span><span><b>${num(op.kcal + (r.kcal_salsa || 0))}</b> kcal</span><span>P ${num(op.p)} g</span><span>H ${num(op.h)} g</span><span>G ${num(op.g)} g</span></div>
     <p class="paso-etq">🛒 ${t("Ingredientes (ya ajustados a ti)")}</p>
     <ul class="mn-items">${op.items.map((x) => `<li><span><i class="pg" style="background:${COLOR_GRUPO[x.grupo] || "#A0703C"}"></i>${esc(t(x.nombre))}</span><b>${esc(trRacion(x.cantidad))}</b></li>`).join("")}</ul>
+    ${r.salsa ? `<div class="rc-salsa"><b>🌶️ ${t("La salsa")}</b><span>${esc(fr ? r.salsa_fr : r.salsa)}</span>${r.kcal_salsa ? `<small>+${r.kcal_salsa} kcal</small>` : `<small>${t("casi sin calorías")}</small>`}</div>` : ""}
     <p class="paso-etq">${t("Cómo se hace")}</p>
     <ol class="rc-pasos">${(fr ? r.pasos_fr : r.pasos).map((p) => `<li>${esc(p)}</li>`).join("")}</ol>
     <button class="btn" id="rc-compra">🛒 ${t("Copiar la lista de la compra")}</button>
