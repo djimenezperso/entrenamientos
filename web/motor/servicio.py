@@ -25,6 +25,7 @@ import copy
 import datetime as dt
 import hashlib
 import hmac
+import unicodedata
 import json
 import re
 import os
@@ -1451,12 +1452,23 @@ def compartir(sesion: dict, c: dict) -> dict:
 def _login_perfil(cuerpo: dict) -> dict:
     """Entrar con nombre + PIN a un perfil que ya existe (los creados desde la demo no saben la contraseña de invitados)."""
     nombre = " ".join(str(cuerpo.get("nombre") or "").split()).title()
-    pin = str(cuerpo.get("pin") or "").strip()
+    pin = unicodedata.normalize("NFC", str(cuerpo.get("pin") or "").strip())  # iPhone/Mac pueden mandar «è» descompuesta
     registro = invitados()
     existente = next((n for n in registro if norm_busqueda(n) == norm_busqueda(nombre)), None)
-    if not nombre or not pin or not existente or not hmac.compare_digest(registro[existente].get("pin", ""), _hash(existente, pin)):
+    pedido = next((x for x in CREAR_PERFILES if norm_busqueda(x["nombre"]) == norm_busqueda(nombre) and x.get("pin_hash")), None)
+    if pedido and not existente:  # perfil pedido que aún no se ha creado (se crea al abrir Diego la app): se crea ya
+        registro = _crear_pedidos(registro)
+        existente = next((n for n in registro if norm_busqueda(n) == norm_busqueda(nombre)), None)
+    ok = bool(nombre and pin and existente) and hmac.compare_digest(registro[existente].get("pin", ""), _hash(existente, pin))
+    if not ok and pedido and existente and registro[existente].get("pin", "") in ("", *pedido.get("pin_antes", [])) \
+            and hmac.compare_digest(pedido["pin_hash"], _hash(existente, pin)):  # contraseña pedida aún sin poner en su perfil
+        registro = dict(registro)
+        registro[existente] = {**registro[existente], "pin": pedido["pin_hash"]}
+        datos().guardar(CLAVE_INVITADOS, registro)
+        ok = True
+    if not ok:
         time.sleep(0.8)
-        raise Error("Nombre o PIN incorrectos", 401)
+        raise Error("Nombre o PIN incorrectos · Prénom ou code incorrect", 401)
     return _sesion_para(existente)
 
 
