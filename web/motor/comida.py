@@ -367,6 +367,8 @@ def comida(sesion: dict, atleta: str | None, variante: int = 0) -> dict:  # vari
     if not _permitido(sesion, atleta, doc):
         return {"atleta": atleta, "acceso": False, "abono": bool(s._abono_url())}
     dieta = doc.get("dieta") or {}
+    if not dieta.get("peso") and s.es_demo(sesion):  # la demo enseña una dieta de ejemplo para que se vea todo
+        dieta = {"peso": 75, "objetivo": "mantener", "tipo": "equilibrada", "no_come": []}
     dia = (doc.get("dias") or {}).get(_hoy()) or {}
     entreno = dia.get("entreno", True)
     items = dia.get("items") or []
