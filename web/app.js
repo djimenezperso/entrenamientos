@@ -320,6 +320,9 @@ const FR = {
   "Quitar el modo coach en este móvil": "Quitter le mode coach sur ce téléphone",
   "Solo para Diego: con el PIN del coach puedes cambiar los pesos y aprobar los cambios que te piden.": "Réservé à Diego : avec le code du coach, tu peux changer les poids et valider les demandes.",
   "Compartir la app": "Partager l'appli",
+  "Cerrar": "Fermer",
+  "El cronómetro es para los abonados. Abónate y sigue usándolo con tu rutina.": "Le chrono est réservé aux abonnés. Abonne-toi et continue à l'utiliser avec ta routine.",
+  "En la demo el cronómetro va 1 minuto. Crea tu perfil: tienes 7 días gratis para usarlo entero con tu rutina.": "Dans la démo, le chrono dure 1 minute. Crée ton profil : tu as 7 jours gratuits pour l'utiliser en entier avec ta routine.",
   "Código de quien te recomienda (opcional)": "Code de la personne qui te recommande (facultatif)",
   "Recomienda Djimenez Prog": "Recommande Djimenez Prog",
   "Tu código": "Ton code",
@@ -2456,7 +2459,21 @@ async function pantallaEncendida(si) {
   } catch { }
 }
 
+const CRONO_DEMO_SEG = 60;  // en la demo el reloj va 1 minuto; sin abono (prueba terminada) no se abre
+function cronoLimitado() { const v = E.vista || {}; return v.pago_requerido ? "pago" : v.demo ? "demo" : null; }
+function muroCrono(tipo) {
+  abrirHoja(`${cabHoja("Djimenez Prog", t("Cronómetro"))}
+    <p style="margin:4px 4px 14px">${t(tipo === "pago" ? "El cronómetro es para los abonados. Abónate y sigue usándolo con tu rutina." : "En la demo el cronómetro va 1 minuto. Crea tu perfil: tienes 7 días gratis para usarlo entero con tu rutina.")}</p>
+    ${tipo === "pago" ? `<button class="btn btn-fuego" id="mc-si" style="height:54px">${t("Abonarme")}</button>`
+      : `<button class="btn btn-fuego" id="mc-si" style="height:54px">${t("Crear mi perfil")}</button>`}
+    <button class="btn" data-cerrar>${t("Cerrar")}</button>`, (h) => {
+    h.querySelectorAll("[data-cerrar]").forEach((b) => b.onclick = cerrarHoja);
+    h.querySelector("#mc-si").onclick = () => { cerrarHoja(); if (tipo === "pago") abonarse(); else hojaCrearPerfil({}); };
+  });
+}
 function abrirCrono(p, l) {
+  if (cronoLimitado() === "pago") return muroCrono("pago");
+  if (cronoLimitado() === "demo" && mem.get("crono_demo_fin") === hoyISO()) return muroCrono("demo");  // el minuto de la demo es uno al día
   const guardado = (() => { try { return JSON.parse(mem.get("reloj") || "null"); } catch { return null; } })() || {};
   const cr = (l && l.crono) || { modo: guardado.modo || "libre" };
   C.p = p; C.l = l;
@@ -2544,6 +2561,10 @@ function tick() {
     const quedan = Math.ceil((s.prep - Date.now()) / 1000);
     if (quedan !== s.ultimoAviso) { s.ultimoAviso = quedan; if (quedan <= 3 && quedan > 0) sonido(660); }
     if (Date.now() >= s.prep) { s.estado = "corre"; s.inicio = Date.now(); s.ultimoAviso = -1; s.fase = "trabajo"; sonido(990, 500); pintarCrono(); return; }
+  }
+  if (s.estado === "corre" && cronoLimitado() === "demo" && transcurrido() > CRONO_DEMO_SEG * 1000) {
+    s.acumulado = transcurrido(); s.estado = "pausa"; sonido(520, 600); pantallaEncendida(false); pintarCrono();
+    mem.set("crono_demo_fin", hoyISO()); cerrarCrono(); return muroCrono("demo");
   }
   if (s.estado === "corre") {
     const d = datosCrono();
