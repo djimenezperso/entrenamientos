@@ -891,3 +891,41 @@ body, body:not(.x) { background: var(--fondo); color: var(--tinta); }
 .pestanas button.on { background: var(--fuego) !important; color: #1A120B !important; }
 .etq-modo { background: var(--fuego); color: #1A120B; }
 .titulo-pant, .registro-cab strong { text-shadow: none !important; color: var(--tinta) !important; }
+/* comidas por voz */
+.btn-voz { display: flex; align-items: center; justify-content: center; gap: 8px; min-height: 52px; }
+.btn-micro { width: 100%; min-height: 88px; border-radius: 20px; border: 2px dashed var(--fuego); background: var(--sup2); color: var(--fuego);
+  display: flex; align-items: center; justify-content: center; gap: 12px; font-weight: 700; font-size: 16px; }
+.btn-micro svg { width: 30px; height: 30px; }
+.btn-micro.on { background: var(--fuego); color: #1A120B; border-style: solid; animation: latido 1.2s ease-in-out infinite; }
+@keyframes latido { 50% { box-shadow: 0 0 0 10px rgba(255,122,31,.18); } }
+@media (prefers-reduced-motion: reduce) { .btn-micro.on { animation: none; } }
+#vz-txt { min-height: 96px; resize: vertical; }
+#vz-res { display: flex; flex-direction: column; gap: 4px; }
+.consejos-comida { display: flex; flex-direction: column; gap: 8px; margin: 4px 0 10px; }
+.cc { display: flex; gap: 10px; align-items: flex-start; padding: 10px 12px; border-radius: 14px; background: var(--sup2); border: 1px solid var(--raya); }
+.cc.cc-aviso { background: var(--aviso-fondo); border: 1.5px solid var(--aviso); }
+.cc.cc-ok { border-color: #24563A; }
+.cc-marca { width: 28px; height: 28px; border-radius: 9px; display: grid; place-items: center; flex-shrink: 0; font-weight: 800; }
+.cc.cc-ok .cc-marca { background: var(--ok-fondo); color: #fff; } .cc.cc-aviso .cc-marca { background: var(--aviso); color: var(--aviso-fondo); }
+.cc-marca svg { width: 15px; height: 15px; }
+.cc b { display: block; font-size: 14.5px; } .cc small { color: var(--tinta2); font-size: 13px; }
+.cc.cc-aviso b { color: var(--aviso); }
+/* más claro (pedido 22/11): gris carbón en vez de negro */
+:root {
+  --fondo: #2A2622; --sup: #35302B; --sup2: #3D3732; --sup3: #474039; --raya: #4A433C; --raya2: #5A524A;
+  --suave: #BDB3A7; --tinta2: #E2DACF; --aviso-fondo: #3D3318;
+}
+body, body:not(.x) { background: var(--fondo); }
+@media (min-width: 520px) { body { background: #221F1C; } }
+.nav { background: rgba(42,38,34,.97); }
+/* días: todos del mismo ancho, ocupando la fila */
+.dias { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(46px, 1fr); }
+.dia { width: auto; }
+/* «Te queda por preparar»: rejilla de 2 columnas iguales */
+.plan-pend .fila-chips { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+.plan-pend .chip { min-height: 60px; margin: 0; display: flex; flex-direction: column; align-items: flex-start; justify-content: center; gap: 2px;
+  text-align: left; border-radius: 14px; padding: 8px 12px; white-space: normal; }
+.plan-pend .chip b { font-size: 14.5px; line-height: 1.2; overflow: hidden; text-overflow: ellipsis; max-width: 100%; white-space: nowrap; }
+.plan-pend .chip small { font-size: 12px; opacity: .85; font-weight: 600; }
+.plan-pend .chip.urgente { color: #1A120B; }
+.plan-pend .chip.urgente small { color: #3A2412; opacity: 1; }

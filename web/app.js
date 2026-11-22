@@ -1107,7 +1107,7 @@ function cabecera(v) {
     ${v.wods_repetidos && v.wods_repetidos.length ? `<div class="banda-abono" style="background:#FFF1D6"><span>🔁 <b>${t("WODs repetidos de la semana anterior")}</b>: ${v.wods_repetidos.map((d) => esc(trDia(d))).join(" · ")}</span></div>` : ""}
     ${v.por_preparar && !v.por_preparar.length ? `<div class="plan-ok">${t("Planificación al día: tienes listas las 2 semanas siguientes de todos")}</div>` : ""}
     ${v.por_preparar && v.por_preparar.length ? `<div class="propuesta plan-pend"><b>${t("Te queda por preparar")}</b>
-      <div class="fila-chips">${Object.values(v.por_preparar.reduce((m, x) => { (m[x.atleta] = m[x.atleta] || []).push(x); return m; }, {})).map((g) => `<button class="chip ${g[0].urgente ? "urgente" : ""}" data-preparar="${esc(g[0].atleta)}|${g[0].semana}">${esc(g[0].nombre)} · S${g.map((x) => x.semana).join("-")}</button>`).join("")}</div>
+      <div class="fila-chips">${Object.values(v.por_preparar.reduce((m, x) => { (m[x.atleta] = m[x.atleta] || []).push(x); return m; }, {})).map((g) => `<button class="chip ${g[0].urgente ? "urgente" : ""}" data-preparar="${esc(g[0].atleta)}|${g[0].semana}"><b>${esc(g[0].nombre)}</b><small>${t("Semana")} ${g.map((x) => x.semana).join(" y ")}</small></button>`).join("")}</div>
       <small>${t("Prepárala y dale a ✅ Semana lista. Si no, sale la progresión automática.")}</small></div>` : ""}
     ${v.propuesta ? `<div class="propuesta"><b>${t("Rutina nueva preparada para")} ${esc(v.nombre)}</b>
       <small>${esc(v.propuesta.titulo)}</small>
@@ -1130,7 +1130,7 @@ function cabecera(v) {
     ${v.dias ? `<div class="dias" role="tablist">${v.dias.map((d) => {
       const n = (d.nombre.match(/\d+/) || [d.nombre.slice(0, 2)])[0];
       return `<button class="dia ${d.id === v.dia.id ? "on" : ""} ${d.bloqueado ? "bloq" : ""} est-${esc(d.estado || "nada")}" role="tab" aria-selected="${d.id === v.dia.id}" data-dia="${esc(d.id)}" ${d.bloqueado ? 'data-bloq="1"' : ""} aria-label="${esc(trDia(d.nombre))}${d.bloqueado ? " 🔒" : ""}">
-        <small>${d.opcional ? "Opc." : `D${esc(n)}`}</small>${d.bloqueado ? '<span class="candado">🔒</span>' : `<span class="punto ${d.estado}"></span>`}${d.pendientes ? '<span class="pend"></span>' : ""}</button>`;
+        <small>${d.opcional ? "Opc." : /\d/.test(d.nombre) ? `D${esc(n)}` : esc(trDia(d.nombre).slice(0, 3))}</small>${d.bloqueado ? '<span class="candado">🔒</span>' : `<span class="punto ${d.estado}"></span>`}${d.pendientes ? '<span class="pend"></span>' : ""}</button>`;
     }).join("")}</div>` : ""}
   </header>`;
 }
@@ -2995,7 +2995,9 @@ function pintarComida() {
       <div class="macros">${[["Proteína", l.p, o.p], ["Hidratos", l.h, o.h], ["Grasa", l.g, o.g]].map(([n, a, b]) => `<div class="macro"><small>${t(n)}</small>
         <b>${num(a)}<span> / ${num(b)} g</span></b><span class="mb"><i style="width:${pct(a, b)}%"></i></span></div>`).join("")}</div>
     </section>
+    ${d.solo_mirar ? "" : `<button class="btn btn-fuego btn-voz" id="cm-voz">${ic.microfono} ${t("Decir lo que he comido")}</button>`}
     ${filas}
+    ${cajaHabitual(d)}
     ${d.coach ? cajaPermisoComida(d) : ""}`;
   }
   $app.innerHTML = cabeceraPantalla("comida") + `<main class="pant-comida">${cuerpo}</main>` + nav("comida");
@@ -3005,6 +3007,9 @@ function pintarComida() {
   on("cm-contacto", hojaContacto);
   on("cm-dieta", hojaDieta);
   on("cm-permiso", () => accionComida({ accion: "permiso", valor: !d.permitido }));
+  on("cm-voz", () => hojaVoz({ modo: "hoy" }));
+  on("cm-habitual", () => hojaVoz({ modo: "habitual", texto: (d.habitual || {}).texto || "" }));
+  on("cm-como-siempre", () => accionComida({ accion: "como_siempre" }).then((ok) => ok && aviso(t("Apuntado tu día de siempre"))));
   $app.querySelectorAll("[data-cm-entreno]").forEach((b) => b.onclick = () => accionComida({ accion: "entreno", valor: b.dataset.cmEntreno === "1" }));
   $app.querySelectorAll("[data-cm-quitar]").forEach((b) => b.onclick = () => accionComida({ accion: "quitar", id: b.dataset.cmQuitar }));
   $app.querySelectorAll("[data-cm-anadir]").forEach((b) => b.onclick = () => hojaAlimento(b.dataset.cmAnadir));
@@ -3061,6 +3066,7 @@ function hojaAlimento(comidaId) {
       || `<div class="vacio">${t("No hay nada con ese nombre.")}</div>`;
   };
   abrirHoja(`${cabHoja(t(c.nombre), t("Añade lo que has comido"))}
+    <button class="btn btn-voz" id="al-voz">${ic.microfono} ${t("Decirlo con el micro")}</button>
     <input class="campo" id="al-q" type="search" placeholder="${t("Buscar alimento")}" autocomplete="off">
     <div class="rejilla-4" role="group" aria-label="${t("Raciones")}">${[0.5, 1, 1.5, 2].map((r) => `<button class="chip ${r === 1 ? "on" : ""}" data-rac="${r}">${num(r)} ${r === 1 ? t("ración") : t("raciones")}</button>`).join("")}</div>
     <div class="lista-alimentos" id="al-lista">${lista()}</div>`, (h) => {
@@ -3073,6 +3079,7 @@ function hojaAlimento(comidaId) {
       });
     };
     h.querySelector("#al-q").oninput = (ev) => { q = ev.target.value; pintarL(); };
+    h.querySelector("#al-voz").onclick = () => hojaVoz({ modo: "hoy", comida: comidaId });
     h.querySelectorAll("[data-rac]").forEach((b) => b.onclick = () => { raciones = +b.dataset.rac; h.querySelectorAll("[data-rac]").forEach((x) => x.classList.toggle("on", x === b)); pintarL(); });
     pintarL();
   });
@@ -3110,4 +3117,85 @@ function liftDe(ej) {  // los levantamientos que entiende el analizador (no los 
   if (/\bclean\b|cargada/.test(n)) return "clean";
   if (/\bjerk\b/.test(n)) return "jerk";
   return null;
+}
+
+ic.microfono = `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5.5 11a6.5 6.5 0 0 0 13 0M12 17.5V21"/></svg>`;
+const NOM_COMIDA = { desayuno: "Desayuno", comida: "Comida", merienda: "Merienda", cena: "Cena" };
+
+function cajaHabitual(d) {
+  if (d.solo_mirar && !d.habitual) return "";
+  if (!d.habitual) return `<section class="card caja-habitual">
+      <div class="tag">${t("Tus comidas de siempre")}</div>
+      <h2 class="tit-comida">${t("Cuéntanos qué sueles comer")}</h2>
+      <p class="mini">${t("Lo dices con el micro, como un audio, y te decimos cómo repartirlo mejor para tu objetivo.")}</p>
+      <button class="btn btn-fuego btn-voz" id="cm-habitual">${ic.microfono} ${t("Contar mi día normal")}</button></section>`;
+  const h = d.habitual;
+  return `<section class="card caja-habitual">
+    <div class="tag">${t("Tu día de siempre")} · ${num(h.total.kcal)} kcal</div>
+    <div class="consejos-comida">${h.consejos.map((c) => `<div class="cc cc-${c.tipo}"><span class="cc-marca">${c.tipo === "ok" ? ic.ok : "!"}</span>
+      <div><b>${esc(t(c.titulo))}</b><small>${esc(t(c.texto))}</small></div></div>`).join("")}</div>
+    ${d.solo_mirar ? "" : `<div class="rejilla-2"><button class="btn btn-fuego" id="cm-como-siempre">${t("Hoy como siempre")}</button>
+      <button class="btn" id="cm-habitual">${ic.microfono} ${t("Cambiarlo")}</button></div>`}
+  </section>`;
+}
+
+function hojaVoz({ modo, comida = null, texto = "" }) {
+  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  let rec = null, grabando = false, base = texto, resultado = null;
+  const tit = modo === "habitual" ? t("Tu día normal") : comida ? t(NOM_COMIDA[comida]) : t("Lo que has comido");
+  const ayuda = modo === "habitual"
+    ? t("Ej.: «Desayuno dos huevos con una tostada. A mediodía arroz con pollo y ensalada. Merienda un yogur. Cena salmón con patatas».")
+    : t("Ej.: «Un plato de arroz con pollo y una manzana». Si dices desayuno, comida, merienda o cena, lo coloca solo.");
+  abrirHoja(`${cabHoja(tit, modo === "habitual" ? t("Dilo como un audio") : t("Dilo con el micro"))}
+    <button class="btn-micro" id="vz-mic" aria-pressed="false">${ic.microfono}<span id="vz-mic-txt">${t("Toca y habla")}</span></button>
+    <p class="mini" id="vz-ayuda">${SR ? ayuda : t("Tu navegador no deja usar el micro aquí: toca el micro del teclado para dictar.") + " " + ayuda}</p>
+    <label class="paso-etq" for="vz-txt">${t("Lo que has dicho")}</label>
+    <textarea class="campo" id="vz-txt" rows="4">${esc(texto)}</textarea>
+    <div id="vz-res"></div>
+    <button class="btn btn-fuego" id="vz-ok">${t("Entenderlo")}</button>`, (h) => {
+    const $t = h.querySelector("#vz-txt"), $mic = h.querySelector("#vz-mic"), $ok = h.querySelector("#vz-ok"), $res = h.querySelector("#vz-res");
+    const parar = () => { if (rec) try { rec.stop(); } catch (e) { } grabando = false; $mic.classList.remove("on"); $mic.setAttribute("aria-pressed", "false"); h.querySelector("#vz-mic-txt").textContent = t("Toca y habla"); };
+    if (!SR) $mic.hidden = true;
+    $mic.onclick = () => {
+      if (grabando) return parar();
+      rec = new SR(); rec.lang = E.lang === "fr" ? "fr-FR" : "es-ES"; rec.continuous = true; rec.interimResults = true;
+      base = $t.value.trim();
+      rec.onresult = (ev) => {
+        let fin = "", prov = "";
+        for (let i = 0; i < ev.results.length; i++) (ev.results[i].isFinal ? (fin += ev.results[i][0].transcript + " ") : (prov += ev.results[i][0].transcript));
+        $t.value = (base ? base + " " : "") + fin + prov;
+      };
+      rec.onerror = (ev) => { parar(); if (ev.error === "not-allowed") aviso(t("Da permiso al micro en el navegador para hablar."), true); };
+      rec.onend = () => { if (grabando) parar(); };
+      try { rec.start(); grabando = true; $mic.classList.add("on"); $mic.setAttribute("aria-pressed", "true"); h.querySelector("#vz-mic-txt").textContent = t("Escuchando… toca para parar"); }
+      catch (e) { aviso(t("No se pudo encender el micro."), true); }
+    };
+    const pintarRes = () => {
+      const its = resultado.items;
+      if (!its.length) { $res.innerHTML = `<div class="cc cc-aviso"><span class="cc-marca">!</span><div><b>${t("No he entendido ningún alimento")}</b><small>${t("Prueba con nombres sencillos: arroz, pollo, huevos, yogur, plátano…")}</small></div></div>`; return; }
+      $res.innerHTML = Object.keys(NOM_COMIDA).filter((c) => its.some((i) => i.comida === c)).map((c) => `<div class="paso-etq">${t(NOM_COMIDA[c])}</div>` +
+        its.map((i, k) => i.comida !== c ? "" : `<div class="cf-item"><span>${esc(t(i.nombre))} · ${num(i.raciones)} × ${esc(i.racion)}</span><span>${num(i.kcal)} kcal</span><button class="cf-quitar" data-vz-q="${k}" aria-label="${t("Quitar")}">×</button></div>`).join("")).join("");
+      $res.querySelectorAll("[data-vz-q]").forEach((b) => b.onclick = () => { its.splice(+b.dataset.vzQ, 1); pintarRes(); });
+    };
+    $ok.onclick = async () => {
+      parar();
+      if (!resultado) {
+        if (!$t.value.trim()) return aviso(t("Di o escribe lo que comes."), true);
+        $ok.disabled = true;
+        try {
+          const r = await api("comida", { metodo: "POST", cuerpo: { atleta: E.atleta, accion: "interpretar", texto: $t.value, comida } });
+          resultado = r.interpretado; pintarRes();
+          if (resultado.items.length) $ok.textContent = modo === "habitual" ? t("Guardar mi día normal") : t("Apuntarlo hoy");
+        } catch (e) { aviso(e.message, true); }
+        $ok.disabled = false;
+        $t.oninput = () => { resultado = null; $res.innerHTML = ""; $ok.textContent = t("Entenderlo"); };
+        return;
+      }
+      if (!resultado.items.length) return;
+      $ok.disabled = true;
+      const ok = await accionComida(modo === "habitual" ? { accion: "habitual", texto: $t.value, items: resultado.items } : { accion: "anadir_varios", items: resultado.items });
+      if (ok) { cerrarHoja(); aviso(modo === "habitual" ? t("Guardado. Mira cómo repartirlo mejor.") : t("Apuntado")); } else $ok.disabled = false;
+    };
+    const cerrarOrig = h.querySelector("[data-cerrar]"); if (cerrarOrig) cerrarOrig.addEventListener("click", parar);
+  });
 }
