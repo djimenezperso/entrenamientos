@@ -157,6 +157,17 @@ SINONIMOS = {
     "mantequilla": ["mantequilla", "beurre"],
     "mermelada": ["mermelada", "confiture"],
 }
+# base ampliada (alimentos_extra.py): sus palabras mandan sobre las genéricas de arriba
+try:
+    from .alimentos_extra import ALIMENTOS_EXTRA, GRAMOS_EXTRA, SINONIMOS_EXTRA, NOMBRES_FR
+except ImportError:  # al importarlo suelto (pruebas)
+    from alimentos_extra import ALIMENTOS_EXTRA, GRAMOS_EXTRA, SINONIMOS_EXTRA, NOMBRES_FR
+ALIMENTOS.update(ALIMENTOS_EXTRA)
+GRAMOS.update(GRAMOS_EXTRA)
+_palabras_extra = {w for ws in SINONIMOS_EXTRA.values() for w in ws}
+for _k in list(SINONIMOS):
+    SINONIMOS[_k] = [w for w in SINONIMOS[_k] if w not in _palabras_extra]
+SINONIMOS.update(SINONIMOS_EXTRA)
 NUMEROS = {"un": 1, "una": 1, "uno": 1, "dos": 2, "tres": 3, "cuatro": 4, "cinco": 5, "seis": 6, "medio": .5, "media": .5,
            "un par de": 2, "unos": 2, "unas": 2, "un": 1, "une": 1, "deux": 2, "trois": 3, "demi": .5, "doble": 2, "mucho": 1.5, "mucha": 1.5,
            "poco": .5, "poca": .5, "grande": 1.5, "pequeño": .7, "pequeña": .7}
@@ -463,7 +474,7 @@ def comida(sesion: dict, atleta: str | None, variante: int = 0) -> dict:  # vari
                      "consejos": consejos(hab_items, obj, entreno, dieta)} if hab_items else None,
         "opciones": {"objetivos": {k: v[0] for k, v in OBJETIVOS.items()}, "dietas": {k: v[0] for k, v in DIETAS.items()},
                      "exclusiones": EXCLUSIONES},
-        "alimentos": [{"id": k, "nombre": v[0], "racion": v[1], "kcal": v[2], "p": v[3], "h": v[4], "g": v[5], "grupo": v[6], "sin": SINONIMOS.get(k, [])}
+        "alimentos": [{"id": k, "nombre": v[0], "racion": v[1], "kcal": v[2], "p": v[3], "h": v[4], "g": v[5], "grupo": v[6], "sin": SINONIMOS.get(k, []), "fr": NOMBRES_FR.get(v[0])}
                       for k, v in ALIMENTOS.items() if not set(v[7]) & ex],
     }
 

@@ -3065,6 +3065,7 @@ async function irComida() {
   enlazar();
   try {
     E.comida = await api("comida", { q: { atleta: E.atleta } });
+    (E.comida.alimentos || []).forEach((a) => { if (a.fr && !FR[a.nombre]) FR[a.nombre] = a.fr; });
     if (E.pantalla === "comida") pintar();
   } catch (e) { aviso(e.message, true); }
 }
@@ -3519,7 +3520,9 @@ function trRacion(s) {  // raciones y cantidades en francés
     ["piezas de fruta", "fruits"], ["pieza de fruta", "fruit"], ["plátanos", "bananes"], ["plátano", "banane"], ["huevos", "œufs"], ["huevo", "œuf"],
     ["rebanadas", "tranches"], ["rebanada", "tranche"], ["tortitas", "galettes"], ["tortita", "galette"], ["galletas", "biscuits"], ["galleta", "biscuit"],
     ["unidades", "unités"], ["unidad", "unité"], ["plato", "assiette"], ["vaso", "verre"], ["cucharada", "cuillère"], ["puñado", "poignée"],
-    ["lata", "boîte"], ["mediano", "moyen"], ["mediana", "moyenne"], ["taza", "tasse"], ["cacito", "dose"], ["½ pizza", "½ pizza"]];
+    ["lata", "boîte"], ["mediano", "moyen"], ["mediana", "moyenne"], ["taza", "tasse"], ["cacito", "dose"], ["½ pizza", "½ pizza"],
+    ["porción", "part"], ["racimo", "grappe"], ["bolas", "boules"], ["tajada", "tranche"], ["rodajas", "tranches"], ["piezas", "pièces"], ["onzas", "carrés"],
+    ["cucharadita", "cuillère à café"], ["copa", "verre"], ["caña", "demi"], ["botella", "bouteille"], ["bolsa", "sachet"], ["menú", "menu"], ["bol", "bol"], ["1 pizza", "1 pizza"]];
   let r = s; for (const [a, b] of P) r = r.split(a).join(b); return r;
 }
 
