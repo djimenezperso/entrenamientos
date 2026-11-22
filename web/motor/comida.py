@@ -189,8 +189,17 @@ def interpretar(texto: str, comida_def: str | None = None) -> dict:
     return {"items": out, "entendidos": entendidos}
 
 
+NOM_FR = {"desayuno": "petit-déjeuner", "comida": "repas", "merienda": "goûter", "cena": "dîner"}
+_A_FR = {"desayuno": "au petit-déjeuner", "comida": "au repas", "merienda": "au goûter", "cena": "au dîner"}
+
+
+def _f(nombre: str) -> str:
+    """Nombre de alimento para el texto en francés: la app lo traduce (⟨…⟩ → t(…))."""
+    return f"⟨{nombre}⟩"
+
+
 def consejos(items: list[dict], obj: dict, entreno: bool, dieta: dict) -> list[dict]:
-    """Reparto y recomendaciones fijas a partir de lo que suele comer."""
+    """Reparto y recomendaciones fijas a partir de lo que suele comer (en español y en francés)."""
     if not obj or not items:
         return []
     ex = _excluidos(dieta)
@@ -198,36 +207,55 @@ def consejos(items: list[dict], obj: dict, entreno: bool, dieta: dict) -> list[d
     tot = _sumar(items)
     nom = {cid: n for cid, n, _ in COMIDAS}
     out = []
+
+    def add(tipo, tit, txt, tit_fr, txt_fr):
+        out.append({"tipo": tipo, "titulo": tit, "texto": txt, "titulo_fr": tit_fr, "texto_fr": txt_fr})
+
     dif = tot["kcal"] - obj["kcal"]
     if abs(dif) > obj["kcal"] * .1:
-        out.append({"tipo": "aviso", "titulo": f"Comes unas {abs(round(dif / 50) * 50)} kcal {'de más' if dif > 0 else 'de menos'}",
-                    "texto": ("Para tu objetivo te sobran: quita media ración de hidratos en la cena o el aceite de más." if dif > 0 else
-                              "Te quedas corto: suma una ración de hidratos en la comida o una merienda más completa.")})
+        n_ = abs(round(dif / 50) * 50)
+        add("aviso", f"Comes unas {n_} kcal {'de más' if dif > 0 else 'de menos'}",
+            "Para tu objetivo te sobran: quita media ración de hidratos en la cena o el aceite de más." if dif > 0 else
+            "Te quedas corto: suma una ración de hidratos en la comida o una merienda más completa.",
+            f"Tu manges environ {n_} kcal {'de trop' if dif > 0 else 'de moins'}",
+            "C'est trop pour ton objectif : enlève une demi-portion de glucides au dîner ou l'huile en trop." if dif > 0 else
+            "Il t'en manque : ajoute une portion de glucides au repas ou un goûter plus complet.")
     else:
-        out.append({"tipo": "ok", "titulo": "Las calorías te cuadran", "texto": f"Unas {tot['kcal']} kcal para {obj['kcal']} que te tocan."})
+        add("ok", "Las calorías te cuadran", f"Unas {tot['kcal']} kcal para {obj['kcal']} que te tocan.",
+            "Tes calories sont bonnes", f"Environ {tot['kcal']} kcal sur les {obj['kcal']} prévues.")
     if tot["p"] < obj["p"] * .85:
-        falta = obj["p"] - tot["p"]
+        falta = round((obj["p"] - tot["p"]) / 5) * 5
         baja = min((cid for cid, _, _ in COMIDAS), key=lambda c: por[c]["p"])
         sug = next((a for a in (["skyr", "yogur", "claras", "proteina_veg"] if baja in ("desayuno", "merienda") else ["pollo", "atun", "tofu", "lentejas"])
                     if not set(ALIMENTOS[a][7]) & ex), None)
-        out.append({"tipo": "aviso", "titulo": f"Te faltan unos {round(falta / 5) * 5} g de proteína",
-                    "texto": f"Donde menos llevas es en {nom[baja].lower()}" + (f": añade {ALIMENTOS[sug][0].lower()} ({ALIMENTOS[sug][1]})." if sug else ".")})
-    elif tot["p"] >= obj["p"] * .85:
-        out.append({"tipo": "ok", "titulo": "Proteína bien", "texto": f"{tot['p']} g de {obj['p']} g."})
+        add("aviso", f"Te faltan unos {falta} g de proteína",
+            f"Donde menos llevas es en {nom[baja].lower()}" + (f": añade {ALIMENTOS[sug][0].lower()} ({ALIMENTOS[sug][1]})." if sug else "."),
+            f"Il te manque environ {falta} g de protéines",
+            f"C'est {_A_FR[baja]} que tu en as le moins" + (f" : ajoute {_f(ALIMENTOS[sug][0])} ({ALIMENTOS[sug][1]})." if sug else "."))
+    else:
+        add("ok", "Proteína bien", f"{tot['p']} g de {obj['p']} g.", "Protéines au top", f"{tot['p']} g sur {obj['p']} g.")
     for cid, n, parte in COMIDAS:
         k = por[cid]["kcal"]
         if not k:
             idea = _idea(cid, ex)
-            out.append({"tipo": "aviso", "titulo": f"No haces {n.lower()}", "texto": f"Te tocarían unas {round(obj['kcal'] * parte / 10) * 10} kcal." + (f" Idea: {', '.join(idea).lower()}." if idea else "")})
+            kc = round(obj['kcal'] * parte / 10) * 10
+            add("aviso", f"No haces {n.lower()}", f"Te tocarían unas {kc} kcal." + (f" Idea: {', '.join(idea).lower()}." if idea else ""),
+                f"Pas de {NOM_FR[cid]}", f"Il te faudrait environ {kc} kcal." + (f" Idée : {', '.join(_f(x) for x in idea)}." if idea else ""))
         elif tot["kcal"] and k > tot["kcal"] * .45:
-            out.append({"tipo": "aviso", "titulo": f"{n} se lleva casi la mitad del día", "texto": f"Pasa parte a {'la merienda' if cid != 'merienda' else 'la cena'}: llegarás con más energía y sin pesadez."})
+            add("aviso", f"{n} se lleva casi la mitad del día",
+                f"Pasa parte a {'la merienda' if cid != 'merienda' else 'la cena'}: llegarás con más energía y sin pesadez.",
+                f"Le {NOM_FR[cid]} prend presque la moitié de la journée",
+                f"Passe-en une partie {'au goûter' if cid != 'merienda' else 'au dîner'} : tu auras plus d'énergie et moins de lourdeur.")
     if entreno and por["merienda"]["h"] < 25:
         sug = next((a for a in ("platano", "tortitas", "pan", "miel") if not set(ALIMENTOS[a][7]) & ex), None)
-        out.append({"tipo": "aviso", "titulo": "Antes de entrenar, más hidratos", "texto": f"En la merienda llevas {por['merienda']['h']} g." + (f" Suma {ALIMENTOS[sug][0].lower()}." if sug else "")})
+        add("aviso", "Antes de entrenar, más hidratos", f"En la merienda llevas {por['merienda']['h']} g." + (f" Suma {ALIMENTOS[sug][0].lower()}." if sug else ""),
+            "Avant l'entraînement, plus de glucides", f"Au goûter tu en as {por['merienda']['h']} g." + (f" Ajoute {_f(ALIMENTOS[sug][0])}." if sug else ""))
     if tot["g"] > obj["g"] * 1.3:
-        out.append({"tipo": "aviso", "titulo": "Mucha grasa", "texto": "Mide el aceite con cuchara y deja los frutos secos en un puñado."})
+        add("aviso", "Mucha grasa", "Mide el aceite con cuchara y deja los frutos secos en un puñado.",
+            "Beaucoup de lipides", "Mesure l'huile à la cuillère et limite les fruits secs à une poignée.")
     if dieta.get("tipo") == "menos_hc" and tot["h"] > obj["h"] * 1.2:
-        out.append({"tipo": "aviso", "titulo": "Muchos hidratos para tu dieta", "texto": "Cambia el pan o la pasta de la cena por verdura y algo de proteína."})
+        add("aviso", "Muchos hidratos para tu dieta", "Cambia el pan o la pasta de la cena por verdura y algo de proteína.",
+            "Beaucoup de glucides pour ton régime", "Remplace le pain ou les pâtes du dîner par des légumes et un peu de protéines.")
     return out
 
 

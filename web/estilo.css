@@ -1017,3 +1017,6 @@ body, body:not(.x) { background: var(--fondo); }
 
 .an-barra { height: 8px; border-radius: 99px; background: rgba(255,255,255,.12); overflow: hidden; margin: 8px 0 4px; }
 .an-barra i { display: block; height: 100%; background: var(--fuego, #FF7A1F); border-radius: 99px; }
+
+/* rejillas de chips (régimen): que el texto largo («Prendre du muscle») quepa en su celda */
+.rejilla-3 > .chip, .rejilla-2 > .chip { min-width: 0; white-space: normal; text-align: center; justify-content: center; line-height: 1.15; padding-left: 8px; padding-right: 8px; }

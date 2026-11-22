@@ -3237,10 +3237,17 @@ function cajaHabitual(d) {
   return `<section class="card caja-habitual">
     <div class="tag">${t("Tu día de siempre")} · ${num(h.total.kcal)} kcal</div>
     <div class="consejos-comida">${h.consejos.map((c) => `<div class="cc cc-${c.tipo}"><span class="cc-marca">${c.tipo === "ok" ? ic.ok : "!"}</span>
-      <div><b>${esc(t(c.titulo))}</b><small>${esc(t(c.texto))}</small></div></div>`).join("")}</div>
+      <div><b>${esc(trCons(c, "titulo"))}</b><small>${esc(trCons(c, "texto"))}</small></div></div>`).join("")}</div>
     ${d.solo_mirar ? "" : `<div class="rejilla-2"><button class="btn btn-fuego" id="cm-como-siempre">${t("Hoy como siempre")}</button>
       <button class="btn" id="cm-habitual">${ic.microfono} ${t("Cambiarlo")}</button></div>`}
   </section>`;
+}
+
+// consejos de comida: el servidor manda también la versión francesa; ⟨alimento⟩ se traduce aquí
+function trCons(c, k) {
+  const fr = E.lang === "fr" && c[k + "_fr"];
+  const txt = fr ? c[k + "_fr"] : c[k];
+  return String(txt || "").replace(/⟨([^⟩]+)⟩/g, (_, n) => (fr ? t(n) : n).toLowerCase());
 }
 
 function hojaVoz({ modo, comida = null, texto = "" }) {
