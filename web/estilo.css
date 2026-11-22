@@ -970,3 +970,14 @@ body, body:not(.x) { background: var(--fondo); }
 .comida-fila.toca .mn-comida { background: #2E2712; border-color: #5A4A1E; }
 .cf-botones .mini-btn.on { background: var(--tinta); color: var(--fondo); border-color: var(--tinta); }
 .mn-comida .btn-fuego { min-height: 48px; }
+/* opciones del menú: deslizar a los lados */
+.mn-ops { display: flex; overflow-x: auto; gap: 6px; scrollbar-width: none; }
+.mn-ops::-webkit-scrollbar { display: none; }
+.mn-ops .chip { flex: 0 0 calc((100% - 12px) / 3); }
+.mn-carrusel { display: flex; overflow-x: auto; scroll-snap-type: x mandatory; scrollbar-width: none; overscroll-behavior-x: contain; gap: 0; }
+.mn-carrusel::-webkit-scrollbar { display: none; }
+.mn-slide { flex: 0 0 100%; scroll-snap-align: start; display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+.mn-slide .btn-fuego { margin-top: auto; }
+.mn-puntos { display: flex; justify-content: center; gap: 6px; }
+.mn-puntos i { width: 7px; height: 7px; border-radius: 4px; background: var(--raya2); transition: width .2s; }
+.mn-puntos i.on { width: 18px; background: var(--fuego); }

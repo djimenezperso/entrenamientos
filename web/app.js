@@ -3010,9 +3010,20 @@ function pintarComida() {
   on("cm-dieta", hojaDieta);
   on("cm-permiso", () => accionComida({ accion: "permiso", valor: !d.permitido }));
   on("cm-voz", () => hojaVoz({ modo: "hoy" }));
-  $app.querySelectorAll("[data-mn-op]").forEach((b) => b.onclick = () => { const [c, i] = b.dataset.mnOp.split("|"); E.planSel = { ...(E.planSel || {}), [c]: +i }; const y = window.scrollY; pintar(); window.scrollTo(0, y); });
+  $app.querySelectorAll("[data-mn-carrusel]").forEach((car) => {
+    const c = car.dataset.mnCarrusel, caja = car.closest(".mn-comida");
+    const marcar = (i) => {
+      E.planSel = { ...(E.planSel || {}), [c]: i };
+      caja.querySelectorAll("[data-mn-op]").forEach((b, k) => { b.classList.toggle("on", k === i); b.setAttribute("aria-selected", k === i); });
+      caja.querySelectorAll(".mn-puntos i").forEach((p, k) => p.classList.toggle("on", k === i));
+      const ch = caja.querySelectorAll("[data-mn-op]")[i]; if (ch) ch.scrollIntoView({ block: "nearest", inline: "nearest" });
+    };
+    car.scrollLeft = (+car.dataset.inicio || 0) * car.clientWidth;
+    let tm; car.addEventListener("scroll", () => { clearTimeout(tm); tm = setTimeout(() => marcar(Math.round(car.scrollLeft / car.clientWidth)), 60); }, { passive: true });
+    caja.querySelectorAll("[data-mn-op]").forEach((b) => b.onclick = () => { const i = +b.dataset.mnOp.split("|")[1]; car.scrollTo({ left: i * car.clientWidth, behavior: "smooth" }); marcar(i); });
+  });
   $app.querySelectorAll("[data-mn-apuntar]").forEach((b) => b.onclick = () => {
-    const m = (d.plan || []).find((x) => x.id === b.dataset.mnApuntar), op = m && m.opciones[(E.planSel || {})[m.id] || 0];
+    const [mid, k] = b.dataset.mnApuntar.split("|"), m = (d.plan || []).find((x) => x.id === mid), op = m && m.opciones[+k || 0];
     if (op) { E.menuAbierto = null; accionComida({ accion: "anadir_varios", items: op.items }).then((ok) => ok && aviso(t("Apuntado"))); }
   });
   on("cm-habitual", () => hojaVoz({ modo: "habitual", texto: (d.habitual || {}).texto || "" }));
@@ -3213,15 +3224,18 @@ function hojaVoz({ modo, comida = null, texto = "" }) {
 
 function cajaMenu(d) { return ""; }  // las opciones del menú van dentro de cada comida («Ver menú»)
 
-function bloqueMenu(d, m) {
+function bloqueMenu(d, m) {  // opciones en carrusel: se cambian deslizando o tocando el número
   const sel = E.planSel || {};
-  const i = Math.min(sel[m.id] || 0, m.opciones.length - 1), op = m.opciones[i];
+  const i = Math.min(sel[m.id] || 0, m.opciones.length - 1);
   return `<div class="mn-comida" id="mn-${m.id}">
-    <div class="mn-ops" role="group" aria-label="${t("Opciones")}">${m.opciones.map((o, k) => `<button class="chip ${k === i ? "on" : ""}" data-mn-op="${m.id}|${k}" aria-pressed="${k === i}"><span>${t("Opción")} ${k + 1}</span><small>${num(o.kcal)} kcal</small></button>`).join("")}</div>
-    <div class="mn-plato">${platoSVG(op.items)}<div class="mn-kcal"><b>${num(op.kcal)}</b><span>kcal</span>
-      <div class="mn-macros"><span>P ${num(op.p)} g</span><span>H ${num(op.h)} g</span><span>G ${num(op.g)} g</span></div></div></div>
-    <ul class="mn-items">${op.items.map((x) => `<li><span><i class="pg" style="background:${COLOR_GRUPO[x.grupo] || "#A0703C"}"></i>${esc(t(x.nombre))}</span><b>${esc(x.cantidad)}</b></li>`).join("")}</ul>
-    ${d.solo_mirar ? "" : `<button class="btn btn-fuego" data-mn-apuntar="${m.id}">${t("Apuntar esta opción")}</button>`}
+    <div class="mn-ops" role="tablist" aria-label="${t("Opciones")}">${m.opciones.map((o, k) => `<button class="chip ${k === i ? "on" : ""}" role="tab" data-mn-op="${m.id}|${k}" aria-selected="${k === i}"><span>${t("Opción")} ${k + 1}</span><small>${num(o.kcal)} kcal</small></button>`).join("")}</div>
+    <div class="mn-carrusel" data-mn-carrusel="${m.id}" data-inicio="${i}">${m.opciones.map((op, k) => `<div class="mn-slide" role="tabpanel" aria-label="${t("Opción")} ${k + 1}">
+      <div class="mn-plato">${platoSVG(op.items)}<div class="mn-kcal"><b>${num(op.kcal)}</b><span>kcal</span>
+        <div class="mn-macros"><span>P ${num(op.p)} g</span><span>H ${num(op.h)} g</span><span>G ${num(op.g)} g</span></div></div></div>
+      <ul class="mn-items">${op.items.map((x) => `<li><span><i class="pg" style="background:${COLOR_GRUPO[x.grupo] || "#A0703C"}"></i>${esc(t(x.nombre))}</span><b>${esc(x.cantidad)}</b></li>`).join("")}</ul>
+      ${d.solo_mirar ? "" : `<button class="btn btn-fuego" data-mn-apuntar="${m.id}|${k}">${t("Apuntar esta opción")}</button>`}
+    </div>`).join("")}</div>
+    <div class="mn-puntos" aria-hidden="true">${m.opciones.map((_, k) => `<i class="${k === i ? "on" : ""}"></i>`).join("")}</div>
     <p class="mini aviso-salud">${t("Orientativo y con datos fijos: no sustituye a un dietista-nutricionista.")}</p>
   </div>`;
 }
