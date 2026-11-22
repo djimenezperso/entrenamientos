@@ -1005,3 +1005,8 @@ body, body:not(.x) { background: var(--fondo); }
   background: rgba(255,122,31,.12); border: 1px solid rgba(255,122,31,.35); }
 .rc-salsa b { color: var(--fuego, #FF7A1F); }
 .rc-salsa small { opacity: .75; }
+
+.mn-titulo { font-size: 22px; line-height: 1.15; margin: 4px 0 2px; text-align: center; }
+.mn-sub { text-align: center; font-size: 13px; opacity: .7; margin-bottom: 8px; }
+.mn-items li.mn-salsa span { white-space: normal; line-height: 1.35; font-size: 14px; }
+.mn-items li.mn-salsa b { white-space: nowrap; font-size: 13px; }

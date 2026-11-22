@@ -18,6 +18,7 @@ const E = { token: mem.get("token"), atleta: mem.get("atleta"), lang: mem.get("l
 
 // ---------- textos ----------
 const FR = {
+  "Ver la receta paso a paso": "Voir la recette pas à pas",
   "La salsa": "La sauce", "casi sin calorías": "presque sans calories",
   "Ver receta": "Voir la recette", "Ingredientes (ya ajustados a ti)": "Ingrédients (déjà adaptés à toi)", "Cómo se hace": "Préparation",
   "Copiar la lista de la compra": "Copier la liste de courses", "Inspírate: más versiones con sus calorías": "Inspire-toi : d'autres versions avec leurs calories",
@@ -3256,12 +3257,13 @@ function bloqueMenu(d, m) {  // opciones en carrusel: se cambian deslizando o to
   const sel = E.planSel || {};
   const i = Math.min(sel[m.id] || 0, m.opciones.length - 1);
   return `<div class="mn-comida" id="mn-${m.id}">
-    <div class="mn-ops" role="tablist" aria-label="${t("Opciones")}">${m.opciones.map((o, k) => `<button class="chip ${k === i ? "on" : ""}" role="tab" data-mn-op="${m.id}|${k}" aria-selected="${k === i}"><span>${t("Opción")} ${k + 1}</span><small>${num(o.kcal)} kcal</small></button>`).join("")}</div>
+    <div class="mn-ops" role="tablist" aria-label="${t("Opciones")}">${m.opciones.map((o, k) => `<button class="chip ${k === i ? "on" : ""}" role="tab" data-mn-op="${m.id}|${k}" aria-selected="${k === i}"><span>${t("Opción")} ${k + 1}</span><small>${num(o.kcal + ((o.receta && o.receta.kcal_salsa) || 0))} kcal</small></button>`).join("")}</div>
     <div class="mn-carrusel" data-mn-carrusel="${m.id}" data-inicio="${i}">${m.opciones.map((op, k) => `<div class="mn-slide" role="tabpanel" aria-label="${t("Opción")} ${k + 1}">
-      <div class="mn-plato">${platoSVG(op.items)}<div class="mn-kcal"><b>${num(op.kcal)}</b><span>kcal</span>
+      ${op.receta ? `<h3 class="mn-titulo">${esc(E.lang === "fr" ? op.receta.nombre_fr : op.receta.nombre)}</h3><div class="mn-sub">⏱ ${op.receta.minutos} min</div>` : ""}
+      <div class="mn-plato">${platoSVG(op.items)}<div class="mn-kcal"><b>${num(op.kcal + ((op.receta && op.receta.kcal_salsa) || 0))}</b><span>kcal</span>
         <div class="mn-macros"><span>P ${num(op.p)} g</span><span>H ${num(op.h)} g</span><span>G ${num(op.g)} g</span></div></div></div>
-      <ul class="mn-items">${op.items.map((x) => `<li><span><i class="pg" style="background:${COLOR_GRUPO[x.grupo] || "#A0703C"}"></i>${esc(t(x.nombre))}</span><b>${esc(trRacion(x.cantidad))}</b></li>`).join("")}</ul>
-      ${op.receta ? `<button class="btn mn-receta" data-mn-receta="${m.id}|${k}">👩‍🍳 ${t("Ver receta")} · ${esc(E.lang === "fr" ? op.receta.nombre_fr : op.receta.nombre)}</button>` : ""}
+      <ul class="mn-items">${op.items.map((x) => `<li><span><i class="pg" style="background:${COLOR_GRUPO[x.grupo] || "#A0703C"}"></i>${esc(t(x.nombre))}</span><b>${esc(trRacion(x.cantidad))}</b></li>`).join("")}${op.receta && op.receta.salsa ? `<li class="mn-salsa"><span><i class="pg" style="background:#E2483D"></i>🌶️ ${esc(E.lang === "fr" ? op.receta.salsa_fr : op.receta.salsa)}</span><b>${op.receta.kcal_salsa ? "+" + op.receta.kcal_salsa + " kcal" : ""}</b></li>` : ""}</ul>
+      ${op.receta ? `<button class="btn mn-receta" data-mn-receta="${m.id}|${k}">👩‍🍳 ${t("Ver la receta paso a paso")}</button>` : ""}
       ${d.solo_mirar ? "" : `<button class="btn btn-fuego" data-mn-apuntar="${m.id}|${k}">${t("Apuntar esta opción")}</button>`}
     </div>`).join("")}</div>
     <div class="mn-puntos" aria-hidden="true">${m.opciones.map((_, k) => `<i class="${k === i ? "on" : ""}"></i>`).join("")}</div>
