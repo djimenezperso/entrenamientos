@@ -966,3 +966,7 @@ body, body:not(.x) { background: var(--fondo); }
 .cf-botones .mini-btn { min-height: 40px; margin: 0; justify-content: center; text-align: center; }
 .cf-botones .mini-btn:only-child { grid-column: 1 / -1; }
 .mn-comida { scroll-margin-top: 16px; }
+.comida-fila .mn-comida { background: var(--sup2); margin-top: 2px; }
+.comida-fila.toca .mn-comida { background: #2E2712; border-color: #5A4A1E; }
+.cf-botones .mini-btn.on { background: var(--tinta); color: var(--fondo); border-color: var(--tinta); }
+.mn-comida .btn-fuego { min-height: 48px; }

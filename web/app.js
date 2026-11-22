@@ -2971,14 +2971,15 @@ function pintarComida() {
     let siguiente = d.comidas.findIndex((c) => !c.items.length);
     const filas = d.comidas.map((c, i) => {
       const est = c.items.length ? "hecha" : i === siguiente ? "toca" : "luego";
-      return `<section class="comida-fila ${est}">
+      return `<section class="comida-fila ${est}" id="fila-${c.id}">
         <div class="cf-cab">
           <span class="cf-marca">${c.items.length ? ic.ok : i === siguiente ? "!" : "·"}</span>
           <div class="cf-txt"><b>${t(c.nombre)}</b><small>${c.items.length ? esc(c.items.map((x) => x.nombre).join(", ")) : i === siguiente ? t("Te toca ahora") : t("Sin apuntar")}</small></div>
           <span class="cf-kcal">${c.items.length ? num(c.kcal) : "≈ " + num(c.objetivo || 0)}<small> kcal</small></span>
         </div>
         ${c.items.length ? `<div class="cf-items">${c.items.map((x) => `<div class="cf-item"><span>${esc(x.nombre)} · ${num(x.raciones)} × ${esc(x.racion)}</span><span>${num(x.kcal)} kcal</span>${d.solo_mirar ? "" : `<button class="cf-quitar" data-cm-quitar="${esc(x.id)}" aria-label="${t("Quitar")}">×</button>`}</div>`).join("")}</div>` : ""}
-        ${d.solo_mirar ? "" : `<div class="cf-botones"><button class="mini-btn" data-cm-anadir="${c.id}">+ ${t("Añadir")}</button>${!c.items.length && (d.plan || []).some((m) => m.id === c.id) ? `<button class="mini-btn" data-cm-menu="${c.id}">${t("Ver menú")}</button>` : ""}</div>`}
+        ${d.solo_mirar ? "" : `<div class="cf-botones"><button class="mini-btn" data-cm-anadir="${c.id}">+ ${t("Añadir")}</button>${(d.plan || []).some((m) => m.id === c.id) ? `<button class="mini-btn ${E.menuAbierto === c.id ? "on" : ""}" data-cm-menu="${c.id}" aria-expanded="${E.menuAbierto === c.id}">${E.menuAbierto === c.id ? t("Cerrar menú") : t("Ver menú")}</button>` : ""}</div>`}
+        ${E.menuAbierto === c.id ? bloqueMenu(d, d.plan.find((m) => m.id === c.id)) : ""}
       </section>`;
     }).join("");
     cuerpo = `
@@ -3009,17 +3010,20 @@ function pintarComida() {
   on("cm-dieta", hojaDieta);
   on("cm-permiso", () => accionComida({ accion: "permiso", valor: !d.permitido }));
   on("cm-voz", () => hojaVoz({ modo: "hoy" }));
-  $app.querySelectorAll("[data-mn-op]").forEach((b) => b.onclick = () => { const [c, i] = b.dataset.mnOp.split("|"); E.planSel = { ...(E.planSel || {}), [c]: +i }; pintar(); });
+  $app.querySelectorAll("[data-mn-op]").forEach((b) => b.onclick = () => { const [c, i] = b.dataset.mnOp.split("|"); E.planSel = { ...(E.planSel || {}), [c]: +i }; const y = window.scrollY; pintar(); window.scrollTo(0, y); });
   $app.querySelectorAll("[data-mn-apuntar]").forEach((b) => b.onclick = () => {
     const m = (d.plan || []).find((x) => x.id === b.dataset.mnApuntar), op = m && m.opciones[(E.planSel || {})[m.id] || 0];
-    if (op) accionComida({ accion: "anadir_varios", items: op.items }).then((ok) => ok && aviso(t("Apuntado")));
+    if (op) { E.menuAbierto = null; accionComida({ accion: "anadir_varios", items: op.items }).then((ok) => ok && aviso(t("Apuntado"))); }
   });
   on("cm-habitual", () => hojaVoz({ modo: "habitual", texto: (d.habitual || {}).texto || "" }));
   on("cm-como-siempre", () => accionComida({ accion: "como_siempre" }).then((ok) => ok && aviso(t("Apuntado tu día de siempre"))));
   $app.querySelectorAll("[data-cm-entreno]").forEach((b) => b.onclick = () => accionComida({ accion: "entreno", valor: b.dataset.cmEntreno === "1" }));
   $app.querySelectorAll("[data-cm-quitar]").forEach((b) => b.onclick = () => accionComida({ accion: "quitar", id: b.dataset.cmQuitar }));
   $app.querySelectorAll("[data-cm-anadir]").forEach((b) => b.onclick = () => hojaAlimento(b.dataset.cmAnadir));
-  $app.querySelectorAll("[data-cm-menu]").forEach((b) => b.onclick = () => { const el = document.getElementById("mn-" + b.dataset.cmMenu); if (el) el.scrollIntoView({ behavior: "smooth", block: "start" }); });
+  $app.querySelectorAll("[data-cm-menu]").forEach((b) => b.onclick = () => {
+    const c = b.dataset.cmMenu; E.menuAbierto = E.menuAbierto === c ? null : c; pintar();
+    const el = document.getElementById("fila-" + c); if (el) el.scrollIntoView({ block: "start" });
+  });
 }
 
 function cajaPermisoComida(d) {
@@ -3207,26 +3211,19 @@ function hojaVoz({ modo, comida = null, texto = "" }) {
   });
 }
 
-function cajaMenu(d) {
-  if (!d.plan || !d.plan.length) return "";
+function cajaMenu(d) { return ""; }  // las opciones del menú van dentro de cada comida («Ver menú»)
+
+function bloqueMenu(d, m) {
   const sel = E.planSel || {};
-  return `<section class="card caja-menu">
-    <div class="tag">${t("Ideas de menú para hoy")}</div>
-    <p class="mini" style="margin:0">${t("Elige una opción para cada comida: las cantidades ya están ajustadas a tus calorías y a lo que no comes.")}</p>
-    ${d.plan.map((m) => {
-      const i = Math.min(sel[m.id] || 0, m.opciones.length - 1), op = m.opciones[i];
-      return `<div class="mn-comida" id="mn-${m.id}">
-        <div class="mn-cab"><b>${t(m.nombre)}</b><span>≈ ${num(m.kcal_meta)} kcal</span></div>
-        <div class="mn-ops" role="group" aria-label="${t("Opciones")}">${m.opciones.map((o, k) => `<button class="chip ${k === i ? "on" : ""}" data-mn-op="${m.id}|${k}" aria-pressed="${k === i}"><span>${t("Opción")} ${k + 1}</span><small>${num(o.kcal)} kcal</small></button>`).join("")}</div>
-        <div class="mn-plato">${platoSVG(op.items)}<div class="mn-kcal"><b>${num(op.kcal)}</b><span>kcal</span>
-          <div class="mn-macros"><span>P ${num(op.p)} g</span><span>H ${num(op.h)} g</span><span>G ${num(op.g)} g</span></div></div></div>
-        <ul class="mn-items">${op.items.map((x) => `<li><span><i class="pg" style="background:${COLOR_GRUPO[x.grupo] || "#A0703C"}"></i>${esc(t(x.nombre))}</span><b>${esc(x.cantidad)}</b></li>`).join("")}</ul>
-        <div class="mn-pie"><span>${t("Cantidades ya ajustadas a ti")}</span>
-          ${d.solo_mirar ? "" : `<button class="mini-btn" data-mn-apuntar="${m.id}">${t("Apuntarla")}</button>`}</div>
-      </div>`;
-    }).join("")}
-    <p class="mini aviso-salud">${t("Orientativo y con datos fijos: no sustituye a un dietista-nutricionista. Si tienes alguna enfermedad, alergia o estás embarazada, consulta con uno.")}</p>
-  </section>`;
+  const i = Math.min(sel[m.id] || 0, m.opciones.length - 1), op = m.opciones[i];
+  return `<div class="mn-comida" id="mn-${m.id}">
+    <div class="mn-ops" role="group" aria-label="${t("Opciones")}">${m.opciones.map((o, k) => `<button class="chip ${k === i ? "on" : ""}" data-mn-op="${m.id}|${k}" aria-pressed="${k === i}"><span>${t("Opción")} ${k + 1}</span><small>${num(o.kcal)} kcal</small></button>`).join("")}</div>
+    <div class="mn-plato">${platoSVG(op.items)}<div class="mn-kcal"><b>${num(op.kcal)}</b><span>kcal</span>
+      <div class="mn-macros"><span>P ${num(op.p)} g</span><span>H ${num(op.h)} g</span><span>G ${num(op.g)} g</span></div></div></div>
+    <ul class="mn-items">${op.items.map((x) => `<li><span><i class="pg" style="background:${COLOR_GRUPO[x.grupo] || "#A0703C"}"></i>${esc(t(x.nombre))}</span><b>${esc(x.cantidad)}</b></li>`).join("")}</ul>
+    ${d.solo_mirar ? "" : `<button class="btn btn-fuego" data-mn-apuntar="${m.id}">${t("Apuntar esta opción")}</button>`}
+    <p class="mini aviso-salud">${t("Orientativo y con datos fijos: no sustituye a un dietista-nutricionista.")}</p>
+  </div>`;
 }
 
 const COLOR_GRUPO = { "Proteína": "#FF7A1F", "Cereales": "#F2C14E", "Fruta y verdura": "#3FB37F", "Lácteos": "#E8D8C0", "Grasas": "#A0703C", "Otros": "#C9775A" };
@@ -3246,3 +3243,28 @@ function platoSVG(items) {  // plato dibujado: cada alimento ocupa la parte de l
     <circle cx="60" cy="60" r="58" fill="#E9E2D6"/><circle cx="60" cy="60" r="52" fill="#D9D0C2"/>${trozos}
     <circle cx="60" cy="60" r="16" fill="#E9E2D6" opacity=".9"/></svg>`;
 }
+
+Object.assign(FR, {  // textos de Comida y Analizador
+  "Comida": "Repas", "Comida de hoy": "Repas du jour", "Analizador": "Analyseur", "Desayuno": "Petit-déjeuner", "Merienda": "Goûter", "Cena": "Dîner",
+  "Hoy entreno": "Je m'entraîne", "Hoy descanso": "Jour de repos", "Mi dieta": "Mon régime", "Te quedan": "Il te reste", "comidas": "mangées",
+  "Proteína": "Protéines", "Hidratos": "Glucides", "Grasa": "Lipides", "Te toca ahora": "C'est maintenant", "Sin apuntar": "Pas encore noté",
+  "Añadir": "Ajouter", "Ver menú": "Voir le menu", "Cerrar menú": "Fermer le menu", "Opción": "Option", "Apuntar esta opción": "Noter cette option",
+  "Orientativo y con datos fijos: no sustituye a un dietista-nutricionista.": "Indicatif, avec des données fixes : ne remplace pas un diététicien-nutritionniste.",
+  "Decir lo que he comido": "Dire ce que j'ai mangé", "Día de entreno: más hidratos.": "Jour d'entraînement : plus de glucides.",
+  "Día de descanso: 300 kcal menos, todo de hidratos.": "Jour de repos : 300 kcal de moins, côté glucides.",
+  "Tus comidas de siempre": "Tes repas habituels", "Cuéntanos qué sueles comer": "Dis-nous ce que tu manges d'habitude",
+  "Lo dices con el micro, como un audio, y te decimos cómo repartirlo mejor para tu objetivo.": "Dis-le au micro, comme un vocal, et on te dit comment mieux le répartir pour ton objectif.",
+  "Contar mi día normal": "Raconter ma journée type", "Tu día de siempre": "Ta journée type", "Hoy como siempre": "Aujourd'hui comme d'habitude", "Cambiarlo": "Le changer",
+  "Tu dieta": "Ton régime", "Cada atleta tiene la suya": "Chaque athlète a le sien", "Tu peso (kg)": "Ton poids (kg)", "Objetivo": "Objectif",
+  "Tipo de dieta": "Type de régime", "Lo que no comes": "Ce que tu ne manges pas", "Guardar mi dieta": "Enregistrer mon régime",
+  "Perder grasa": "Perdre du gras", "Mantener": "Maintenir", "Ganar músculo": "Prendre du muscle", "Equilibrada": "Équilibré", "Más proteína": "Plus de protéines",
+  "Menos hidratos": "Moins de glucides", "Vegetariana": "Végétarien", "Carne": "Viande", "Pescado": "Poisson", "Marisco": "Fruits de mer", "Lácteos": "Laitages",
+  "Huevo": "Œuf", "Gluten": "Gluten", "Frutos secos": "Fruits secs", "Buscar alimento": "Chercher un aliment", "Añade lo que has comido": "Ajoute ce que tu as mangé",
+  "Decirlo con el micro": "Le dire au micro", "ración": "portion", "raciones": "portions", "Toca y habla": "Touche et parle", "Escuchando… toca para parar": "J'écoute… touche pour arrêter",
+  "Lo que has dicho": "Ce que tu as dit", "Entenderlo": "Comprendre", "Apuntarlo hoy": "Le noter aujourd'hui", "Guardar mi día normal": "Enregistrer ma journée type",
+  "Apuntado": "Noté", "Dieta guardada": "Régime enregistré", "Primero, tu dieta": "D'abord, ton régime", "Poner mi dieta": "Remplir mon régime",
+  "Con tu peso y tu objetivo sacamos tus macros": "Avec ton poids et ton objectif, on calcule tes macros",
+  "Come según lo que entrenas": "Mange selon ton entraînement", "Abonarme para usarla": "M'abonner pour l'utiliser",
+  "Analizar un vídeo": "Analyser une vidéo", "Analizar vídeo": "Analyser la vidéo", "Analizar mi": "Analyser mon", "3 análisis gratis": "3 analyses gratuites",
+  "Graba de lado": "Filme de profil", "Sube el vídeo": "Charge la vidéo", "Mira qué corregir": "Vois quoi corriger",
+});
