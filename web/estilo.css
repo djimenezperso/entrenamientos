@@ -929,3 +929,11 @@ body, body:not(.x) { background: var(--fondo); }
 .plan-pend .chip small { font-size: 12px; opacity: .85; font-weight: 600; }
 .plan-pend .chip.urgente { color: #1A120B; }
 .plan-pend .chip.urgente small { color: #3A2412; opacity: 1; }
+/* «Mis anotaciones»: 2 columnas iguales, la nota nueva ocupa el hueco que queda */
+.anot-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; margin-top: 10px; align-items: stretch; }
+.anotaciones .anot-grid .anot { margin-top: 0; display: flex; flex-direction: column; gap: 6px; min-width: 0; background: var(--sup2) !important; border: 1px solid var(--raya) !important; }
+.anotaciones .anot-cab { flex-wrap: wrap; }
+.anotaciones .anot-txt { font-size: 13.5px; overflow-wrap: anywhere; }
+.anot-nueva textarea { margin-top: 0 !important; flex: 1; min-height: 96px; }
+.anot-nueva .btn { margin-top: 0; min-height: 44px; font-size: 13.5px; padding: 6px 8px; }
+.anot-grid > .anot:only-child, .anot-grid > .anot-nueva:nth-child(odd) { grid-column: 1 / -1; }

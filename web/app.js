@@ -1070,11 +1070,11 @@ function bloqueAnotaciones(v) {
   return `<details class="anotaciones" id="anotaciones" ${E.anotAbiertas ? "open" : ""}>
     <summary><span class="anot-tit">${t("Mis anotaciones")}${n ? `<i>${n}</i>` : ""}</span>
       <small>${n ? esc(primera.length > 70 ? primera.slice(0, 70) + "…" : primera) : t("Lo que tienes que trabajar")}</small></summary>
-    ${v.anotaciones.map((a) => `<div class="anot"><div class="anot-cab"><small>${esc(String(a.fecha || "").split("-").reverse().join("/"))}</small>
+    <div class="anot-grid">${v.anotaciones.map((a) => `<div class="anot"><div class="anot-cab"><small>${esc(String(a.fecha || "").split("-").reverse().join("/"))}</small>
       <button class="mini-btn" data-anot-borrar="${esc(a.id)}">${t("Borrar")}</button></div>
       <div class="anot-txt">${esc(a.texto)}</div></div>`).join("")}
-    <textarea id="anot-nueva" rows="3" placeholder="${t("Nueva anotación…")}"></textarea>
-    <button class="btn btn-fuego" id="b-anot-guardar">+ ${t("Guardar anotación")}</button>
+    <div class="anot anot-nueva"><textarea id="anot-nueva" rows="3" placeholder="${t("Nueva anotación…")}"></textarea>
+    <button class="btn btn-fuego" id="b-anot-guardar">+ ${t("Guardar anotación")}</button></div></div>
   </details>`;
 }
 
