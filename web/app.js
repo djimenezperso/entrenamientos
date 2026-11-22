@@ -255,7 +255,7 @@ const FR = {
   "arriba a la derecha, con EMOM, AMRAP, Tabata…": "en haut à droite, avec EMOM, AMRAP, Tabata…", "¡Vamos!": "C'est parti !",
   "¿Quién eres?": "Qui es-tu ?", "Elige tu perfil. Se queda guardado en este móvil y ya no se cambia solo.": "Choisis ton profil. Il reste enregistré sur ce téléphone et ne change plus tout seul.",
   "Perfil guardado en este móvil ✅": "Profil enregistré sur ce téléphone ✅",
-  "Código FUNDADOR: 19 €/mes para siempre · solo 20 plazas": "Code FUNDADOR : 19 €/mois à vie · seulement 20 places",
+  "Código FUNDADOR: 10 € menos cada mes, para siempre · solo 20 plazas": "Code FUNDADOR : 10 € de moins chaque mois, à vie · seulement 20 places",
   "7 días gratis · luego 29 €/mes": "7 jours gratuits · puis 29 €/mois",
   "7 días gratis · luego 39 €/mes": "7 jours gratuits · puis 39 €/mois",
   "Sin conexión o el servidor ha tardado. Vuelve a intentarlo en unos segundos.": "Pas de connexion ou le serveur a tardé. Réessaie dans quelques secondes.",
@@ -682,7 +682,7 @@ function hojaContacto() {
 }
 const botonContacto = (v, id) => !v.abono && v.contacto ? `<button class="btn btn-abono" id="${id}">${t("Contactar con Diego")}</button>` : "";
 const botonAbono = (v, id, extra = "") => !v.abono ? botonContacto(v, id) : `<button class="btn btn-abono" id="${id}" ${extra}>${t("Abonarse")}${v.abono.texto ? ` <small>${esc(t(v.abono.texto))}</small>` : ""}</button>
-  <p class="promo-fundador">${t("Código FUNDADOR: 19 €/mes para siempre · solo 20 plazas")}</p>`;
+  <p class="promo-fundador">${t("Código FUNDADOR: 10 € menos cada mes, para siempre · solo 20 plazas")}</p>`;
 
 function hojaPago(cs) {
   const v = E.vista || {};
@@ -1048,7 +1048,7 @@ function pintar() {
       <h2>${t(v.pago_motivo === "semana2" ? "¡Semana 1 completada! 🔥" : "Tu semana gratis ha terminado")}</h2>
       <p>${t(v.pago_motivo === "semana2" ? (v.pago_auto ? "Has hecho toda la semana 1 💪 Abónate para abrir la semana 2 y no perder lo que has ganado." : "La semana gratis incluye la semana 1. Abónate para abrir la semana 2 y seguir con Diego.") : "Tu rutina sigue aquí, hecha para ti. Abónate para seguir entrenando con Diego.")}</p>
       ${v.abono ? `<button class="btn btn-abono" id="mp-abono" style="height:58px">${t("Abonarme y seguir")}</button>
-        <p class="promo-fundador">${t("Código FUNDADOR: 19 €/mes para siempre · solo 20 plazas")}</p>` : ""}
+        <p class="promo-fundador">${t("Código FUNDADOR: 10 € menos cada mes, para siempre · solo 20 plazas")}</p>` : ""}
       ${v.chat_activo ? `<button class="btn" id="mp-chat">${t("Escribir a Diego")}</button>` : ""}
       <button class="btn" id="mp-salir">${t("Salir")}</button></div></main>`;
     enlazar();
