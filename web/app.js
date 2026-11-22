@@ -358,7 +358,7 @@ const FR = {
   "Pronto": "Bientôt", "Esto llega en la siguiente fase.": "Ça arrive dans la prochaine étape.",
   "Mientras, está en la app de siempre:": "En attendant, c'est dans l'appli habituelle :", "Abrir la app de siempre": "Ouvrir l'appli habituelle",
   "Sin ejercicios este día.": "Pas d'exercices ce jour-là.", "semana actual": "semaine actuelle",
-  "Tu nombre": "Ton prénom", "Tu PIN (4 cifras o más)": "Ton code (4 chiffres ou plus)", "¿Con qué rutina empiezas?": "Quel programme ?",
+  "Tu nombre": "Ton prénom", "Tu PIN (4 cifras o más)": "Ton code ou mot de passe", "¿Con qué rutina empiezas?": "Quel programme ?",
   "Empezar": "Commencer", "Bienvenida": "Bienvenue", "Bienvenido": "Bienvenue", "Fijar": "Fixer",
   "WOD de Diego · semana": "WOD de Diego · semaine", "Ciclo · semana": "Cycle · semaine",
   "Registrar resultados": "Enregistrer les résultats", "Apuntar tiempo o comentario": "Noter le temps ou un commentaire", "Apuntar comentario": "Noter un commentaire", "Tipo": "Type", "Partes que has hecho": "Parties faites",
