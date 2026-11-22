@@ -309,8 +309,13 @@ async function posturas(prog){
   const crudo=raw.map(r=>({i:r.i,t:r.t,p:brazos(aCV(r.lm,S.lado),r.t)}));
   // suavizado en el tiempo: cada punto es la media de sus vecinos (más peso a los cercanos y a los que la IA ve bien)
   S.pose=crudo.map(q=>({i:q.i,t:q.t,p:q.p.map((_,k)=>{let sx=0,sy=0,sw=0;
-    for(const o of crudo){const d=(o.t-q.t)/(k===1||k===2?0.11:0.07);if(Math.abs(d)>2.5)continue;const w=Math.exp(-d*d/2)*(0.3+(o.p[k].v||0));sx+=o.p[k].x*w;sy+=o.p[k].y*w;sw+=w}
+    for(const o of crudo){const d=(o.t-q.t)/(k===1?0.16:k===2?0.11:0.07);if(Math.abs(d)>2.5)continue;
+      // el codo: mismo peso lo vea la IA o se calcule, para que no salte de uno a otro
+      const w=Math.exp(-d*d/2)*(k===1?1:(0.3+(o.p[k].v||0)));sx+=o.p[k].x*w;sy+=o.p[k].y*w;sw+=w}
     return {x:sx/sw,y:sy/sw,v:q.p[k].v}})}));
+  // brazo rígido: tras suavizar, el codo se queda a la largura del brazo desde el hombro (no se estira ni encoge de golpe)
+  S.pose.forEach(f=>{const P=f.p,S0=P[0],c=P[3],E=P[1],torso=Math.hypot(S0.x-c.x,S0.y-c.y)||1,L1=0.62*torso,
+    dx=E.x-S0.x,dy=E.y-S0.y,d=Math.hypot(dx,dy)||1;P[1]={...E,x:S0.x+dx/d*L1,y:S0.y+dy/d*L1}});
   return true;
 }
 // solo vale una postura de un fotograma cercano: si la IA no vio el cuerpo en ese momento, no se inventa
