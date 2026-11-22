@@ -9,6 +9,7 @@ from urllib.parse import parse_qs, urlparse
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "motor"))
 
 import servicio  # noqa: E402
+import comida  # noqa: E402
 
 
 class handler(BaseHTTPRequestHandler):
@@ -114,6 +115,10 @@ class handler(BaseHTTPRequestHandler):
                 return self._responder(200, servicio.modo_coach(self._sesion(), self._cuerpo()))
             if ruta == "resolver" and metodo == "POST":
                 return self._responder(200, servicio.resolver_solicitud(self._sesion(), self._cuerpo()))
+            if ruta == "comida":
+                if metodo == "POST":
+                    return self._responder(200, comida.comida_accion(self._sesion(), self._cuerpo()))
+                return self._responder(200, comida.comida(self._sesion(), q.get("atleta")))
             if ruta == "accion" and metodo == "POST":
                 return self._responder(200, servicio.accion(self._sesion(), self._cuerpo()))
             return self._responder(404, {"error": "No existe"})

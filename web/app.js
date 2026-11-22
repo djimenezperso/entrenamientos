@@ -514,7 +514,7 @@ function pintarEntrar(paso = {}) {
       <button class="btn btn-fuego" type="submit">${inv && paso.nuevo ? t("Empezar") : t("Entrar")}</button>
       ${inv ? (paso.conPin ? `<button type="button" class="btn" id="b-volver-entrar" style="height:44px">← ${t("Volver")}</button>` : "") : `<p class="ayuda">${t("¿Eres nuevo? Entra con el código que te ha dado Diego")}</p>
         <button type="button" class="btn" id="b-con-pin" style="height:44px">${t("¿Ya tienes perfil? Entra con tu nombre y PIN")}</button>
-        <button type="button" class="btn btn-fuego" id="b-ver-demo" style="height:50px">👀 ${t("Ver la app gratis")}</button>`}
+        <button type="button" class="btn btn-fuego" id="b-ver-demo" style="height:50px">${t("Ver la app gratis")}</button>`}
     </form>
     <div class="fila-chips" style="justify-content:center">
       <button class="chip ${E.lang === "es" ? "on" : ""}" data-lang="es">ES</button>
@@ -632,15 +632,15 @@ function hojaContacto() {
   ].filter(Boolean).join("");
   abrirHoja(`<div class="demo-hola">${ic.llama("#FF6A00", 40)}<h3>${t("Entrena con Diego")}</h3>
       <p>${t("Escríbele y te cuenta cómo funciona, precios y cómo empezar.")}</p></div>${ops}
-    <button class="btn" data-cerrar>👀 ${t("Seguir viendo gratis")}</button>`, (h) => {
+    <button class="btn" data-cerrar>${t("Seguir viendo gratis")}</button>`, (h) => {
     h.querySelectorAll("[data-via]").forEach((a) => a.addEventListener("click", () => {
       api("contactar", { metodo: "POST", cuerpo: { via: a.dataset.via, atleta: E.atleta } }).catch(() => { });
     }));
   });
 }
-const botonContacto = (v, id) => !v.abono && v.contacto ? `<button class="btn btn-abono" id="${id}">💬 ${t("Contactar con Diego")}</button>` : "";
-const botonAbono = (v, id, extra = "") => !v.abono ? botonContacto(v, id) : `<button class="btn btn-abono" id="${id}" ${extra}>💳 ${t("Abonarse")}${v.abono.texto ? ` <small>${esc(t(v.abono.texto))}</small>` : ""}</button>
-  <p class="promo-fundador">🎟️ ${t("Código FUNDADOR: 19 €/mes para siempre · solo 20 plazas")}</p>`;
+const botonContacto = (v, id) => !v.abono && v.contacto ? `<button class="btn btn-abono" id="${id}">${t("Contactar con Diego")}</button>` : "";
+const botonAbono = (v, id, extra = "") => !v.abono ? botonContacto(v, id) : `<button class="btn btn-abono" id="${id}" ${extra}>${t("Abonarse")}${v.abono.texto ? ` <small>${esc(t(v.abono.texto))}</small>` : ""}</button>
+  <p class="promo-fundador">${t("Código FUNDADOR: 19 €/mes para siempre · solo 20 plazas")}</p>`;
 
 function hojaPago(cs) {
   const v = E.vista || {};
@@ -708,7 +708,7 @@ function hojaPago(cs) {
 // página «Conoce al creador» (la de Diego), en el idioma de cada uno
 const urlCreador = () => E.lang === "fr" ? "https://conoce-al-creador.vercel.app/?lang=fr#profesor"
   : "https://conoce-al-creador.vercel.app/?lang=es#traductor";
-const botonCreador = (extra = "") => `<a class="btn btn-creador" href="${urlCreador()}" target="_blank" rel="noopener" ${extra}>👤 ${t("Conoce al creador")}</a>`;
+const botonCreador = (extra = "") => `<a class="btn btn-creador" href="${urlCreador()}" target="_blank" rel="noopener" ${extra}>${t("Conoce al creador")}</a>`;
 
 async function abrirPortal(boton) {
   if (boton) boton.disabled = true;
@@ -767,16 +767,16 @@ function hojaObjetivos(despues, previo) {
     const cuerpo = paso.libre
       ? `${(E.vista && E.vista.consentimiento && E.vista.consentimiento.salud) ? `<label class="paso-etq" for="ob-les">${t("Lesiones o molestias")}</label>
          <textarea class="campo obj-area" id="ob-les" placeholder="${t("Ej.: hombro derecho, lumbar…")}">${esc(o.lesiones)}</textarea>`
-         : `<p class="mini" style="margin:0 4px">🔒 ${t("Para contar lesiones o molestias, activa «datos de salud» en Ajustes → Mis datos. También puedes decírselo a Diego por el chat.")}</p>`}
+         : `<p class="mini" style="margin:0 4px">${t("Para contar lesiones o molestias, activa «datos de salud» en Ajustes → Mis datos. También puedes decírselo a Diego por el chat.")}</p>`}
          <label class="paso-etq" for="ob-com">${t("Comentarios")}</label>
          <textarea class="campo obj-area" id="ob-com" placeholder="${t("Horarios, competiciones, lo que quieras…")}">${esc(o.comentario)}</textarea>`
       : `${paso.sub ? `<p class="mini" style="margin:-4px 2px 4px">${t(paso.sub)}</p>` : ""}
-         ${paso.todo ? `<button type="button" class="chip obj-todo" id="ob-box">🏟️ ${t("Box de CrossFit completo")}</button>` : ""}
+         ${paso.todo ? `<button type="button" class="chip obj-todo" id="ob-box">${t("Box de CrossFit completo")}</button>` : ""}
          <div class="${paso.ops[0][2] ? "obj-ops" : "fila-chips obj-fila"}">${chips(paso)}</div>
          ${paso.extra ? `<div class="paso-etq" style="margin:14px 2px 6px">${t(paso.extra.tit)}</div><div class="fila-chips obj-fila">${chips(paso.extra)}</div>` : ""}
          ${paso.texto ? `<input class="campo" id="ob-otro" style="background:#fff;height:48px;margin-top:6px" placeholder="${t("Otro (escríbelo)")}" value="${esc(o[paso.texto] || "")}">` : ""}`;
     const html = `<div class="obj-prog">${OBJ_PASOS.map((_, j) => `<span class="${j <= i ? "on" : ""}"></span>`).join("")}</div>
-      <div class="obj-cab"><small>🎯 ${t("Tu rutina a medida")} · ${i + 1}/${OBJ_PASOS.length}</small><h3>${t(paso.tit)}</h3></div>
+      <div class="obj-cab"><small>${t("Tu rutina a medida")} · ${i + 1}/${OBJ_PASOS.length}</small><h3>${t(paso.tit)}</h3></div>
       ${cuerpo}
       <p class="error" id="ob-error" hidden></p>
       <div class="obj-nav">${i > 0 ? `<button class="btn" id="ob-atras">← ${t("Atrás")}</button>` : `<button class="btn" id="ob-luego">${t("Más tarde")}</button>`}
@@ -840,11 +840,11 @@ function hojaBorrarCuenta() {
   const v = E.vista;
   abrirHoja(`${cabHoja(v.nombre, t("Borrar mi cuenta"))}
     <p style="margin:0 4px">${t("Se borrarán tu perfil, tu programa, tus entrenos, tus marcas y el chat. No se puede deshacer.")}</p>
-    ${v.abono_gestion && !v.abono_problema ? `<p class="mini" style="margin:0 4px">⚠️ ${t("Primero cancela tu abono en «Gestionar mi abono» para que no se te cobre.")}</p>` : ""}
+    ${v.abono_gestion && !v.abono_problema ? `<p class="mini" style="margin:0 4px">${t("Primero cancela tu abono en «Gestionar mi abono» para que no se te cobre.")}</p>` : ""}
     <label class="paso-etq" for="bc-nombre" style="margin:4px 4px 0">${t("Para confirmar, escribe tu nombre:")} <b>${esc(v.nombre)}</b></label>
     <input class="campo" id="bc-nombre" autocomplete="off" style="background:#fff">
     <p class="error" id="bc-error" hidden></p>
-    <button class="btn" id="bc-si" style="background:#C0392B;color:#fff;height:54px">🗑️ ${t("Borrar todo para siempre")}</button>
+    <button class="btn" id="bc-si" style="background:#C0392B;color:#fff;height:54px">${t("Borrar todo para siempre")}</button>
     <button class="btn" data-cerrar>${t("Cancelar")}</button>`, (h) => {
     h.querySelector("#bc-si").onclick = async (ev) => {
       ev.target.disabled = true;
@@ -892,9 +892,9 @@ function hojaBienvenidaDemo() {
   abrirHoja(`<div class="demo-hola">${ic.llama("#FF6A00", 44)}
       <h3>${t("Bienvenido a Djimenez Prog")}</h3>
       <p>${t("Estás viendo una rutina de ejemplo. Puedes mirarlo todo: los entrenos, el cronómetro, el progreso…")}</p></div>
-    <button class="btn btn-fuego" id="d-crear" style="height:56px">✨ ${t("Crear mi perfil")}</button>
+    <button class="btn btn-fuego" id="d-crear" style="height:56px">${t("Crear mi perfil")}</button>
     ${botonAbono(E.vista, "d-abono")}
-    <button class="btn" id="d-seguir">👀 ${t("Seguir viendo gratis")}</button>
+    <button class="btn" id="d-seguir">${t("Seguir viendo gratis")}</button>
     <p class="mini" style="text-align:center;margin:0">${t("Con tu perfil tienes tu propia rutina y guardas tus marcas.")}</p>
     ${botonCreador()}`, (h) => {
     h.querySelector("#d-crear").onclick = () => hojaCrearPerfil({});
@@ -917,7 +917,7 @@ function hojaCrearPerfil(paso) {
       <p class="error" id="cp-error" hidden></p>
       <button class="btn btn-fuego" type="submit" style="height:54px">${paso.plantillas ? t("Empezar") : t("Seguir")}</button>
     </form>
-    <button class="btn" id="cp-volver">👀 ${t("Seguir viendo gratis")}</button>`, (h) => {
+    <button class="btn" id="cp-volver">${t("Seguir viendo gratis")}</button>`, (h) => {
     h.querySelector("#cp-volver").onclick = cerrarHoja;
     const f = h.querySelector("#f-perfil");
     f.onsubmit = async (ev) => {
@@ -968,13 +968,15 @@ function pintar() {
   desbloquearScroll();
   if (E.pantalla === "registrar") return pintarRegistrar();
   if (E.pantalla === "progreso" || E.pantalla === "prs") return pintarPantalla();
+  if (E.pantalla === "comida") return pintarComida();
+  if (E.pantalla === "analizador") return pintarAnalizador();
   if (v.en_revision) {  // perfil nuevo: Diego revisa y aprueba el programa antes de que lo vea
     $app.innerHTML = cabecera(v) + `<main><div class="muro-pago">
       <div class="pago-ok">🕐</div>
       <h2>${t("Diego está revisando tu programa")}</h2>
       <p>${v.objetivos_pendientes ? t("Primero cuéntanos tus objetivos: con tus respuestas preparamos tu rutina.") : t("Con tus respuestas ya hemos preparado tu rutina. Diego la revisa, la ajusta a ti y te la activa. Vuelve más tarde: te avisaremos aquí.")}</p>
-      ${v.objetivos_pendientes ? `<button class="btn btn-fuego" id="rv-obj" style="height:56px">🎯 ${t("Responder el cuestionario")}</button>` : ""}
-      ${v.chat_activo ? `<button class="btn" id="rv-chat">💬 ${t("Escribir a Diego")}</button>` : ""}
+      ${v.objetivos_pendientes ? `<button class="btn btn-fuego" id="rv-obj" style="height:56px">${t("Responder el cuestionario")}</button>` : ""}
+      ${v.chat_activo ? `<button class="btn" id="rv-chat">${t("Escribir a Diego")}</button>` : ""}
       ${botonCreador()}
       <button class="btn" id="rv-salir">${t("Salir")}</button></div></main>`;
     enlazar();
@@ -990,7 +992,7 @@ function pintar() {
       <h2>${t("Diego te sugiere este cambio en tu programa")}</h2>
       <p>${t("Lo ha preparado para ti, a tu medida. Míralo y acéptalo para empezar.")}</p>
       <div class="sug-dias">${s.dias.map((d) => `<div class="prop-dia"><b>${esc(trDia(d.nombre))}</b>${d.lineas.map((x) => `<div>${esc(trWod(x))}</div>`).join("")}</div>`).join("")}</div>
-      <button class="btn btn-fuego" id="b-sug-si" style="height:58px">✅ ${t("Aceptar")}</button></div></main>`;
+      <button class="btn btn-fuego" id="b-sug-si" style="height:58px">${t("Aceptar")}</button></div></main>`;
     enlazar();
     const bss = document.getElementById("b-sug-si"); bss.onclick = () => { E.semana = null; E.dia = null; hacer({ tipo: "aceptar_sugerencia" }, bss).then(() => confeti()); };
     window.scrollTo(0, 0);
@@ -1001,9 +1003,9 @@ function pintar() {
       <div class="pago-ok">🔒</div>
       <h2>${t(v.pago_motivo === "semana2" ? "¡Semana 1 completada! 🔥" : "Tu semana gratis ha terminado")}</h2>
       <p>${t(v.pago_motivo === "semana2" ? (v.pago_auto ? "Has hecho toda la semana 1 💪 Abónate para abrir la semana 2 y no perder lo que has ganado." : "La semana gratis incluye la semana 1. Abónate para abrir la semana 2 y seguir con Diego.") : "Tu rutina sigue aquí, hecha para ti. Abónate para seguir entrenando con Diego.")}</p>
-      ${v.abono ? `<button class="btn btn-abono" id="mp-abono" style="height:58px">💳 ${t("Abonarme y seguir")}</button>
-        <p class="promo-fundador">🎟️ ${t("Código FUNDADOR: 19 €/mes para siempre · solo 20 plazas")}</p>` : ""}
-      ${v.chat_activo ? `<button class="btn" id="mp-chat">💬 ${t("Escribir a Diego")}</button>` : ""}
+      ${v.abono ? `<button class="btn btn-abono" id="mp-abono" style="height:58px">${t("Abonarme y seguir")}</button>
+        <p class="promo-fundador">${t("Código FUNDADOR: 19 €/mes para siempre · solo 20 plazas")}</p>` : ""}
+      ${v.chat_activo ? `<button class="btn" id="mp-chat">${t("Escribir a Diego")}</button>` : ""}
       <button class="btn" id="mp-salir">${t("Salir")}</button></div></main>`;
     enlazar();
     const a = document.getElementById("mp-abono"); if (a) a.onclick = abonarse;
@@ -1017,12 +1019,19 @@ function pintar() {
     enlazar(); return;
   }
   const cuentan = v.partes.filter((p) => !p.calentamiento);
+  {  // parte en curso: la siguiente a la última hecha (si no hay, la primera sin hacer); las demás sin hacer van en amarillo
+    let ult = -1; v.partes.forEach((p, i) => { if (p.estado === "hecho") ult = i; });
+    const sin = (i) => v.partes[i] && v.partes[i].estado !== "hecho" && !v.partes[i].calentamiento;
+    let act = -1; for (let i = ult + 1; i < v.partes.length; i++) if (sin(i)) { act = i; break; }
+    if (act < 0) for (let i = 0; i < v.partes.length; i++) if (sin(i)) { act = i; break; }
+    E.parteActual = act >= 0 ? "p" + act : null;
+  }
   const hechas = cuentan.filter((p) => p.estado === "hecho").length;
   const total = cuentan.length;
   $app.innerHTML = cabecera(v) + `
   <main>
     <div class="titulo-dia"><h2>${esc(trDia(v.dia.nombre))}</h2><span>${total ? `${hechas} ${t("de")} ${total} ${t("partes hechas")}` : ""}</span></div>
-    ${v.dia.opcional ? `<div class="aviso-opcional">✨ ${t("Día opcional: hazlo solo si te encuentras bien. Si no lo haces, no pasa nada.")}</div>` : ""}
+    ${v.dia.opcional ? `<div class="aviso-opcional">${t("Día opcional: hazlo solo si te encuentras bien. Si no lo haces, no pasa nada.")}</div>` : ""}
     <div class="barra"><i style="width:${total ? Math.round(hechas / total * 100) : 0}%"></i></div>
     ${v.anotaciones ? bloqueAnotaciones(v) : ""}
     ${(v.novedades || []).map((n) => `<section class="novedad">
@@ -1042,7 +1051,7 @@ function pintar() {
     </section>`).join("")}
     ${(v.olvidadas || []).length ? `<section class="olvidadas"><b>⏰ ${t("Se te quedó pendiente esta semana")}</b>
       ${v.olvidadas.map((o, i) => `<div class="olv"><span><small>${esc(o.dia_txt)}${o.letra ? " · " + esc(o.letra) : ""}</small>${o.tipo === "linea" ? `${esc(o.nombre)} <small style="display:inline;font-weight:600">${esc((o.texto || "").split("\n")[0].slice(0, 40))}</small>` : `${esc(etqParte(o.etiqueta))}${o.nombre && o.nombre !== o.etiqueta ? ` · ${esc(o.nombre)}` : ""}`}</span>
-        <button class="chip" data-olv-hecha="${i}">✓ ${t("Ya la hice")}</button><button class="chip on" data-olv-hoy="${i}">${t("Hacerla hoy")}</button></div>`).join("")}
+        <button class="chip" data-olv-hecha="${i}">${t("Ya la hice")}</button><button class="chip on" data-olv-hoy="${i}">${t("Hacerla hoy")}</button></div>`).join("")}
     </section>` : ""}
     ${v.faltan.length && v.semana < v.actual ? `<div class="alerta"><b>${t("Sin validar")} · S${v.semana}:</b> ${esc(v.faltan.join("; "))}. ${t("Marca cada parte como hecha o pásala a otro día.")}</div>` : ""}
     ${v.partes.length ? v.partes.map((p, i) => tarjeta(p, "p" + i)).join("") : `<div class="vacio">${t("Sin ejercicios este día.")}</div>`}
@@ -1059,7 +1068,7 @@ function bloqueAnotaciones(v) {
   const n = v.anotaciones.length;
   const primera = n ? v.anotaciones[0].texto.split("\n")[0] : "";
   return `<details class="anotaciones" id="anotaciones" ${E.anotAbiertas ? "open" : ""}>
-    <summary><span class="anot-tit">📝 ${t("Mis anotaciones")}${n ? `<i>${n}</i>` : ""}</span>
+    <summary><span class="anot-tit">${t("Mis anotaciones")}${n ? `<i>${n}</i>` : ""}</span>
       <small>${n ? esc(primera.length > 70 ? primera.slice(0, 70) + "…" : primera) : t("Lo que tienes que trabajar")}</small></summary>
     ${v.anotaciones.map((a) => `<div class="anot"><div class="anot-cab"><small>${esc(String(a.fecha || "").split("-").reverse().join("/"))}</small>
       <button class="mini-btn" data-anot-borrar="${esc(a.id)}">${t("Borrar")}</button></div>
@@ -1085,42 +1094,42 @@ function cabecera(v) {
         <button class="redondo" id="b-ajustes" aria-label="${t("Ajustes")}">${ic.ajustes}</button>
       </div>
     </div>
-    ${v.semana_lista_nueva ? `<div class="propuesta sugerencia aviso-semana"><b>🔥 ${t("Tu semana {n} ya está lista").replace("{n}", v.semana_lista_nueva)}</b>
+    ${v.semana_lista_nueva ? `<div class="propuesta sugerencia aviso-semana"><b>${t("Tu semana {n} ya está lista").replace("{n}", v.semana_lista_nueva)}</b>
       <small>${t("Diego te la ha preparado. Échale un vistazo para saber lo que viene.")}</small>
-      <div class="prop-bot"><button id="b-ver-semana">👀 ${t("Ver la semana")} ${v.semana_lista_nueva}</button><button id="b-semana-ok">${t("Vale")}</button></div></div>` : ""}
-    ${v.programa_actualizado ? `<div class="propuesta sugerencia"><b>💡 ${t("Diego ha actualizado tu programa")}</b>
+      <div class="prop-bot"><button id="b-ver-semana">${t("Ver la semana")} ${v.semana_lista_nueva}</button><button id="b-semana-ok">${t("Vale")}</button></div></div>` : ""}
+    ${v.programa_actualizado ? `<div class="propuesta sugerencia"><b>${t("Diego ha actualizado tu programa")}</b>
       <small>${t("Échale un vistazo a tus días: hay cambios nuevos hechos para ti.")}</small>
-      <div class="prop-bot"><button id="b-prog-ok">👍 ${t("Vale")}</button></div></div>` : ""}
+      <div class="prop-bot"><button id="b-prog-ok">${t("Vale")}</button></div></div>` : ""}
     ${v.revision_pendiente ? `<div class="propuesta"><b>🕐 ${esc(v.nombre)} ${t("espera que apruebes su programa")}</b>
       <small>${t("Revísalo abajo y ajusta lo que quieras. Hasta que lo apruebes no lo ve.")}</small>
-      <div class="prop-bot"><button id="b-aprobar">✅ ${t("Aprobar y activárselo")}</button></div></div>` : ""}
+      <div class="prop-bot"><button id="b-aprobar">${t("Aprobar y activárselo")}</button></div></div>` : ""}
     ${v.revision_semana && v.revision_semana.length ? `<div class="banda-abono" style="background:#FFF1D6"><span>🧐 <b>${t("Revisa esta semana")}</b>: ${v.revision_semana.map(esc).join(" · ")}</span></div>` : ""}
     ${v.wods_repetidos && v.wods_repetidos.length ? `<div class="banda-abono" style="background:#FFF1D6"><span>🔁 <b>${t("WODs repetidos de la semana anterior")}</b>: ${v.wods_repetidos.map((d) => esc(trDia(d))).join(" · ")}</span></div>` : ""}
-    ${v.por_preparar && !v.por_preparar.length ? `<div class="plan-ok">✅ ${t("Planificación al día: tienes listas las 2 semanas siguientes de todos")}</div>` : ""}
-    ${v.por_preparar && v.por_preparar.length ? `<div class="propuesta plan-pend"><b>📝 ${t("Te queda por preparar")}</b>
+    ${v.por_preparar && !v.por_preparar.length ? `<div class="plan-ok">${t("Planificación al día: tienes listas las 2 semanas siguientes de todos")}</div>` : ""}
+    ${v.por_preparar && v.por_preparar.length ? `<div class="propuesta plan-pend"><b>${t("Te queda por preparar")}</b>
       <div class="fila-chips">${Object.values(v.por_preparar.reduce((m, x) => { (m[x.atleta] = m[x.atleta] || []).push(x); return m; }, {})).map((g) => `<button class="chip ${g[0].urgente ? "urgente" : ""}" data-preparar="${esc(g[0].atleta)}|${g[0].semana}">${esc(g[0].nombre)} · S${g.map((x) => x.semana).join("-")}</button>`).join("")}</div>
       <small>${t("Prepárala y dale a ✅ Semana lista. Si no, sale la progresión automática.")}</small></div>` : ""}
-    ${v.propuesta ? `<div class="propuesta"><b>📋 ${t("Rutina nueva preparada para")} ${esc(v.nombre)}</b>
+    ${v.propuesta ? `<div class="propuesta"><b>${t("Rutina nueva preparada para")} ${esc(v.nombre)}</b>
       <small>${esc(v.propuesta.titulo)}</small>
       <details><summary>${t("Ver la rutina")}</summary>${v.propuesta.dias.map((d) => `<div class="prop-dia"><b>${esc(trDia(d.nombre))}</b>${d.lineas.map((x) => `<div>${esc(x)}</div>`).join("")}</div>`).join("")}</details>
-      <div class="prop-bot"><button id="b-prop-si">✅ ${t("Aplicar")}</button><button id="b-prop-no">${t("Descartar")}</button></div></div>` : ""}
-    ${v.pago_pendiente && !(v.prueba && v.prueba.en_prueba) ? `<div class="banda-abono banda-prueba banda-progreso"><span><b>🔥 ${t("Estás progresando, no te quedes aquí")}</b>
+      <div class="prop-bot"><button id="b-prop-si">${t("Aplicar")}</button><button id="b-prop-no">${t("Descartar")}</button></div></div>` : ""}
+    ${v.pago_pendiente && !(v.prueba && v.prueba.en_prueba) ? `<div class="banda-abono banda-prueba banda-progreso"><span><b>${t("Estás progresando, no te quedes aquí")}</b>
       <small>${t("Abónate para desbloquear tu semana siguiente")}</small></span>
-      ${v.abono || v.contacto ? `<button id="b-prueba-abono">💳 ${t("Abonarme")}</button>` : ""}</div>` : ""}
-    ${v.prueba && v.prueba.en_prueba ? `<div class="banda-abono banda-prueba banda-progreso"><span><b>🔥 ${t("Estás progresando, no te quedes aquí")}</b>
+      ${v.abono || v.contacto ? `<button id="b-prueba-abono">${t("Abonarme")}</button>` : ""}</div>` : ""}
+    ${v.prueba && v.prueba.en_prueba ? `<div class="banda-abono banda-prueba banda-progreso"><span><b>${t("Estás progresando, no te quedes aquí")}</b>
       <small>${t("Abónate y desbloquea tu semana 2")} · ${v.prueba.dias === 1 ? t("Te queda 1 día de prueba gratis") : t("Te quedan {n} días de prueba gratis").replace("{n}", v.prueba.dias)}</small></span>
-      ${v.abono ? `<button id="b-prueba-abono">💳 ${t("Desbloquear semana 2")}</button>` : ""}</div>` : ""}
-    ${v.abono_problema ? `<div class="banda-abono"><span>⚠️ ${t("Tu abono está")} <b>${esc(t(v.abono_estado_txt || ""))}</b>.</span>
+      ${v.abono ? `<button id="b-prueba-abono">${t("Desbloquear semana 2")}</button>` : ""}</div>` : ""}
+    ${v.abono_problema ? `<div class="banda-abono"><span>${t("Tu abono está")} <b>${esc(t(v.abono_estado_txt || ""))}</b>.</span>
       ${v.abono_gestion ? `<button id="b-abono-arreglar">${t(v.abono_estado === "canceled" || v.abono_estado === "incomplete_expired" ? "Volver a abonarme" : "Actualizar mi tarjeta")}</button>` : ""}</div>` : ""}
-    ${v.demo ? `<div class="banda-demo">👀 ${t("Modo demo · solo para mirar")} <button id="b-crear-demo">✨ ${t("Crear mi perfil")}</button>${v.abono ? `<button id="b-abono-demo">💳 ${t("Abonarse")}</button>` : v.contacto ? `<button id="b-abono-demo">💬 ${t("Contacto")}</button>` : ""}<button id="b-compartir-demo">${ic.compartir} ${t("Compartir")}</button>${varias ? `<button id="b-clientes-demo" class="clientes-demo">👥 ${t("Ver programas")}</button>` : ""}</div>` : ""}
+    ${v.demo ? `<div class="banda-demo">${t("Modo demo · solo para mirar")} <button id="b-crear-demo">${t("Crear mi perfil")}</button>${v.abono ? `<button id="b-abono-demo">${t("Abonarse")}</button>` : v.contacto ? `<button id="b-abono-demo">${t("Contacto")}</button>` : ""}<button id="b-compartir-demo">${ic.compartir} ${t("Compartir")}</button>${varias ? `<button id="b-clientes-demo" class="clientes-demo">${t("Ver programas")}</button>` : ""}</div>` : ""}
     ${v.semana && v.demo ? `<div class="pildora-semana"><span>${t("Semana")} ${v.semana} · <em>${t("de muestra")}</em></span></div>` : v.semana ? `<div class="pildora-semana">
       <button id="b-sem-menos" aria-label="Semana anterior" ${v.semana <= 1 ? "disabled style='opacity:.3'" : ""}>${ic.izq}</button>
-      <span>${t("Semana")} ${v.semana}${v.semana === v.actual ? ` · <em>🔥 ${t("actual")}</em>` : ""}${v.coach && v.atleta !== "Yo" && v.semana > v.actual ? ` · ${(v.semanas_listas || []).includes(v.semana) ? "✅" : "📝"}` : ""}</span>
+      <span>${t("Semana")} ${v.semana}${v.semana === v.actual ? ` · <em>${t("actual")}</em>` : ""}${v.coach && v.atleta !== "Yo" && v.semana > v.actual ? ` · ${(v.semanas_listas || []).includes(v.semana) ? "✅" : "📝"}` : ""}</span>
       ${v.max_semana != null && v.semana >= v.max_semana ? ((v.prueba && v.prueba.en_prueba || v.pago_pendiente) && (v.abono || v.contacto) ? `<button aria-label="Semana siguiente" class="sem-cerrada" id="b-sem-pagar">🔒</button>` : `<button aria-label="Semana siguiente" class="sem-cerrada" disabled>${ic.der}</button>`) : `<button id="b-sem-mas" aria-label="Semana siguiente">${ic.der}</button>`}
     </div>` : ""}
     ${v.dias ? `<div class="dias" role="tablist">${v.dias.map((d) => {
       const n = (d.nombre.match(/\d+/) || [d.nombre.slice(0, 2)])[0];
-      return `<button class="dia ${d.id === v.dia.id ? "on" : ""} ${d.bloqueado ? "bloq" : ""}" role="tab" aria-selected="${d.id === v.dia.id}" data-dia="${esc(d.id)}" ${d.bloqueado ? 'data-bloq="1"' : ""} aria-label="${esc(trDia(d.nombre))}${d.bloqueado ? " 🔒" : ""}">
+      return `<button class="dia ${d.id === v.dia.id ? "on" : ""} ${d.bloqueado ? "bloq" : ""} est-${esc(d.estado || "nada")}" role="tab" aria-selected="${d.id === v.dia.id}" data-dia="${esc(d.id)}" ${d.bloqueado ? 'data-bloq="1"' : ""} aria-label="${esc(trDia(d.nombre))}${d.bloqueado ? " 🔒" : ""}">
         <small>${d.opcional ? "Opc." : `D${esc(n)}`}</small>${d.bloqueado ? '<span class="candado">🔒</span>' : `<span class="punto ${d.estado}"></span>`}${d.pendientes ? '<span class="pend"></span>' : ""}</button>`;
     }).join("")}</div>` : ""}
   </header>`;
@@ -1142,8 +1151,8 @@ function tarjeta(p, k) {
   const tagTxt = p.calentamiento ? (nombreTit === "Mobility" ? "Warm up" : "Warm up · Mobility")
     : nombreTit === etqParte(p.etiqueta) ? `${t("Parte")} ${p.letra || ""}`.trim() : `${p.letra ? p.letra + " · " : ""}${etqParte(p.etiqueta)}`;
   return `
-  <section class="card ${p.estado === "hecho" ? "hecha" : ""} ${p.calentamiento ? "warmup" : ""} ${p.ciclo ? "con-ciclo" : ""}" ${k[0] === "p" && !p.origen && !p.calentamiento && !E.vista.demo ? `data-mov="${k}"` : ""}>
-    ${p.ciclo ? `<div class="cinta-ciclo">🔥 ${t("Ciclo")}</div>` : ""}
+  <section class="card ${p.estado === "hecho" ? "hecha" : ""} ${k[0] === "p" && p.estado !== "hecho" && !p.calentamiento ? (k === E.parteActual ? "en-curso" : "por-hacer") : ""} ${p.calentamiento ? "warmup" : ""} ${p.ciclo ? "con-ciclo" : ""}" ${k[0] === "p" && !p.origen && !p.calentamiento && !E.vista.demo ? `data-mov="${k}"` : ""}>
+    ${p.ciclo ? `<div class="cinta-ciclo">${t("Ciclo")}</div>` : ""}
     <div class="card-cab">
       <div class="letra ${p.estado}">${letra}</div>
       <div style="flex:1;min-width:0">
@@ -1160,7 +1169,7 @@ function tarjeta(p, k) {
     <div class="lineas">${p.lineas.map((l, j) => linea(l, p, k + "_" + j)).join("")}</div>
     ${p.no_hechas ? `<div class="nota-estado no_hecho" style="padding-left:48px">${p.no_hechas} sin hacer · repiten peso</div>` : ""}
     ${p.registro ? `<button class="btn btn-negro" data-reg="${k}" style="height:42px">${t("Registrar resultados")}</button>` : ""}
-    ${!p.registro && !E.vista.demo && !p.calentamiento && E.vista.registro ? `<button class="mini-btn reg-parte" data-regp="${k}">✍️ ${t(p.lineas.some((l) => l.kind === "texto") ? "Apuntar tiempo o comentario" : "Apuntar comentario")}</button>` : ""}
+    ${!p.registro && !E.vista.demo && !p.calentamiento && E.vista.registro ? `<button class="mini-btn reg-parte" data-regp="${k}">${t(p.lineas.some((l) => l.kind === "texto") ? "Apuntar tiempo o comentario" : "Apuntar comentario")}</button>` : ""}
     <div class="estado" data-k="${k}">${p.opciones.map((o) =>
       `<button class="${p.actual === o.clave ? "on " + o.estado : ""}" data-op="${o.clave}" title="${esc(o.texto)}">${esc(corto(o))}</button>`).join("")}</div>
   </section>`;
@@ -1185,7 +1194,7 @@ function hojaVideo(k) {
     ${directo ? `<video class="video-tec" src="${esc(v.url)}" ${v.poster ? `poster="${esc(v.poster)}"` : ""} controls playsinline preload="metadata"></video>`
       : yt ? `<div class="video-tec yt"><iframe src="https://www.youtube-nocookie.com/embed/${esc(yt)}" title="${esc(l.ejercicio)}" allow="accelerometer; encrypted-media; picture-in-picture" allowfullscreen></iframe></div>`
       : v.url ? `<a class="btn btn-fuego" href="${esc(v.url)}" target="_blank" rel="noopener">▶️ ${t("Abrir el vídeo")}</a>` : `<p class="mini">${t("Este ejercicio aún no tiene vídeo.")}</p>`}
-    ${E.vista.coach ? `<div class="caja-coach"><div class="paso-etq" style="margin:0 0 8px">🎥 ${t("Vídeo para todos en este ejercicio")}</div>
+    ${E.vista.coach ? `<div class="caja-coach"><div class="paso-etq" style="margin:0 0 8px">${t("Vídeo para todos en este ejercicio")}</div>
       <input class="campo" id="v-url" placeholder="https://youtube.com/… · instagram.com/…" value="${esc(v.url && /^https?:/i.test(v.url) ? v.url : "")}" style="background:#fff">
       <p class="mini" style="margin:6px 2px">${t("Sube el vídeo a YouTube (oculto) o Instagram y pega aquí el enlace.")}</p>
       <div style="display:grid;grid-template-columns:1fr auto;gap:8px"><button class="btn btn-negro" id="v-guardar">${t("Guardar")}</button>
@@ -1211,7 +1220,7 @@ function linea(l, p, k) {
       ${p.lineas.length > 1 || extra ? `<div class="linea-cab"><b>${p.lineas.length > 1 ? esc(l.ejercicio) : ""}${extra}</b></div>` : ""}
       ${l.esquema ? `<div class="esquema">${esc(trWod(l.esquema))}</div>` : ""}
       <div class="pesos">${pesos}</div>${nota}${ultimoHtml(l)}${videoHtml(l, k)}
-      ${p.origen ? "" : `<div class="acciones-linea"><button class="mini-btn" data-editar="${k}">${ic.lapiz} ${t(l.kind === "peso" ? "Cambiar movimiento / reps" : "Ajustar reps")}</button>${l.texto_sig && l.texto_sig !== l.texto ? `<span class="mini">${t("Semana que viene")}: ${esc(l.texto_sig.slice(0, 60))}</span>` : ""}</div>`}
+      ${p.origen ? "" : `<div class="acciones-linea"><button class="mini-btn" data-editar="${k}">${ic.lapiz} ${t(l.kind === "peso" ? "Cambiar movimiento / reps" : "Ajustar reps")}</button>${liftDe(l.ejercicio) ? `<button class="mini-btn mini-analizar" data-analizar="${liftDe(l.ejercicio)}">${ic.video} ${t("Analizar vídeo")}</button>` : ""}${l.texto_sig && l.texto_sig !== l.texto ? `<span class="mini">${t("Semana que viene")}: ${esc(l.texto_sig.slice(0, 60))}</span>` : ""}</div>`}
       ${l.no_hecha !== undefined ? `<label class="check"><input type="checkbox" data-nh="${k}" ${l.no_hecha ? "checked" : ""}> ${t("No lo hice · te lo recuerdo esta semana")}</label>` : ""}
     </div>`;
   }
@@ -1219,7 +1228,7 @@ function linea(l, p, k) {
   const nombre = l.solo_bloque || (p.lineas.length === 1) ? "" : `<b>${esc(l.ejercicio)}</b>`;
   let html = `<div class="linea" data-l="${k}">
     ${nombre || extra || (l.nivel && l.nivel !== "RX") ? `<div class="linea-cab">${nombre}<span>${extra}${l.nivel && l.nivel !== "RX" && visto ? ` <span class="etq nivel">${esc(l.nivel)}</span>` : ""}</span></div>` : ""}
-    ${l.ritmo && visto ? `<div class="etq-ritmo">❤️ ${t("Ritmo")}: ${esc(t(l.ritmo))} · ${t("puedes hablar")}</div>` : ""}${l.falta_mov ? `<div class="etq-repetido">⚠️ ${t("Falta el movimiento (p. ej. «10 DB hang power clean»)")}</div>` : ""}${l.repetido ? `<div class="etq-repetido">🔁 ${t("Igual que la semana pasada")} (${esc(trDia(l.repetido))})</div>` : ""}<div class="texto-wod">${visto ? esc(trWod(visto)) : `<span class="mini">${t("por definir")}</span>`}</div>${conPesoDoble(visto) ? `<div class="pesos-hm">${t("Pesos: hombre / mujer")} <span>♂ / ♀</span></div>` : ""}${nota}${ultimoHtml(l)}${videoHtml(l, k)}`;
+    ${l.ritmo && visto ? `<div class="etq-ritmo">${t("Ritmo")}: ${esc(t(l.ritmo))} · ${t("puedes hablar")}</div>` : ""}${l.falta_mov ? `<div class="etq-repetido">${t("Falta el movimiento (p. ej. «10 DB hang power clean»)")}</div>` : ""}${l.repetido ? `<div class="etq-repetido">${t("Igual que la semana pasada")} (${esc(trDia(l.repetido))})</div>` : ""}<div class="texto-wod">${visto ? esc(trWod(visto)) : `<span class="mini">${t("por definir")}</span>`}</div>${conPesoDoble(visto) ? `<div class="pesos-hm">${t("Pesos: hombre / mujer")} <span>♂ / ♀</span></div>` : ""}${nota}${ultimoHtml(l)}${videoHtml(l, k)}`;
   if (l.sugerencia) html += `<div class="sug">${ic.llama("#8A5E00", 20)}<span>${t("WOD de Diego · semana")} ${l.sugerencia.semana}, ${esc(l.sugerencia.dia)}</span>
     <button data-fijar="${k}">${t("Fijar")}</button></div>`;
   if (l.tabla) html += `<details class="desplegable"><summary>${t("RX · Inter · Scaled por movimiento")} ${ic.abajo}</summary>
@@ -1228,9 +1237,9 @@ function linea(l, p, k) {
         : `<tr><td>${esc(f.RX)}</td><td>${esc(f.Inter)}</td><td>${esc(f.Scaled)}</td></tr>`).join("")}</tbody></table></details>`;
   else if (l.versiones_nivel) html += `<details class="desplegable"><summary>${t("Versiones")} RX · Inter · Scaled · Elite ${ic.abajo}</summary>
     <div class="versiones">${Object.entries(l.versiones_nivel).map(([n, txt]) => `<div><b>${esc(n)}</b><span class="texto-wod">${esc(trWod(txt))}</span></div>`).join("")}</div></details>`;
-  if (!p.origen) html += `<div class="acciones-linea"><button class="mini-btn" data-editar="${k}">${ic.lapiz} ${t("Ajustar")}</button>${l.tipo !== "fuerza" ? `<button class="mini-btn azar" data-azar="${k}">🎲 ${t("Al azar")}</button>` : ""}${["wod", "emom", "fortime", "amrap", "conditioning"].includes(l.tipo) && (l.visto || l.texto || "").trim() ? ((E.vista.retest_lineas || {})[l.id]
-      ? `<span class="etq ok">🔁 ${t("Retest el")} ${esc(trFecha(E.vista.retest_lineas[l.id]))}</span>`
-      : `<button class="mini-btn" data-retest="${k}">🔁 ${t("Repetir en 1 mes")}</button>`) : ""}${l.texto_sig && l.texto_sig !== l.texto ? `<span class="mini">${t("Semana que viene")}: ${esc(l.texto_sig.split("\n")[0].slice(0, 60))}</span>` : ""}</div>`;
+  if (!p.origen) html += `<div class="acciones-linea"><button class="mini-btn" data-editar="${k}">${ic.lapiz} ${t("Ajustar")}</button>${l.tipo !== "fuerza" ? `<button class="mini-btn azar" data-azar="${k}">${t("Al azar")}</button>` : ""}${["wod", "emom", "fortime", "amrap", "conditioning"].includes(l.tipo) && (l.visto || l.texto || "").trim() ? ((E.vista.retest_lineas || {})[l.id]
+      ? `<span class="etq ok">${t("Retest el")} ${esc(trFecha(E.vista.retest_lineas[l.id]))}</span>`
+      : `<button class="mini-btn" data-retest="${k}">${t("Repetir en 1 mes")}</button>`) : ""}${l.texto_sig && l.texto_sig !== l.texto ? `<span class="mini">${t("Semana que viene")}: ${esc(l.texto_sig.split("\n")[0].slice(0, 60))}</span>` : ""}</div>`;
   if (l.crono && visto) html += `<button class="btn-crono" data-crono="${k}">${ic.reloj}<span>${t("Cronómetro")}<small>${esc(etiquetaCrono(l.crono))}</small></span>${ic.der.replace(/#FFB400/g, "currentColor")}</button>`;
   if (l.elite) html += `<div class="elite"><span class="ico">${ic.estrella}</span><span><b>${esc(l.elite.quien)}: ${esc(l.elite.marca)}</b> · ${esc(l.elite.detalle)}</span></div>`;
   return html + "</div>";
@@ -1239,13 +1248,13 @@ function linea(l, p, k) {
 function finSemana(v) {
   const lista = v.coach && v.atleta !== "Yo" && !v.demo && v.semana > v.actual
     ? ((v.semanas_listas || []).includes(v.semana)
-      ? `<button class="btn btn-negro fin-semana" id="b-lista" data-lista="0" style="margin-bottom:10px">✅ ${t("Semana")} ${v.semana} ${t("lista")} · ${t("quitar")}</button>`
-      : `<button class="btn btn-fuego fin-semana" id="b-lista" data-lista="1" style="margin-bottom:10px">✅ ${t("Semana lista")} (${v.semana})</button>`) : "";
+      ? `<button class="btn btn-negro fin-semana" id="b-lista" data-lista="0" style="margin-bottom:10px">${t("Semana")} ${v.semana} ${t("lista")} · ${t("quitar")}</button>`
+      : `<button class="btn btn-fuego fin-semana" id="b-lista" data-lista="1" style="margin-bottom:10px">${t("Semana lista")} (${v.semana})</button>`) : "";
   return lista + finSemanaBase(v);
 }
 function finSemanaBase(v) {
   if (v.semana === v.actual && v.espera_semana) {
-    return `<div class="aviso-opcional fin-semana">🔒 ${t("Diego te está preparando la semana {n}. Se abre cuando esté lista.").replace("{n}", v.actual + 1)}</div>`;
+    return `<div class="aviso-opcional fin-semana">${t("Diego te está preparando la semana {n}. Se abre cuando esté lista.").replace("{n}", v.actual + 1)}</div>`;
   }
   if (v.semana === v.actual) {
     const todo = v.dias.every((d) => d.estado !== "pendiente");
@@ -1260,10 +1269,10 @@ function nav(activo = "rutina") {
     : `<button aria-label="${txt}" ${extra}>${icono}</button>`;
   return `<nav class="nav" aria-label="Secciones">
     ${b("rutina", ic.calendario, t("Rutina"), 'data-ir="rutina"')}
+    ${b("comida", ic.comida, t("Comida"), 'data-ir="comida"')}
     ${b("registrar", ic.mas, t("Registrar"), 'data-ir="registrar"')}
     ${b("progreso", ic.grafica, t("Progreso"), 'data-ir="progreso"')}
     ${E.vista && E.vista.con_prs === false ? "" : b("prs", ic.copa, t("Récords"), 'data-ir="prs"')}
-    <button data-pronto="${t("Biblioteca")}" aria-label="${t("Biblioteca")}">${ic.libros}</button>
   </nav>`;
 }
 
@@ -1370,10 +1379,12 @@ function enlazar() {
     hacer({ tipo: "fijar", semana: p.semana, linea: l.id, texto: l.sugerencia.texto }, b);
   });
   $app.querySelectorAll("[data-pronto]").forEach((b) => b.onclick = () => hojaPronto(b.dataset.pronto));
+  $app.querySelectorAll("[data-analizar]").forEach((b) => b.onclick = () => irAnalizador(b.dataset.analizar));
   $app.querySelectorAll("[data-ir]").forEach((b) => b.onclick = () => {
     const ir = b.dataset.ir;
     if (ir === "registrar") abrirRegistrar(null);
     else if (ir === "progreso" || ir === "prs") irA(ir);
+    else if (ir === "comida") irComida();
     else { E.pantalla = "rutina"; pintar(); window.scrollTo(0, 0); }
   });
   on("b-registrar-dia", () => abrirRegistrar(v.registro, v.partes.filter((p) => p.estado !== "hecho").map((p) => p.parte)));
@@ -1529,7 +1540,7 @@ function recordarPago() {
     if (!$hoja.hidden) return;
     abrirHoja(`${cabHoja("Djimenez Prog", "🔥 " + t("No te quedes aquí"))}
       <p>${t("Estás progresando. Abónate para desbloquear tu semana siguiente y seguir entrenando con Diego.")}</p>
-      <button class="btn btn-fuego" id="rp-abono">💳 ${t("Abonarme")}</button>
+      <button class="btn btn-fuego" id="rp-abono">${t("Abonarme")}</button>
       <button class="btn" data-cerrar>${t("Más tarde")}</button>`, (h) => {
       h.querySelector("#rp-abono").onclick = () => { cerrarHoja(); abonarse(); };
     });
@@ -1632,7 +1643,7 @@ function hojaQuienEres() {
   abrirHoja(`<div class="demo-hola">${ic.llama("#FF6A00", 40)}<h3>${t("¿Quién eres?")}</h3>
       <p>${t("Elige tu perfil. Se queda guardado en este móvil y ya no se cambia solo.")}</p></div>
     <div class="lista-personas">${v.personas.filter((p) => !(v.diego_aparte && p.id === "Yo")).map((p) => `<button class="persona" data-yo="${esc(p.id)}">
-      <span class="avatar">${p.icono || esc(inicial(p.nombre))}</span>${esc(p.nombre)}${p.ciclo ? ` <span class="etq-ciclo">🔁 ${t("con ciclo")}</span>` : ""}</button>`).join("")}</div>`, (h) => {
+      <span class="avatar">${p.icono || esc(inicial(p.nombre))}</span>${esc(p.nombre)}${p.ciclo ? ` <span class="etq-ciclo">${t("con ciclo")}</span>` : ""}</button>`).join("")}</div>`, (h) => {
     h.querySelectorAll("[data-yo]").forEach((b) => b.onclick = async () => {
       const quien = b.dataset.yo;
       mem.set("perfil_fijo", quien);
@@ -1651,7 +1662,7 @@ function hojaPersonas() {
   abrirHoja(`${cabHoja("Djimenez Prog", v.demo ? t("Rutinas de ejemplo") : t("Personas"))}
     ${v.demo ? `<p class="mini" style="margin:0 4px">${t("Cada programa está hecho para un tipo de atleta. Mira cómo cambian.")}</p>` : ""}
     <div class="lista-personas">${v.personas.map((p) => `<button class="persona ${p.id === v.atleta ? "on" : ""}" data-p="${esc(p.id)}">
-      <span class="avatar">${p.icono || esc(inicial(p.nombre))}</span>${esc(p.nombre)}${p.ciclo ? ` <span class="etq-ciclo">🔁 ${t("con ciclo")}</span>` : ""}</button>`).join("")}</div>`, (h) => {
+      <span class="avatar">${p.icono || esc(inicial(p.nombre))}</span>${esc(p.nombre)}${p.ciclo ? ` <span class="etq-ciclo">${t("con ciclo")}</span>` : ""}</button>`).join("")}</div>`, (h) => {
     h.querySelectorAll("[data-p]").forEach((b) => b.onclick = () => {
       cerrarHoja();
       E.semana = null; E.dia = null;
@@ -1672,39 +1683,39 @@ function hojaAjustes() {
       ${v.coach ? `<div class="mini" style="margin-bottom:10px">${t("Activado: puedes cambiar los pesos de todos.")}</div>
         ${v.atleta !== "Yo" ? `<label class="interruptor"><span>${esc(v.nombre)} ${t("puede cambiar sus pesos sin preguntarte")}</span><input type="checkbox" id="c-permiso" ${v.permiso_pesos ? "checked" : ""}></label>` : ""}
         <div class="tg-caja">${v.telegram
-          ? `<b>📲 ${t("Avisos por Telegram")}: ✅</b><div style="display:grid;grid-template-columns:1fr auto;gap:8px;margin-top:8px"><button class="btn" id="b-tg-probar">${t("Enviar prueba")}</button><button class="btn" id="b-tg-quitar">${t("Quitar")}</button></div>`
-          : `<b>📲 ${t("Avisos por Telegram")}</b>
+          ? `<b>${t("Avisos por Telegram")}: ✅</b><div style="display:grid;grid-template-columns:1fr auto;gap:8px;margin-top:8px"><button class="btn" id="b-tg-probar">${t("Enviar prueba")}</button><button class="btn" id="b-tg-quitar">${t("Quitar")}</button></div>`
+          : `<b>${t("Avisos por Telegram")}</b>
             <ol class="mini" style="margin:6px 0 8px;padding-left:18px">
               <li>${t("En Telegram abre")} <a href="https://t.me/BotFather" target="_blank" rel="noopener">@BotFather</a>, ${t("escribe /newbot y ponle un nombre (p. ej. Djimenez Avisos).")}</li>
               <li>${t("Abre tu bot nuevo y pulsa INICIAR.")}</li>
               <li>${t("Copia el token que te da BotFather y pégalo aquí:")}</li></ol>
             <div style="display:flex;gap:8px"><input class="campo" id="i-tg" placeholder="123456789:AAH…" autocomplete="off" style="height:46px;background:#fff">
             <button class="btn btn-negro" id="b-tg">${t("Conectar")}</button></div>`}</div>
-        <button class="btn btn-fuego" id="b-actividad" style="width:100%;margin-top:10px;height:50px">📊 ${t("Quién usa la app")}</button>
-        ${v.codigo_propio ? `<button class="btn" id="b-codigo" style="width:100%;margin-top:10px">🔑 ${t("Poner código / PIN nuevo a")} ${esc(v.nombre)}</button>` : ""}
-        <button class="btn" id="b-clave" style="width:100%;margin-top:10px">🔐 ${t("Cambiar mi contraseña")}</button>
-        <button class="btn" id="b-limpiar" style="width:100%;margin-top:10px">🧹 ${t("Limpiar la biblioteca")}</button>
+        <button class="btn btn-fuego" id="b-actividad" style="width:100%;margin-top:10px;height:50px">${t("Quién usa la app")}</button>
+        ${v.codigo_propio ? `<button class="btn" id="b-codigo" style="width:100%;margin-top:10px">${t("Poner código / PIN nuevo a")} ${esc(v.nombre)}</button>` : ""}
+        <button class="btn" id="b-clave" style="width:100%;margin-top:10px">${t("Cambiar mi contraseña")}</button>
+        <button class="btn" id="b-limpiar" style="width:100%;margin-top:10px">${t("Limpiar la biblioteca")}</button>
         <div id="limpiar-res"></div>
         <button class="btn" id="b-coach-salir" style="width:100%;margin-top:10px">${t("Quitar el modo coach en este móvil")}</button>`
       : `<div class="mini" style="margin-bottom:10px">${t("Solo para Diego: con el PIN del coach puedes cambiar los pesos y aprobar los cambios que te piden.")}</div>
         <div style="display:flex;gap:8px"><input class="campo" id="i-pin-coach" type="password" autocapitalize="off" autocomplete="off" placeholder="PIN o clave" style="height:48px;background:#fff">
         <button class="btn btn-negro" id="b-coach">${t("Activar")}</button></div>`}
     </div>
-    ${v.abono_gestion ? `<div class="caja-abono"><b>💳 ${t("Mi abono")}</b> · ${esc(t(v.abono_estado_txt || ""))}${v.abono_fin_prueba ? ` · ${t("prueba gratis hasta el")} ${esc(fechaCorta(v.abono_fin_prueba))}` : ""}${v.abono_cancela ? ` · ${t("se cancela al final del periodo")}` : ""}
+    ${v.abono_gestion ? `<div class="caja-abono"><b>${t("Mi abono")}</b> · ${esc(t(v.abono_estado_txt || ""))}${v.abono_fin_prueba ? ` · ${t("prueba gratis hasta el")} ${esc(fechaCorta(v.abono_fin_prueba))}` : ""}${v.abono_cancela ? ` · ${t("se cancela al final del periodo")}` : ""}
       <button class="btn btn-negro" id="b-portal" style="width:100%;margin-top:8px">${t("Gestionar mi abono")}</button>
       <p class="mini" style="margin:6px 2px 0">${t("Cambiar la tarjeta, ver tus facturas o darte de baja.")}</p></div>` : ""}
-    ${v.invitado ? `<button class="btn btn-fuego" id="b-objetivos" style="height:52px">🎯 ${t(v.objetivos ? "Mis objetivos" : "Hacer mi rutina a medida")}</button>` : ""}
+    ${v.invitado ? `<button class="btn btn-fuego" id="b-objetivos" style="height:52px">${t(v.objetivos ? "Mis objetivos" : "Hacer mi rutina a medida")}</button>` : ""}
     ${v.coach || v.invitado ? "" : botonAbono(v, "b-abono")}
     <div style="display:grid;grid-template-columns:1fr auto;gap:8px">
       <button class="btn btn-fuego" id="b-compartir-app">${ic.compartir} ${t("Compartir la app")}</button>
       <button class="btn btn-negro" id="b-qr" style="padding:0 18px">${ic.qr} QR</button></div>
     ${botonCreador()}
     ${v.app_antigua && v.coach ? `<a class="btn" href="${esc(v.app_antigua)}" target="_blank" rel="noopener">${t("Abrir la app de siempre")}</a>` : ""}
-    ${v.invitado ? `<div class="caja-abono caja-datos"><b>🔒 ${t("Mis datos")}</b>
+    ${v.invitado ? `<div class="caja-abono caja-datos"><b>${t("Mis datos")}</b>
       <label class="interruptor" style="margin-top:8px"><span>${t("Usar mis datos de salud (lesiones, molestias) para adaptar mi programa")}</span><input type="checkbox" id="c-salud" ${(v.consentimiento || {}).salud ? "checked" : ""}></label>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px">
         <button class="btn" id="b-mis-datos">⬇️ ${t("Descargar mis datos")}</button>
-        <button class="btn" id="b-borrar-cuenta" style="color:#C0392B">🗑️ ${t("Borrar mi cuenta")}</button></div></div>` : ""}
+        <button class="btn" id="b-borrar-cuenta" style="color:#C0392B">${t("Borrar mi cuenta")}</button></div></div>` : ""}
     <button class="btn btn-negro" id="b-salir">${t("Salir")}</button>
     ${pieLegal()}`, (h) => {
     const bo = h.querySelector("#b-objetivos"); if (bo) bo.onclick = () => hojaObjetivos(null, v.objetivos);
@@ -1997,11 +2008,11 @@ async function hojaAzar(k) {
   abrirHoja(`${cabHoja(`${p.letra ? p.letra + " · " : ""}${etqParte(p.etiqueta)}`, "🎲 " + t("Al azar"))}
     ${avisoCoach(v)}
     <div class="mini">${t("Ahora")}: ${esc(trWod(l.visto || l.texto || "").split("\n")[0].slice(0, 80) || t("por definir"))}${!l.texto && l.visto ? ` <em>(${t("sugerido")})</em>` : ""}</div>
-    <div class="az-busca"><input id="az-q" type="search" placeholder="🔎 ${t("Buscar movimiento (ej. T2B, wall balls…)")}" autocomplete="off">
+    <div class="az-busca"><input id="az-q" type="search" placeholder="${t("Buscar movimiento (ej. T2B, wall balls…)")}" autocomplete="off">
       <div class="fila-chips az-chips">${chips.map((m) => `<button class="chip" data-azmov="${esc(m)}">${esc(m)}</button>`).join("")}</div></div>
     <div class="card azar-card" id="az-card"><b id="az-nombre"></b><div class="texto-wod" id="az-texto"></div></div>
     <div class="mini" id="az-vacio" hidden>${t("No hay ideas con todo eso. Quita algún movimiento.")}</div>
-    <button class="btn" id="az-otro">🎲 ${t("Otro")}</button>
+    <button class="btn" id="az-otro">${t("Otro")}</button>
     ${alcanceHtml(est.solo)}
     ${msgCoach(v)}
     <button class="btn btn-fuego" id="az-usar">${v.puede_pesos === false ? t("Enviar a Diego para que lo apruebe") : t("Usar este")}</button>
@@ -2093,21 +2104,21 @@ async function hojaActividad() {
     ${d.desde ? "" : `<br><b>${t("Se empieza a contar desde hoy.")}</b>`}</p>
     <div class="act-totales"><div><b>${d.total_compartidos || 0}</b><span>${t("veces compartido")}</span></div>
       <div><b>${d.total_llegadas || 0}</b><span>${t("han entrado por un enlace")}</span></div>
-      <div><b>${d.llegadas_instagram || 0}</b><span>📸 ${t("desde Instagram")}</span></div></div>
-    ${d.revisiones && d.revisiones.length ? `<div class="act-pagos"><b>🕐 ${t("Programas por aprobar")} (${d.revisiones.length})</b>
+      <div><b>${d.llegadas_instagram || 0}</b><span>${t("desde Instagram")}</span></div></div>
+    ${d.revisiones && d.revisiones.length ? `<div class="act-pagos"><b>${t("Programas por aprobar")} (${d.revisiones.length})</b>
       ${d.revisiones.map((x) => `<div class="pago"><div><b>${esc(x.nombre)}</b><br><small>${x.cuestionario ? t("cuestionario respondido") : t("sin cuestionario todavía")}</small></div><button class="mini-btn" data-ir="${esc(x.atleta)}">${t("Ver")}</button></div>`).join("")}</div>` : ""}
-    ${d.propuestas && d.propuestas.length ? `<div class="act-pagos"><b>📋 ${t("Rutinas preparadas por aplicar")}</b>
+    ${d.propuestas && d.propuestas.length ? `<div class="act-pagos"><b>${t("Rutinas preparadas por aplicar")}</b>
       ${d.propuestas.map((x) => `<div class="pago"><div><b>${esc(x.nombre)}</b><br><small>${esc(x.titulo)}</small></div><button class="mini-btn" data-ir="${esc(x.atleta)}">${t("Ver")}</button></div>`).join("")}</div>` : ""}
-    ${d.abonados && d.abonados.length ? `<div class="act-pagos"><b>💳 ${t("Abonados")} (${d.abonados.filter((x) => !x.problema && x.estado).length} ${t("activos")})</b>${d.stripe ? "" : ` <small>${t("· conecta Stripe para ver su estado")}</small>`}
+    ${d.abonados && d.abonados.length ? `<div class="act-pagos"><b>${t("Abonados")} (${d.abonados.filter((x) => !x.problema && x.estado).length} ${t("activos")})</b>${d.stripe ? "" : ` <small>${t("· conecta Stripe para ver su estado")}</small>`}
       ${d.abonados.map((x) => `<div class="pago ${x.problema ? "" : "visto"}"><div><b>${esc(x.nombre)}</b> <span class="etq ${x.problema ? "aviso" : x.estado === "trialing" ? "gris" : "bien"}">${esc(t(x.estado_txt))}</span>
         <small>${t("desde")} ${esc(x.desde ? fechaCorta(x.desde) : "")}</small>${x.telefono ? `<br><a href="tel:${esc(x.telefono)}">📞 ${esc(x.telefono)}</a>` : ""}</div>
         ${x.de_demo || x.exento ? `<button class="mini-btn" data-exento="${esc(x.nombre)}" data-on="${x.exento ? "" : "1"}">${x.exento ? t("Quitar gratis") : t("Dejar gratis")}</button>` : ""}</div>`).join("")}</div>` : ""}
-    ${d.pagos && d.pagos.length ? `<div class="act-pagos"><b>🧾 ${t("Pagos por comprobar")} (${d.pagos.filter((x) => !x.visto).length})</b>
+    ${d.pagos && d.pagos.length ? `<div class="act-pagos"><b>${t("Pagos por comprobar")} (${d.pagos.filter((x) => !x.visto).length})</b>
       ${d.pagos.map((x) => `<div class="pago ${x.visto ? "visto" : ""}"><div><b>${esc(x.nombre)}</b> <small>${esc(x.hace)}${x.perfil ? " · " + t("perfil") + ": " + esc(x.perfil) : ""}</small><br>
         <a href="tel:${esc(x.telefono)}">📞 ${esc(x.telefono)}</a> · <a href="mailto:${esc(x.email)}">${esc(x.email)}</a>
         ${x.cs ? `<br><small>Stripe: ${esc(x.cs.slice(0, 24))}…</small>` : ""}</div>
         <button class="chip ${x.visto ? "on" : ""}" data-pago="${esc(x.id)}" data-visto="${x.visto ? 1 : 0}">${x.visto ? "✓ " + t("Comprobado") : t("Marcar comprobado")}</button></div>`).join("")}</div>` : ""}
-    ${d.likes && d.likes.length ? `<div class="act-altas" style="border-left-color:#e0245e"><b>❤️ ${t("WODs que más gustan")}</b>
+    ${d.likes && d.likes.length ? `<div class="act-altas" style="border-left-color:#e0245e"><b>${t("WODs que más gustan")}</b>
       ${d.likes.map((x) => `<span><b>${x.n}</b> · ${esc(x.nombre)} <small>(${esc(x.quien.join(", "))})</small></span>`).join("")}</div>` : ""}
     ${d.contactos && d.contactos.length ? `<div class="act-altas" style="border-left-color:#25D366"><b>💬 ${d.contactos.reduce((a, x) => a + x.n, 0)} ${t("veces han pulsado «Contactar»")}</b>
       <span>${d.contactos.map((x) => `${esc(x.nombre)} <small>(${x.n > 1 ? x.n + "× · " : ""}${esc(x.hace)})</small>`).join(" · ")}</span></div>` : ""}
@@ -2618,7 +2629,7 @@ async function irA(pantalla, extra = {}) {
 
 function cabeceraPantalla(pantalla) {
   const v = E.vista || {};
-  const titulo = pantalla === "prs" ? t("Mis récords") : t("Progreso");
+  const titulo = { prs: t("Mis récords"), comida: t("Comida de hoy"), analizador: t("Analizador") }[pantalla] || t("Progreso");
   const varias = (v.personas || []).length > 1;
   return `<header class="cabecera registro-cab">
     <div class="fila-cab">
@@ -2777,7 +2788,7 @@ function pintarPrs(d) {
   return `
   ${d.ultimo ? `<section class="pr-hero"><span class="pr-ico">${ic.copa.replace("currentColor", "#1F1208")}</span>
     <div><small>${t("Último PR")} · ${esc(trFecha(d.ultimo.fecha))}</small><b>${esc(d.ultimo.mov)}${d.ultimo.reps && d.ultimo.reps > 1 ? ` · ${d.ultimo.reps}RM` : ""}</b><span>${esc(d.ultimo.valor)}</span></div></section>` : ""}
-  <button class="btn btn-fuego" id="b-nuevo-pr">+ ${t("Apuntar un PR")}</button>
+  <div class="rejilla-2"><button class="btn btn-fuego" id="b-nuevo-pr">+ ${t("Apuntar un PR")}</button><button class="btn btn-analizar" id="b-analizar">${ic.video} ${t("Analizar un vídeo")}</button></div>
   ${cats.length ? `<div class="fila-chips">${cats.map((c) => `<button class="chip ${c === cat ? "on" : ""}" data-cat="${esc(c.cat)}">${esc(c.cat.replace(/^\S+\s/, ""))}</button>`).join("")}</div>
   <div class="prs">${cat.filas.map((f, i) => `<button class="pr-card" data-pr="${i}">
     <span class="n">${esc(f.mov)}${f.reps && f.reps > 1 ? ` · ${f.reps}RM` : ""}</span>
@@ -2790,6 +2801,7 @@ function pintarPrs(d) {
 
 function enlazarPantalla() {
   const d = E.datos;
+  const ban = document.getElementById("b-analizar"); if (ban) ban.onclick = () => irAnalizador();
   $app.querySelectorAll("[data-sub]").forEach((b) => b.onclick = () => { if ((E.sub || "resumen") !== b.dataset.sub) irA("progreso", { sub: b.dataset.sub }); });
   const sel = document.getElementById("sel-serie");
   if (sel) sel.onchange = () => { E.serie = sel.value; pintar(); };
@@ -2914,3 +2926,188 @@ function hojaNuevoPr() {
   }
   if (E.token) cargar(); else pintarEntrar();
 })();
+
+// ================= Comida (datos fijos, de pago) y Analizador de halterofilia =================
+ic.comida = `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 3v8M5 3v5a2 2 0 0 0 4 0V3M7 11v10M17 21V3c-2.5 1-4 3.5-4 7v3h4"/></svg>`;
+ic.video = `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="6" width="13" height="12" rx="2"/><path d="M16 10l5-3v10l-5-3z"/></svg>`;
+ic.mic = `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>`;
+const URL_ANALIZADOR = "https://analizador.djimenezapps.com/";
+
+async function irComida() {
+  E.pantalla = "comida";
+  window.scrollTo(0, 0);
+  $app.innerHTML = cabeceraPantalla("comida") + `<main><div class="vacio"><div class="cargador oscuro"></div></div></main>` + nav("comida");
+  enlazar();
+  try {
+    E.comida = await api("comida", { q: { atleta: E.atleta } });
+    if (E.pantalla === "comida") pintar();
+  } catch (e) { aviso(e.message, true); }
+}
+
+function pintarComida() {
+  const d = E.comida;
+  if (!d || d.atleta !== E.atleta) return irComida();
+  let cuerpo;
+  if (!d.acceso) {
+    cuerpo = `<section class="card muro-comida">
+      <div class="tag">${t("Comida y macros")}</div>
+      <h2 class="tit-comida">${t("Come según lo que entrenas")}</h2>
+      <ul class="lista-ventajas">
+        <li>${t("Tus calorías y macros de cada día, con tu peso, tu objetivo y tu tipo de dieta.")}</li>
+        <li>${t("Apuntas lo que comes en dos toques y ves lo que te queda.")}</li>
+        <li>${t("Ideas de desayuno, comida, merienda y cena sin lo que no comes.")}</li>
+      </ul>
+      ${d.abono ? `<button class="btn btn-fuego" id="cm-abono">${t("Abonarme para usarla")}</button>` : `<button class="btn btn-fuego" id="cm-contacto">${t("Escribir a Diego")}</button>`}
+    </section>`;
+  } else if (!d.objetivo || !d.objetivo.kcal) {
+    cuerpo = `<section class="card">
+      <div class="tag">${t("Primero, tu dieta")}</div>
+      <h2 class="tit-comida">${t("Con tu peso y tu objetivo sacamos tus macros")}</h2>
+      <button class="btn btn-fuego" id="cm-dieta">${t("Poner mi dieta")}</button>
+    </section>${d.coach ? cajaPermisoComida(d) : ""}`;
+  } else {
+    const o = d.objetivo, l = d.llevas, quedan = Math.max(0, o.kcal - l.kcal);
+    const pct = (a, b) => Math.min(100, b ? Math.round(a / b * 100) : 0);
+    let siguiente = d.comidas.findIndex((c) => !c.items.length);
+    const filas = d.comidas.map((c, i) => {
+      const est = c.items.length ? "hecha" : i === siguiente ? "toca" : "luego";
+      return `<section class="comida-fila ${est}">
+        <div class="cf-cab">
+          <span class="cf-marca">${c.items.length ? ic.ok : i === siguiente ? "!" : "·"}</span>
+          <div class="cf-txt"><b>${t(c.nombre)}</b><small>${c.items.length ? esc(c.items.map((x) => x.nombre).join(", ")) : c.idea.length ? t("Idea") + ": " + esc(c.idea.join(", ")) : ""}</small></div>
+          <span class="cf-kcal">${c.items.length ? num(c.kcal) : "≈ " + num(c.objetivo || 0)}<small> kcal</small></span>
+        </div>
+        ${c.items.length ? `<div class="cf-items">${c.items.map((x) => `<div class="cf-item"><span>${esc(x.nombre)} · ${num(x.raciones)} × ${esc(x.racion)}</span><span>${num(x.kcal)} kcal</span>${d.solo_mirar ? "" : `<button class="cf-quitar" data-cm-quitar="${esc(x.id)}" aria-label="${t("Quitar")}">×</button>`}</div>`).join("")}</div>` : ""}
+        ${d.solo_mirar ? "" : `<button class="mini-btn cf-anadir" data-cm-anadir="${c.id}">+ ${t("Añadir a")} ${t(c.nombre).toLowerCase()}</button>`}
+      </section>`;
+    }).join("");
+    cuerpo = `
+    <div class="dia-comida">
+      <button class="chip ${d.entreno ? "on" : ""}" data-cm-entreno="1">${t("Hoy entreno")}</button>
+      <button class="chip ${!d.entreno ? "on" : ""}" data-cm-entreno="0">${t("Hoy descanso")}</button>
+      <button class="chip chip-dieta" id="cm-dieta">${t("Mi dieta")}: <b>${esc(t((d.opciones.dietas || {})[d.dieta.tipo] || ""))}</b></button>
+    </div>
+    <section class="card resumen-comida">
+      <div class="rc-cab"><div><small>${t("Te quedan")}</small><b>${num(quedan)}<span> kcal</span></b></div>
+        <span class="rc-de">${num(l.kcal)} ${t("de")} ${num(o.kcal)}<br>${t("comidas")}</span></div>
+      <div class="barra-kcal"><i style="width:${pct(l.kcal, o.kcal)}%"></i></div>
+      <span class="mini">${d.entreno ? t("Día de entreno: más hidratos.") : t("Día de descanso: 300 kcal menos, todo de hidratos.")}</span>
+      <div class="macros">${[["Proteína", l.p, o.p], ["Hidratos", l.h, o.h], ["Grasa", l.g, o.g]].map(([n, a, b]) => `<div class="macro"><small>${t(n)}</small>
+        <b>${num(a)}<span> / ${num(b)} g</span></b><span class="mb"><i style="width:${pct(a, b)}%"></i></span></div>`).join("")}</div>
+    </section>
+    ${filas}
+    ${d.coach ? cajaPermisoComida(d) : ""}`;
+  }
+  $app.innerHTML = cabeceraPantalla("comida") + `<main class="pant-comida">${cuerpo}</main>` + nav("comida");
+  enlazar();
+  const on = (id, f) => { const b = document.getElementById(id); if (b) b.onclick = f; };
+  on("cm-abono", abonarse);
+  on("cm-contacto", hojaContacto);
+  on("cm-dieta", hojaDieta);
+  on("cm-permiso", () => accionComida({ accion: "permiso", valor: !d.permitido }));
+  $app.querySelectorAll("[data-cm-entreno]").forEach((b) => b.onclick = () => accionComida({ accion: "entreno", valor: b.dataset.cmEntreno === "1" }));
+  $app.querySelectorAll("[data-cm-quitar]").forEach((b) => b.onclick = () => accionComida({ accion: "quitar", id: b.dataset.cmQuitar }));
+  $app.querySelectorAll("[data-cm-anadir]").forEach((b) => b.onclick = () => hojaAlimento(b.dataset.cmAnadir));
+}
+
+function cajaPermisoComida(d) {
+  return `<section class="card caja-permiso"><span class="mini">${d.paga ? t("Este atleta tiene la comida incluida.") : t("Este atleta no paga: la comida le sale bloqueada.")}</span>
+    <button class="mini-btn" id="cm-permiso">${d.permitido ? t("Quitarle el acceso") : t("Darle acceso gratis")}</button></section>`;
+}
+
+async function accionComida(cuerpo) {
+  if (E.comida && E.comida.solo_mirar) return aviso(t("Esto es una demo: aquí solo se puede mirar."));
+  try {
+    E.comida = await api("comida", { metodo: "POST", cuerpo: { atleta: E.atleta, ...cuerpo } });
+    if (E.pantalla === "comida") pintar();
+    return true;
+  } catch (e) { aviso(e.message, true); return false; }
+}
+
+function hojaDieta() {
+  const d = E.comida, di = d.dieta || {}, op = d.opciones;
+  const sel = { objetivo: di.objetivo || "mantener", tipo: di.tipo || "equilibrada", no_come: new Set(di.no_come || []) };
+  abrirHoja(`${cabHoja(t("Tu dieta"), t("Cada atleta tiene la suya"))}
+    <label class="paso-etq" for="dt-peso">${t("Tu peso (kg)")}</label>
+    <input class="campo" id="dt-peso" type="number" inputmode="decimal" min="30" max="250" step="0.5" value="${esc(di.peso || "")}" placeholder="75">
+    <div class="paso-etq">${t("Objetivo")}</div>
+    <div class="rejilla-3">${Object.entries(op.objetivos).map(([k, v]) => `<button class="chip ${k === sel.objetivo ? "on" : ""}" data-dt-obj="${k}">${t(v)}</button>`).join("")}</div>
+    <div class="paso-etq">${t("Tipo de dieta")}</div>
+    <div class="rejilla-2">${Object.entries(op.dietas).map(([k, v]) => `<button class="chip ${k === sel.tipo ? "on" : ""}" data-dt-tipo="${k}">${t(v)}</button>`).join("")}</div>
+    <div class="paso-etq">${t("Lo que no comes")}</div>
+    <div class="fila-chips">${Object.entries(op.exclusiones).map(([k, v]) => `<button class="chip ${sel.no_come.has(k) ? "on" : ""}" data-dt-ex="${k}">${t(v)}</button>`).join("")}</div>
+    <button class="btn btn-fuego" id="dt-guardar">${t("Guardar mi dieta")}</button>`, (h) => {
+    const marcar = (attr, val) => h.querySelectorAll(`[${attr}]`).forEach((x) => x.classList.toggle("on", x.getAttribute(attr) === val));
+    h.querySelectorAll("[data-dt-obj]").forEach((b) => b.onclick = () => { sel.objetivo = b.dataset.dtObj; marcar("data-dt-obj", sel.objetivo); });
+    h.querySelectorAll("[data-dt-tipo]").forEach((b) => b.onclick = () => { sel.tipo = b.dataset.dtTipo; marcar("data-dt-tipo", sel.tipo); });
+    h.querySelectorAll("[data-dt-ex]").forEach((b) => b.onclick = () => { const k = b.dataset.dtEx; sel.no_come.has(k) ? sel.no_come.delete(k) : sel.no_come.add(k); b.classList.toggle("on", sel.no_come.has(k)); });
+    h.querySelector("#dt-guardar").onclick = async (ev) => {
+      ev.target.disabled = true;
+      const ok = await accionComida({ accion: "dieta", dieta: { peso: h.querySelector("#dt-peso").value, objetivo: sel.objetivo, tipo: sel.tipo, no_come: [...sel.no_come] } });
+      if (ok) { cerrarHoja(); aviso(t("Dieta guardada")); } else ev.target.disabled = false;
+    };
+  });
+}
+
+function hojaAlimento(comidaId) {
+  const d = E.comida, c = d.comidas.find((x) => x.id === comidaId);
+  let raciones = 1, q = "";
+  const lista = () => {
+    const n = q.trim().toLowerCase();
+    const al = d.alimentos.filter((a) => !n || a.nombre.toLowerCase().includes(n));
+    const grupos = [...new Set(al.map((a) => a.grupo))];
+    return grupos.map((g) => `<div class="paso-etq">${t(g)}</div>` + al.filter((a) => a.grupo === g).map((a) =>
+      `<button class="alimento" data-al="${a.id}"><span><b>${esc(t(a.nombre))}</b><small>${esc(a.racion)} · P ${a.p} · H ${a.h} · G ${a.g}</small></span><span class="al-kcal">${num(a.kcal * raciones)}<small> kcal</small></span></button>`).join("")).join("")
+      || `<div class="vacio">${t("No hay nada con ese nombre.")}</div>`;
+  };
+  abrirHoja(`${cabHoja(t(c.nombre), t("Añade lo que has comido"))}
+    <input class="campo" id="al-q" type="search" placeholder="${t("Buscar alimento")}" autocomplete="off">
+    <div class="rejilla-4" role="group" aria-label="${t("Raciones")}">${[0.5, 1, 1.5, 2].map((r) => `<button class="chip ${r === 1 ? "on" : ""}" data-rac="${r}">${num(r)} ${r === 1 ? t("ración") : t("raciones")}</button>`).join("")}</div>
+    <div class="lista-alimentos" id="al-lista">${lista()}</div>`, (h) => {
+    const pintarL = () => {
+      h.querySelector("#al-lista").innerHTML = lista();
+      h.querySelectorAll("[data-al]").forEach((b) => b.onclick = async () => {
+        b.disabled = true;
+        if (await accionComida({ accion: "anadir", comida: comidaId, alimento: b.dataset.al, raciones })) { cerrarHoja(); aviso(t("Apuntado")); }
+        else b.disabled = false;
+      });
+    };
+    h.querySelector("#al-q").oninput = (ev) => { q = ev.target.value; pintarL(); };
+    h.querySelectorAll("[data-rac]").forEach((b) => b.onclick = () => { raciones = +b.dataset.rac; h.querySelectorAll("[data-rac]").forEach((x) => x.classList.toggle("on", x === b)); pintarL(); });
+    pintarL();
+  });
+}
+
+function irAnalizador(lift) {
+  E.pantalla = "analizador";
+  if (lift) E.liftAn = lift;
+  window.scrollTo(0, 0);
+  pintar();
+}
+
+function pintarAnalizador() {
+  const lift = E.liftAn || "snatch";
+  $app.innerHTML = cabeceraPantalla("analizador") + `<main class="pant-analizador">
+    <div class="rejilla-3" role="group" aria-label="${t("Levantamiento")}">${["snatch", "clean", "jerk"].map((l) => `<button class="chip ${l === lift ? "on" : ""}" data-lift="${l}">${l[0].toUpperCase() + l.slice(1)}</button>`).join("")}</div>
+    <section class="card an-pasos">
+      ${[[t("Graba de lado"), t("Un solo levantamiento, de 3 a 15 segundos.")],
+         [t("Sube el vídeo"), t("La app sigue la barra y tu posición. El vídeo no sale de tu móvil.")],
+         [t("Mira qué corregir"), t("Las fases clave en verde o amarillo y ejercicios para mejorar.")]].map(([a, b], i) =>
+        `<div class="an-paso"><span class="an-n">${i + 1}</span><div><b>${a}</b><small>${b}</small></div></div>`).join("")}
+    </section>
+    <section class="card an-precio"><b>${t("3 análisis gratis")}</b><span class="mini">${t("Después, análisis ilimitados por 4,99 € al mes. Entras con tu email, sin contraseña.")}</span></section>
+    <a class="btn btn-fuego" id="an-abrir" href="${URL_ANALIZADOR}?lift=${lift}" target="_blank" rel="noopener">${ic.video} ${t("Analizar mi")} ${lift[0].toUpperCase() + lift.slice(1)}</a>
+  </main>` + nav("prs");
+  enlazar();
+  $app.querySelectorAll("[data-lift]").forEach((b) => b.onclick = () => { E.liftAn = b.dataset.lift; pintar(); });
+}
+
+function liftDe(ej) {  // los levantamientos que entiende el analizador (no los de potencia ni los tirones)
+  const n = String(ej || "").toLowerCase();
+  if (/pull|tir[oó]n|balance|high hang|press|push press|deadlift|squat(?!.*snatch)|muscle/.test(n) && !/^(snatch|clean|jerk)/.test(n)) return null;
+  if (/\bsnatch\b|arrancada/.test(n)) return "snatch";
+  if (/clean ?(&|and|y) ?jerk|dos tiempos/.test(n)) return "clean";
+  if (/\bclean\b|cargada/.test(n)) return "clean";
+  if (/\bjerk\b/.test(n)) return "jerk";
+  return null;
+}
