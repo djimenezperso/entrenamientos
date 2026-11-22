@@ -3014,6 +3014,10 @@ def vista(sesion: dict, atleta: str | None, semana: int | None, dia_id: str | No
         for l in p_["lineas"]:
             if rut.get("elige_dias") and l.get("extra") and l["extra"].get("texto") == "solo esta semana":
                 l["extra"] = None  # programa propio: todo lo que escribe es de esa semana, no hace falta avisarlo
+            if rut.get("elige_dias"):  # programa propio: ni versiones por nivel, ni la ayuda una vez escrito
+                l.pop("versiones_nivel", None)
+                if l.get("texto"):
+                    l["nota"] = ""
             u = ultimos.get(norm(l["ejercicio"]))
             if u and not _ultimo_sin_sentido(l, u):
                 l["ultimo"] = u

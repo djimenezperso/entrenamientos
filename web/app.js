@@ -18,6 +18,8 @@ const E = { token: mem.get("token"), atleta: mem.get("atleta"), lang: mem.get("l
 
 // ---------- textos ----------
 const FR = {
+  "Te queda por preparar": "Il te reste à préparer", "y": "et", "Elegir mis días": "Choisir mes jours", "Mis días": "Mes jours",
+  "Prepárala y dale a ✅ Semana lista. Si no, sale la progresión automática.": "Prépare-la et appuie sur ✅ Semaine prête. Sinon, c'est la progression automatique.",
   "Importar mis entrenos": "Importer mes entraînements", "Importar": "Importer",
   "Pega aquí tu mensaje de WhatsApp o tu nota, o dale al micro y cuéntalo. Si pones los días (Lunes, Martes…), cada entreno va a su día; si no, va al día que tienes abierto.": "Colle ici ton message WhatsApp ou ta note, ou appuie sur le micro et raconte-le. Si tu mets les jours (Lundi, Mardi…), chaque entraînement va à son jour ; sinon, il va au jour ouvert.",
   "Lunes\nA) Back squat 5x5\nB) AMRAP 12': 10 wall balls, 10 burpees\nJueves\n…": "Lundi\nA) Back squat 5x5\nB) AMRAP 12' : 10 wall balls, 10 burpees\nJeudi\n…",
@@ -564,7 +566,7 @@ function pintarEntrar(paso = {}) {
         nombre: cuerpo.nombre, pin: cuerpo.pin });
       E.token = r.token; mem.set("token", r.token);
       if (r.solo) { E.atleta = r.solo; mem.set("atleta", r.solo); }
-      if (!r.demo && !mem.get("lang_elegido")) { E.lang = r.lang || E.lang; mem.set("lang", E.lang); }
+      if (!r.demo && !mem.get("lang_elegido")) { E.lang = r.lang || (r.coach && !r.solo ? IDIOMA_MOVIL : E.lang); mem.set("lang", E.lang); }  // si antes entraste como un atleta en francés, el coach vuelve a su idioma
       await cargar();
     } catch (e) {
       err.textContent = e.message; err.hidden = false; boton.disabled = false;
@@ -1120,7 +1122,7 @@ function cabecera(v) {
     ${v.wods_repetidos && v.wods_repetidos.length ? `<div class="banda-abono" style="background:#FFF1D6"><span>🔁 <b>${t("WODs repetidos de la semana anterior")}</b>: ${v.wods_repetidos.map((d) => esc(trDia(d))).join(" · ")}</span></div>` : ""}
     ${v.por_preparar && !v.por_preparar.length ? `<div class="plan-ok">${t("Planificación al día: tienes listas las 2 semanas siguientes de todos")}</div>` : ""}
     ${v.por_preparar && v.por_preparar.length ? `<div class="propuesta plan-pend"><b>${t("Te queda por preparar")}</b>
-      <div class="fila-chips">${Object.values(v.por_preparar.reduce((m, x) => { (m[x.atleta] = m[x.atleta] || []).push(x); return m; }, {})).map((g) => `<button class="chip ${g[0].urgente ? "urgente" : ""}" data-preparar="${esc(g[0].atleta)}|${g[0].semana}"><b>${esc(g[0].nombre)}</b><small>${t("Semana")} ${g.map((x) => x.semana).join(" y ")}</small></button>`).join("")}</div>
+      <div class="fila-chips">${Object.values(v.por_preparar.reduce((m, x) => { (m[x.atleta] = m[x.atleta] || []).push(x); return m; }, {})).map((g) => `<button class="chip ${g[0].urgente ? "urgente" : ""}" data-preparar="${esc(g[0].atleta)}|${g[0].semana}"><b>${esc(g[0].nombre)}</b><small>${t("Semana")} ${g.map((x) => x.semana).join(" " + t("y") + " ")}</small></button>`).join("")}</div>
       <small>${t("Prepárala y dale a ✅ Semana lista. Si no, sale la progresión automática.")}</small></div>` : ""}
     ${v.propuesta ? `<div class="propuesta"><b>${t("Rutina nueva preparada para")} ${esc(v.nombre)}</b>
       <small>${esc(v.propuesta.titulo)}</small>
@@ -1145,8 +1147,8 @@ function cabecera(v) {
       return `<button class="dia ${d.id === v.dia.id ? "on" : ""} ${d.bloqueado ? "bloq" : ""} est-${esc(d.estado || "nada")}" role="tab" aria-selected="${d.id === v.dia.id}" data-dia="${esc(d.id)}" ${d.bloqueado ? 'data-bloq="1"' : ""} aria-label="${esc(trDia(d.nombre))}${d.bloqueado ? " 🔒" : ""}">
         <small>${d.opcional ? "Opc." : /\d/.test(d.nombre) ? `D${esc(n)}` : esc(trDia(d.nombre).slice(0, 3))}</small>${d.bloqueado ? '<span class="candado">🔒</span>' : `<span class="punto ${d.estado}"></span>`}${d.pendientes ? '<span class="pend"></span>' : ""}</button>`;
     }).join("")}</div>` : ""}
-    ${v.elige_dias && !v.demo ? `<div class="fila-propio"><button class="mini-btn elige-dias" id="b-elige-dias">📅 ${v.dias_sin_elegir ? t("¿Qué días vienes esta semana?") : t("Mis días de esta semana")}</button>
-      <button class="mini-btn elige-dias" id="b-importar">📥 ${t("Importar mis entrenos")}</button></div>` : ""}
+    ${v.elige_dias && !v.demo ? `<div class="fila-propio"><button class="mini-btn elige-dias" id="b-elige-dias">📅 ${v.dias_sin_elegir ? t("Elegir mis días") : t("Mis días")}</button>
+      <button class="mini-btn elige-dias" id="b-importar">📥 ${t("Importar")}</button></div>` : ""}
   </header>`;
 }
 

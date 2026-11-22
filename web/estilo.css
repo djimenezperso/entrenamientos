@@ -1013,3 +1013,4 @@ body, body:not(.x) { background: var(--fondo); }
 
 .fila-propio { display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; margin-top: 8px; }
 .fila-propio .elige-dias { margin: 0; flex: 1 1 0; min-width: 0; }
+.fila-propio .elige-dias { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; height: 40px; }
