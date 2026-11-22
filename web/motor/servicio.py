@@ -2954,7 +2954,8 @@ def vista(sesion: dict, atleta: str | None, semana: int | None, dia_id: str | No
     nivel = rut.get("nivel") or NIVEL_DEFECTO.get(atleta, "Inter")
     if demo:
         nivel = DEMO_NIVEL.get(atleta, nivel)  # Débutant y Maison en Scaled, Renforcement en Inter
-    sugs = sugerencias(rut, semana, wods_de_diego(rutina("Yo", guardadas))) if alumno else {}
+    # programa propio (elige_dias, p. ej. Wendy): sus días van en blanco, sin WODs de Diego sugeridos
+    sugs = sugerencias(rut, semana, wods_de_diego(rutina("Yo", guardadas))) if alumno and not rut.get("elige_dias") else {}
 
     dias = []
     # un día que esta semana no tiene nada (p. ej. se fusionó con otro) no sale; uno sin líneas aún (perfil nuevo), sí

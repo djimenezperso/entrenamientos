@@ -985,3 +985,10 @@ body, body:not(.x) { background: var(--fondo); }
 .elige-dias { display: block; margin: 8px auto 0; }
 .elige-chips { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; margin: 14px 0 18px; }
 .elige-chips .chip { flex: 1 1 calc(33% - 8px); }
+
+.mn-receta { margin-bottom: 8px; height: auto; min-height: 44px; padding: 10px 14px; font-size: 14px; }
+.rc-datos { display: flex; flex-wrap: wrap; gap: 6px; margin: 6px 0 12px; }
+.rc-datos span { background: var(--sup, #f3f3f3); border-radius: 999px; padding: 4px 10px; font-size: 13px; }
+.rc-pasos { margin: 0 0 14px; padding-left: 22px; line-height: 1.5; }
+.rc-pasos li { margin-bottom: 6px; }
+.rc-inspira { display: block; text-align: center; margin: 10px auto 4px; text-decoration: none; }

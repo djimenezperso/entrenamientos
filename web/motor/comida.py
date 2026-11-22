@@ -9,6 +9,7 @@ from __future__ import annotations
 import datetime as dt
 import uuid
 
+import recetas
 import servicio as s
 
 PREFIJO = "__comida__·"
@@ -264,7 +265,8 @@ def _escalar(op: list[str], cid: str, meta_kcal: float, meta_p: float, ex: set[s
             items.append({"comida": cid, "alimento": extra, "raciones": max(.5, min(2, round((meta_p - p) / ALIMENTOS[extra][3] * 2) / 2))})
     for it in items:
         it.update(_sumar([it]), nombre=ALIMENTOS[it["alimento"]][0], cantidad=_cantidad(it["alimento"], it["raciones"]), grupo=ALIMENTOS[it["alimento"]][6])
-    return {"items": items, **_sumar(items), "titulo": ", ".join(ALIMENTOS[a][0] for a in op[:2])}
+    return {"items": items, **_sumar(items), "titulo": ", ".join(ALIMENTOS[a][0] for a in op[:2]),
+            "receta": recetas.receta(op, items)}
 
 
 def plan_dia(dieta: dict, obj: dict) -> list[dict]:

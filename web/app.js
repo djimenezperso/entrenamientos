@@ -18,6 +18,8 @@ const E = { token: mem.get("token"), atleta: mem.get("atleta"), lang: mem.get("l
 
 // ---------- textos ----------
 const FR = {
+  "Ver receta": "Voir la recette", "Ingredientes (ya ajustados a ti)": "Ingrédients (déjà adaptés à toi)", "Cómo se hace": "Préparation",
+  "Copiar la lista de la compra": "Copier la liste de courses", "Inspírate: más versiones con sus calorías": "Inspire-toi : d'autres versions avec leurs calories",
   "¿Qué días vienes esta semana?": "Quels jours tu viens cette semaine ?", "Mis días de esta semana": "Mes jours cette semaine",
   "Solo verás esos días. En cada uno escribes lo que vas a hacer.": "Tu ne verras que ces jours-là. Dans chacun, tu écris ce que tu vas faire.",
   "Elige al menos un día": "Choisis au moins un jour", "Días guardados ✅": "Jours enregistrés ✅",
@@ -1184,7 +1186,7 @@ function corto(o) {
   if (o.clave === "semana" && /^Semana \d+$/.test(o.texto)) return "→ S" + o.texto.match(/\d+/)[0];
   const [dia, sem] = o.texto.split(" · ");
   const n = (dia.match(/\d+/) || [])[0];
-  return "→ " + (n ? "D" + n : dia.slice(0, 6)) + (sem ? " " + sem : "");
+  return "→ " + (n ? "D" + n : trDia(dia).slice(0, 6)) + (sem ? " " + sem : "");
 }
 
 const videoHtml = (l, k) => l.video ? `<button class="mini-btn video-btn" data-video="${k}">▶️ ${t("Ver vídeo de técnica")}</button>`
@@ -3043,6 +3045,10 @@ function pintarComida() {
     let tm; car.addEventListener("scroll", () => { clearTimeout(tm); tm = setTimeout(() => marcar(Math.round(car.scrollLeft / car.clientWidth)), 60); }, { passive: true });
     caja.querySelectorAll("[data-mn-op]").forEach((b) => b.onclick = () => { const i = +b.dataset.mnOp.split("|")[1]; car.scrollTo({ left: i * car.clientWidth, behavior: "smooth" }); marcar(i); });
   });
+  $app.querySelectorAll("[data-mn-receta]").forEach((b) => b.onclick = () => {
+    const [mid, k] = b.dataset.mnReceta.split("|"), m = (d.plan || []).find((x) => x.id === mid), op = m && m.opciones[+k || 0];
+    if (op && op.receta) hojaReceta(op, mid, +k || 0);
+  });
   $app.querySelectorAll("[data-mn-apuntar]").forEach((b) => b.onclick = () => {
     const [mid, k] = b.dataset.mnApuntar.split("|"), m = (d.plan || []).find((x) => x.id === mid), op = m && m.opciones[+k || 0];
     if (op) { E.menuAbierto = null; accionComida({ accion: "anadir_varios", items: op.items }).then((ok) => ok && aviso(t("Apuntado"))); }
@@ -3254,11 +3260,35 @@ function bloqueMenu(d, m) {  // opciones en carrusel: se cambian deslizando o to
       <div class="mn-plato">${platoSVG(op.items)}<div class="mn-kcal"><b>${num(op.kcal)}</b><span>kcal</span>
         <div class="mn-macros"><span>P ${num(op.p)} g</span><span>H ${num(op.h)} g</span><span>G ${num(op.g)} g</span></div></div></div>
       <ul class="mn-items">${op.items.map((x) => `<li><span><i class="pg" style="background:${COLOR_GRUPO[x.grupo] || "#A0703C"}"></i>${esc(t(x.nombre))}</span><b>${esc(trRacion(x.cantidad))}</b></li>`).join("")}</ul>
+      ${op.receta ? `<button class="btn mn-receta" data-mn-receta="${m.id}|${k}">👩‍🍳 ${t("Ver receta")} · ${esc(E.lang === "fr" ? op.receta.nombre_fr : op.receta.nombre)}</button>` : ""}
       ${d.solo_mirar ? "" : `<button class="btn btn-fuego" data-mn-apuntar="${m.id}|${k}">${t("Apuntar esta opción")}</button>`}
     </div>`).join("")}</div>
     <div class="mn-puntos" aria-hidden="true">${m.opciones.map((_, k) => `<i class="${k === i ? "on" : ""}"></i>`).join("")}</div>
     <p class="mini aviso-salud">${t("Orientativo y con datos fijos: no sustituye a un dietista-nutricionista.")}</p>
   </div>`;
+}
+
+// receta de una opción del menú: los ingredientes salen con las cantidades de su plan (ya cuadran con sus calorías)
+function hojaReceta(op, mid, k) {
+  const r = op.receta, fr = E.lang === "fr";
+  const lista = op.items.map((x) => `${t(x.nombre)}: ${trRacion(x.cantidad)}`);
+  abrirHoja(`<h3>👩‍🍳 ${esc(fr ? r.nombre_fr : r.nombre)}</h3>
+    <div class="rc-datos"><span>⏱ ${r.minutos} min</span><span><b>${num(op.kcal)}</b> kcal</span><span>P ${num(op.p)} g</span><span>H ${num(op.h)} g</span><span>G ${num(op.g)} g</span></div>
+    <p class="paso-etq">🛒 ${t("Ingredientes (ya ajustados a ti)")}</p>
+    <ul class="mn-items">${op.items.map((x) => `<li><span><i class="pg" style="background:${COLOR_GRUPO[x.grupo] || "#A0703C"}"></i>${esc(t(x.nombre))}</span><b>${esc(trRacion(x.cantidad))}</b></li>`).join("")}</ul>
+    <p class="paso-etq">${t("Cómo se hace")}</p>
+    <ol class="rc-pasos">${(fr ? r.pasos_fr : r.pasos).map((p) => `<li>${esc(p)}</li>`).join("")}</ol>
+    <button class="btn" id="rc-compra">🛒 ${t("Copiar la lista de la compra")}</button>
+    ${E.comida && !E.comida.solo_mirar ? `<button class="btn btn-fuego" id="rc-apuntar">${t("Apuntar esta opción")}</button>` : ""}
+    <a class="mini-btn rc-inspira" href="${esc(fr ? r.inspira_fr : r.inspira)}" target="_blank" rel="noopener">💡 ${t("Inspírate: más versiones con sus calorías")}</a>
+    <p class="mini aviso-salud">${t("Orientativo y con datos fijos: no sustituye a un dietista-nutricionista.")}</p>`, (h) => {
+    h.querySelector("#rc-compra").onclick = async () => {
+      const txt = `🛒 ${fr ? r.nombre_fr : r.nombre}\n` + lista.map((x) => "• " + x).join("\n");
+      try { if (navigator.share) await navigator.share({ text: txt }); else { await navigator.clipboard.writeText(txt); aviso(t("Copiado. Pégalo donde quieras")); } } catch (e) { /* cancelado */ }
+    };
+    const ap = h.querySelector("#rc-apuntar");
+    if (ap) ap.onclick = () => { cerrarHoja(); E.menuAbierto = null; accionComida({ accion: "anadir_varios", items: op.items }).then((ok) => ok && aviso(t("Apuntado"))); };
+  });
 }
 
 const COLOR_GRUPO = { "Proteína": "#FF7A1F", "Cereales": "#F2C14E", "Fruta y verdura": "#3FB37F", "Lácteos": "#E8D8C0", "Grasas": "#A0703C", "Otros": "#C9775A" };
