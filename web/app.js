@@ -2512,7 +2512,7 @@ function pintarCrono() {
   <div class="crono-cab ${d.fase === "descanso" ? "descanso" : ""}">
     <div class="crono-barra">
       <button class="redondo oscuro" id="c-cerrar" aria-label="Cerrar">${ic.izq.replace(/#FFB400/g, "#fff")}</button>
-      <span class="crono-donde">${l ? `${esc(E.vista.dia ? E.vista.dia.nombre : "")}${p.letra ? " · " + t("Parte") + " " + esc(p.letra) : ""}` : "Djimenez Prog"}</span>
+      <span class="crono-donde">${l ? `${esc(E.vista.dia ? trDia(E.vista.dia.nombre) : "")}${p.letra ? " · " + t("Parte") + " " + esc(p.letra) : ""}` : "Djimenez Prog"}</span>
       <span class="crono-total" title="${t("Tiempo total")}">${!parado && (s.modo === "emom" || s.modo === "tabata") ? `<span id="c-total">${fmtSeg(transcurrido() / 1000)}</span>` : ""}</span>
     </div>
     <div class="crono-tit">
