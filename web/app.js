@@ -504,7 +504,7 @@ function pintarEntrar(paso = {}) {
         <label for="i-nombre">${t("Tu nombre")}</label>
         <input class="campo" id="i-nombre" autocomplete="given-name" value="${esc(paso.nombre || "")}" required>
         <label for="i-pin">${t("Tu PIN (4 cifras o más)")}</label>
-        <input class="campo" id="i-pin" type="password" inputmode="numeric" autocomplete="off" value="${esc(paso.pin || "")}" required>
+        <input class="campo" id="i-pin" type="password" autocomplete="off" autocapitalize="off" value="${esc(paso.pin || "")}" required>
         ${paso.nuevo ? `<span style="font-weight:600;font-size:14px">${t("¿Con qué rutina empiezas?")}</span>
           <div class="opciones-radio">${Object.entries(paso.plantillas || {}).map(([k, v], i) =>
             `<label class="interruptor"><span>${esc(v)}</span><input type="radio" name="plantilla" value="${esc(k)}" ${i === 0 ? "checked" : ""}></label>`).join("")}</div>

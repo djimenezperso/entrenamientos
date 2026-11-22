@@ -1240,7 +1240,8 @@ def borrar_cuenta(sesion: dict, c: dict) -> dict:
 # perfiles que Diego ha pedido crear (se crean una vez, al abrir él la app). Sin PIN: Diego se lo pone con 🔑.
 CREAR_PERFILES = [{"nombre": "Manu Villalobos", "rutina": "manu_villalobos", "lang": "es"},
                   # Wendy: gratis, con comida, y su propio espacio (pone ella su programa y elige qué días viene)
-                  {"nombre": "Wendy", "rutina": "wendy", "lang": "fr", "propio": True}]
+                  {"nombre": "Wendy", "rutina": "wendy", "lang": "fr", "propio": True,
+                   "pin_hash": "89106702c7c9a197023651e65745afe604545d9919d396e48464ddf4ff2429f5"}]
 
 
 def _crear_pedidos(inv: dict) -> dict:
@@ -1248,10 +1249,15 @@ def _crear_pedidos(inv: dict) -> dict:
     reg = dict(inv)
     for x in CREAR_PERFILES:
         if x["nombre"] in reg or norm_busqueda(x["nombre"]) in {norm_busqueda(n) for n in reg}:
+            if x.get("pin_hash") and x["nombre"] in reg and not reg[x["nombre"]].get("pin"):
+                reg[x["nombre"]] = {**reg[x["nombre"]], "pin": x["pin_hash"]}  # ya creado sin PIN: se le pone el pedido
+                hechos.append(x["nombre"])
             continue
         rut = getattr(_propuestas, x["rutina"])()
         reg[x["nombre"]] = {"pin": "", "alta": dt.date.today().isoformat(), "aprobado": dt.date.today().isoformat(),
                             "origen": "coach", "lang": x.get("lang", "es"), **({"exento": True} if x.get("propio") else {})}
+        if x.get("pin_hash"):
+            reg[x["nombre"]]["pin"] = x["pin_hash"]
         if x.get("propio"):  # su propio programa: lo escribe ella, y la comida desbloqueada sin abono
             rut = dict(rut, permiso_pesos=True)
             datos().guardar("__comida__·" + x["nombre"], {"permitido": True})
