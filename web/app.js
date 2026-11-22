@@ -143,7 +143,9 @@ const FR = {
   "caducado": "expiré",
   "pausado": "en pause",
   "sin comprobar": "non vérifié",
-  "Prog Competidor · Diego": "Prog Compétiteur · Diego",
+  "Prog Competidor · Diego": "Prog Compétiteur · Diego", "Prog Box · Diego": "Prog Box · Diego", "Motor": "Moteur",
+  "Back squat: +10 kg en 6 semanas": "Back squat : +10 kg en 6 semaines", "Las cargas suben cada semana. Sigue así.": "Les charges montent chaque semaine. Continue comme ça.",
+  "Motor: una sesión más": "Moteur : une séance de plus", "Añade un WOD corto esta semana para el cardio.": "Ajoute un WOD court cette semaine pour le cardio.",
   "Prog Casa y Movilidad": "Prog Maison & Mobilité",
   "Prog Principiante": "Prog Débutant",
   "Prog Fuerza + WOD": "Prog Renforcement Force",
@@ -1158,7 +1160,7 @@ function cabecera(v) {
 }
 
 const MOBILITY = ["movilidad", "mobilidad", "mobilité", "mobilite", "mobility", "estiramientos", "stretching"];
-const ETIQUETA_FR = { "fuerza": "Force" };
+const ETIQUETA_FR = { "motor": "Moteur", "fuerza": "Force" };
 const etqParte = (x) => {
   const k = String(x || "").trim().toLowerCase();
   if (MOBILITY.includes(k)) return "Mobility";  // en todos los perfiles e idiomas
@@ -2777,14 +2779,14 @@ function graficaSemanas(sem) {
           ? `<path d="M${cx - bw / 2},${y0 + h0} V${y0 + r} Q${cx - bw / 2},${y0} ${cx - bw / 2 + r},${y0} H${cx + bw / 2 - r} Q${cx + bw / 2},${y0} ${cx + bw / 2},${y0 + r} V${y0 + h0} Z" fill="${tp.color}"/>`
           : `<rect x="${cx - bw / 2}" y="${y0}" width="${bw}" height="${Math.max(0, h0)}" fill="${tp.color}"/>`;
       }).join("");
-      const detalle = sem.tipos.filter((tp) => tp.n[i]).map((tp) => `${tp.n[i]} ${tp.nombre}`).join(", ") || t("sin entrenos");
+      const detalle = sem.tipos.filter((tp) => tp.n[i]).map((tp) => `${tp.n[i]} ${t(tp.nombre)}`).join(", ") || t("sin entrenos");
       return `<g class="pt" data-tip="${t("Semana del")} ${lu}: ${esc(detalle)}">
         <rect x="${cx - ancho / 2}" y="${T - 10}" width="${ancho}" height="${H - T - B + 10}" fill="transparent"/>
         ${seg}${tot[i] ? `<text x="${cx}" y="${H - B - alto(tot[i]) - 5}" class="eje fuerte" text-anchor="middle">${tot[i]}</text>` : ""}
         <text x="${cx}" y="${H - 7}" class="eje ${i === n - 1 ? "fuerte" : ""}" text-anchor="middle">${lu}</text></g>`;
     }).join("")}
   </svg>
-  <div class="leyenda">${sem.tipos.map((tp) => `<span><i style="background:${tp.color}"></i>${esc(tp.nombre)}</span>`).join("")}</div>`;
+  <div class="leyenda">${sem.tipos.map((tp) => `<span><i style="background:${tp.color}"></i>${esc(t(tp.nombre))}</span>`).join("")}</div>`;
 }
 
 const ICONO_NIVEL = { bueno: ["ok", "bien"], malo: ["x", "mal"], aviso: ["aviso", "aviso"], info: ["info", "info"], tipo: ["info", "info"] };
@@ -2802,7 +2804,7 @@ function pintarProgreso(d) {
   ${k.total ? `<section class="card"><div class="lbl" style="margin:0">${t("Entrenos por semana")}</div>${graficaSemanas(d.semanas)}</section>` : ""}
   ${d.consejos.length ? `<section class="card"><div class="lbl" style="margin:0">${t("Dónde mejorar")}</div>
     <div class="consejos">${d.consejos.map((c) => `<div class="consejo ${ICONO_NIVEL[c.nivel][1]}"><span class="c-ico">${icNivel(c.nivel)}</span>
-      <div><b>${esc(c.titulo)}</b><span>${esc(c.detalle)}</span></div></div>`).join("")}</div></section>` : ""}
+      <div><b>${esc(t(c.titulo))}</b><span>${esc(t(c.detalle))}</span></div></div>`).join("")}</div></section>` : ""}
   ${sel ? `<section class="card">
     <div class="lbl" style="margin:0">${t("Progresión por ejercicio")}</div>
     <select class="campo sel-serie" id="sel-serie" aria-label="${t("Ejercicio")}">${d.series.map((s) => `<option value="${esc(s.key)}" ${s.key === sel.key ? "selected" : ""}>${esc(s.nombre)} (${esc(s.unidad)}) · ${s.n}</option>`).join("")}</select>

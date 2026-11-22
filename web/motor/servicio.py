@@ -1463,7 +1463,7 @@ def _login_perfil(cuerpo: dict) -> dict:
 DEMO_ACCESSORY = [("GHD lateral crunch", "4x10 por lado")]  # C del día 2 de la demo: un solo ejercicio, 4 series
 # nombre e icono de cada rutina en la demo (el francés lo pone la app)
 CUESTIONARIO_DESDE = "2026-10-15"  # perfiles nuevos desde esta fecha: les sale el cuestionario de objetivos (pagando o no)
-NOMBRES_DEMO = {"Yo": ("Prog Competidor · Diego", "🏆"), "Archchana": ("Prog Casa y Movilidad", "🏠"),
+NOMBRES_DEMO = {"Yo": ("Prog Box · Diego", "🏆"), "Archchana": ("Prog Casa y Movilidad", "🏠"),
                 "Manu Anel": ("Prog Principiante", "🌱"), "Salatti": ("Prog Fuerza + WOD", "💪")}
 DEMO_PESOS_YO = [(r"pull", 150), (r"clean", 110), (r"^power snatch$", 80), (r"^snatch$", 85)]  # demo · Prog Competidor: pesos de muestra
 DEMO_NIVEL = {"Manu Anel": "Scaled", "Archchana": "Scaled", "Salatti": "Inter"}
@@ -2692,6 +2692,33 @@ def _novedad_a_su_nivel(x: dict, nivel: str, atleta: str = "") -> dict:
     return {**x, "texto": escalar(txt, nivel) if nivel != "RX" else txt}
 
 
+# Demo «Yo» (la del enlace de Instagram): día 2 comercial, como en el reel — fuerza básica, motor sencillo, core
+DEMO_YO_FUERZA = {"power snatch": ("Back squat", "5x5", 80), "squat clean": ("Front squat", "4x4", 65),
+                  "clean pull": ("Romanian deadlift", "4x8", 70)}
+DEMO_YO_WOD = ("Swing & Run", "AMRAP 20': 12 KB swings 24/16 kg, 10 box jumps, 200 m run")
+DEMO_YO_C = ("Gainage", "4x: 40'' plank · 15 sit-ups · 1' rest")
+
+
+def _demo_yo_comercial(partes: list[dict], nivel: str) -> None:
+    for p in partes:
+        letra = (p.get("letra") or "").upper()
+        for l in p["lineas"]:
+            n = norm_busqueda(l.get("ejercicio", ""))
+            if n in DEMO_YO_FUERZA:
+                nom, esq, kg = DEMO_YO_FUERZA[n]
+                l.update(ejercicio=nom, esquema=esq, pesos=[float(kg)] * max(1, len(l.get("pesos") or [1])),
+                         texto=f"{esq} @{fmt_num(kg)}", texto_sig=f"{esq} @{fmt_num(kg + 2.5)}")
+            elif letra == "B" and l.get("kind") == "texto":
+                nom, txt = DEMO_YO_WOD
+                l.update(ejercicio=nom, texto=txt, visto=txt if nivel == "RX" else escalar(txt, nivel),
+                         versiones_nivel={x: escalar(txt, x) for x in NIVELES}, elite=None)
+            elif letra == "C" and l.get("kind") == "texto":
+                nom, txt = DEMO_YO_C
+                l.update(ejercicio=nom, texto=txt, visto=txt)
+        if letra == "B":
+            p["etiqueta"] = "Motor"
+
+
 DEMO_FIJAS = {"Yo": _rutina_base_yo, "Manu Anel": _manu, "Salatti": _salatti, "Archchana": _archchana}
 
 
@@ -2802,6 +2829,16 @@ def _rellenar_demo(partes: list[dict], dia_id: str, semana: int, nivel: str, num
                 l["solo_bloque"] = False
         if vacias and letra in ("B", "C"):
             p["es_cambio"] = False
+
+
+
+_rellenar_demo_base = _rellenar_demo
+
+
+def _rellenar_demo(partes: list[dict], dia_id: str, semana: int, nivel: str, numero: int = 1, atleta: str = "") -> None:
+    _rellenar_demo_base(partes, dia_id, semana, nivel, numero, atleta)
+    if atleta == "Yo" and numero == 2:
+        _demo_yo_comercial(partes, nivel)
 
 
 def vista(sesion: dict, atleta: str | None, semana: int | None, dia_id: str | None) -> dict:
@@ -4227,7 +4264,28 @@ def _pct_partes(atleta: str) -> int | None:
     return round(hechas / total * 100) if total else None
 
 
+def _progreso_demo(sesion: dict, atleta: str) -> dict:
+    """Progreso de muestra para la demo «Yo» (enlace de Instagram): back squat subiendo semana a semana."""
+    hoy = dt.date.today()
+    fechas = [hoy - dt.timedelta(days=7 * k + 3) for k in range(5, -1, -1)]
+    kgs = [75, 77.5, 80, 80, 82.5, 85]
+    pts = [{"f": f.isoformat(), "v": v, "txt": fmt_valor(v, "kg")} for f, v in zip(fechas, kgs)]
+    lunes = [hoy - dt.timedelta(days=hoy.weekday() + 7 * k) for k in range(6, -1, -1)]
+    return {"atleta": atleta, "nombre": nombre_demo(atleta),
+            "kpis": {"mes": 14, "partes": 92, "seguidas": 6, "total": 40},
+            "consejos": [{"nivel": "bueno", "titulo": "Back squat: +10 kg en 6 semanas", "detalle": "Las cargas suben cada semana. Sigue así."},
+                         {"nivel": "info", "titulo": "Motor: una sesión más", "detalle": "Añade un WOD corto esta semana para el cardio."}],
+            "series": [{"key": "back squat", "nombre": "Back squat", "unidad": "kg", "n": len(pts),
+                        "mejor": {"txt": pts[-1]["txt"], "fecha": pts[-1]["f"]}, "ultima": {"txt": pts[-1]["txt"], "fecha": pts[-1]["f"]},
+                        "pct": round((kgs[-1] - kgs[0]) / kgs[0] * 100, 1), "pts": pts}],
+            "semanas": {"lunes": [f"{l.day}/{l.month}" for l in lunes],
+                        "tipos": [{"tipo": "fuerza", "nombre": TIPOS["fuerza"][0] if "fuerza" in TIPOS else "Fuerza", "color": COLOR_TIPO.get("fuerza", "#FF7A1F"), "n": [2, 2, 3, 2, 3, 3, 3]},
+                                  {"tipo": "wod", "nombre": TIPOS["wod"][0] if "wod" in TIPOS else "WOD", "color": COLOR_TIPO.get("wod", "#F2C14E"), "n": [1, 2, 1, 2, 2, 2, 2]}]}}
+
+
 def progreso(sesion: dict, atleta: str) -> dict:
+    if es_demo(sesion) and atleta == "Yo":
+        return _progreso_demo(sesion, atleta)
     ws = _entrenos_de(sesion, atleta)
     hoy = dt.date.today()
     series = []
