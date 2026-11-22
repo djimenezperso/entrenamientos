@@ -114,6 +114,7 @@ details summary{cursor:pointer;color:var(--ink);font-size:14px;font-weight:600}
 .qrbox{background:#fff;border-radius:16px;padding:10px;width:min(300px,72vw);margin:12px auto}.qrbox svg{display:block;width:100%;height:auto}
 canvas,.stage,.nosel{-webkit-user-select:none;user-select:none;-webkit-touch-callout:none;-webkit-tap-highlight-color:transparent}
 .hidden{display:none!important}
+.opcs-pago{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:14px 0 6px;align-items:stretch}.opc-pago{display:flex;flex-direction:column;justify-content:space-between;gap:6px;padding:12px;border:1px solid var(--line);border-radius:14px;text-align:center}.opc-pago.dest{border-color:var(--or)}.opc-pago .precio{margin:2px 0;font-size:30px;line-height:1.1}.opc-pago .precio small{display:block;font-size:13px;margin-top:4px;white-space:nowrap}
 </style>
 </head>
 <body>
@@ -1227,7 +1228,8 @@ $("#copy").onclick=async()=>{
 
 /* ---------- cuenta: email con código, 3 análisis de prueba, ilimitado con Stripe ---------- */
 const API="https://ugixkyekjmxskqqsugqj.supabase.co/functions/v1/analizador";
-const PAGO="https://buy.stripe.com/7sY9AUdT95picX4cJj7ok0R";
+const PAGO="https://buy.stripe.com/5kQ5kE8yPaJCf5cbFf7ok0U"; // ilimitado 9,99 €/mes
+const PAGO_PACK="https://buy.stripe.com/14A7sM3ev7xq3mu10B7ok0V"; // 10 análisis, pago único 4,99 €
 const LS={get:k=>{try{return localStorage.getItem(k)}catch(e){return null}},set:(k,v)=>{try{v==null?localStorage.removeItem(k):localStorage.setItem(k,v)}catch(e){}}};
 const C={activo:false,token:LS.get("an_token"),st:null,email:LS.get("an_email")||"",paso:"email",msg:"",ocupado:false};
 /* desde Djimenez Prog: llega un «pase» (?prog=…) y el cupo lo lleva Prog (3 de prueba o ilimitado si Diego lo da) */
@@ -1259,15 +1261,15 @@ async function api(accion,datos={}){
   catch(e){return {error:"red"}}
 }
 const ERR={email:t("Ese email no parece válido.","Cet e-mail ne semble pas valide.","That email doesn't look valid."),codigo:t("El código no es correcto.","Le code n'est pas correct.","That code isn't right."),caducado:t("El código ha caducado. Pide otro.","Le code a expiré. Demandes-en un autre.","The code has expired. Ask for a new one."),muchos:t("Demasiados códigos. Espera un rato.","Trop de codes. Attends un peu.","Too many codes. Wait a little."),sin_email:t("El acceso por email se está activando. Vuelve a probar en unos minutos.","La connexion par e-mail est en cours d'activation. Réessaie dans quelques minutes.","Email sign-in is being switched on. Try again in a few minutes."),red:t("Sin conexión. Vuelve a probar.","Pas de connexion. Réessaie.","No connection. Try again.")};
-function urlPago(){return PAGO+"?prefilled_email="+encodeURIComponent(C.st.email)+"&client_reference_id="+encodeURIComponent(C.st.id)+"&locale="+LANG}
+function urlPago(base=PAGO){return base+"?prefilled_email="+encodeURIComponent(C.st.email)+"&client_reference_id="+encodeURIComponent(C.st.id)+"&locale="+LANG}
 function pintaCuenta(){
   const el=$("#cuenta"),st=C.st;
   if(st){
     const pct=Math.min(100,st.usados/st.limite*100),quedan=Math.max(0,st.limite-st.usados);
     el.innerHTML=`<div class="top"><span>📧 ${st.email}</span><button class="lnk" id="salir">${t("Salir","Déconnexion","Sign out")}</button></div>`+
       (st.pro?`<p style="margin:8px 0 0;font-weight:700;color:var(--ok)">⭐ ${t("Plan ilimitado activo","Formule illimitée active","Unlimited plan active")}</p>`:
-      `<div class="barra"><i style="width:${pct}%"></i></div><div class="top"><span><b>${quedan}</b> ${t("análisis de prueba gratis","analyses d'essai gratuites","free trial analyses left")} (${st.usados}/${st.limite})</span></div>
-       <button class="btn sec" id="hazPro" style="width:100%;margin-top:10px">⭐ ${t("Ilimitado por 4,99 €/mes","Illimité pour 4,99 €/mois","Unlimited for €4.99/month")}</button>`);
+      `<div class="barra"><i style="width:${pct}%"></i></div><div class="top"><span><b>${quedan}</b> ${st.limite>3?t("análisis disponibles","analyses disponibles","analyses left"):t("análisis de prueba gratis","analyses d'essai gratuites","free trial analyses left")} (${st.usados}/${st.limite})</span></div>
+       <button class="btn sec" id="hazPro" style="width:100%;margin-top:10px">⭐ ${t("Más análisis: 10 por 4,99 € o ilimitado","Plus d'analyses : 10 pour 4,99 € ou illimité","More analyses: 10 for €4.99 or unlimited")}</button>`);
     $("#salir").onclick=async()=>{await api("salir");C.token=null;C.st=null;LS.set("an_token",null);C.paso="email";pintaCuenta()};
     if($("#hazPro"))$("#hazPro").onclick=()=>muro(false);
     return;
@@ -1290,11 +1292,14 @@ function pintaCuenta(){
   }
 }
 function muro(agotado=true){
-  $("#muroBox").innerHTML=`<div style="font-size:34px">⭐</div><h3>${agotado?t("Has usado tus 3 análisis de prueba","Tu as utilisé tes 3 analyses d'essai","You've used your 3 trial analyses"):t("Analiza sin límite","Analyse sans limite","Analyze without limits")}</h3>
-    <p class="note" style="margin:0">${agotado?t("¿Te ha gustado? Pásate al ilimitado y sigue analizando:","Ça t'a plu ? Passe en illimité et continue à analyser :","Liked it? Go unlimited and keep analyzing:"):t("Todos los levantamientos que quieras, cada mes.","Autant de mouvements que tu veux, chaque mois.","As many lifts as you want, every month.")}</p>
-    <div class="precio">4,99 € <small>${t("/ mes","/ mois","/ month")}</small></div>
-    <ul><li>${t("Análisis ilimitados de snatch, clean y jerk","Analyses illimitées de snatch, clean et jerk","Unlimited snatch, clean and jerk analyses")}</li><li>${t("Barra y posición con IA, y vídeo para descargar","Barre et position par IA, et vidéo à télécharger","Bar and AI position, plus a video to download")}</li><li>${t("Cancelas cuando quieras","Tu résilies quand tu veux","Cancel anytime")}</li></ul>
-    <a class="btn big" style="display:block;text-decoration:none" href="${urlPago()}">${t("Pasarme a ilimitado","Passer en illimité","Go unlimited")}</a>
+  const opc=(titulo,precio,sub,url,boton,dest)=>`<div class="opc-pago${dest?" dest":""}"><b>${titulo}</b><div class="precio">${precio} <small>${sub}</small></div><a class="btn ${dest?"":"sec"}" style="display:flex;align-items:center;justify-content:center;height:52px;padding:0 8px;font-size:14px;text-decoration:none" href="${url}">${boton}</a></div>`;
+  $("#muroBox").innerHTML=`<div style="font-size:34px">⭐</div><h3>${agotado?t("Has usado tus análisis","Tu as utilisé tes analyses","You've used your analyses"):t("Analiza más","Analyse plus","Analyze more")}</h3>
+    <p class="note" style="margin:0">${t("Elige cómo seguir analizando tu snatch, clean y jerk:","Choisis comment continuer à analyser ton snatch, clean et jerk :","Choose how to keep analyzing your snatch, clean and jerk:")}</p>
+    <div class="opcs-pago">
+      ${opc(t("10 análisis","10 analyses","10 analyses"),"4,99 €",t("pago único","paiement unique","one-off"),urlPago(PAGO_PACK),t("Comprar 10","Acheter 10","Buy 10"),false)}
+      ${opc(t("Ilimitado","Illimité","Unlimited"),"9,99 €",t("/ mes","/ mois","/ month"),urlPago(),t("Suscribirme","M'abonner","Subscribe"),true)}
+    </div>
+    <ul><li>${t("Barra y posición con IA, y vídeo para descargar","Barre et position par IA, et vidéo à télécharger","Bar and AI position, plus a video to download")}</li><li>${t("El ilimitado lo cancelas cuando quieras","L'illimité se résilie quand tu veux","Cancel unlimited anytime")}</li></ul>
     <button class="lnk" id="muroX" style="margin-top:10px">${t("Ahora no","Pas maintenant","Not now")}</button>`;
   $("#muro").classList.remove("hidden");$("#muroX").onclick=()=>$("#muro").classList.add("hidden");
 }
@@ -1302,7 +1307,8 @@ function toast(m){const d=document.createElement("div");d.className="toast";d.te
 async function pagoPendiente(){
   const cs=LS.get("an_cs");if(!cs||!C.token)return;
   const r=await api("pago",{cs});
-  if(r.pro){C.st=r;LS.set("an_cs",null);pintaCuenta();toast("⭐ "+t("¡Listo! Ya tienes análisis ilimitados.","C'est fait ! Tu as des analyses illimitées.","Done! You now have unlimited analyses."))}
+  if(r.pack){C.st=r;LS.set("an_cs",null);pintaCuenta();toast("⭐ "+t(`¡Listo! +${r.pack} análisis en tu cuenta.`,`C'est fait ! +${r.pack} analyses sur ton compte.`,`Done! +${r.pack} analyses added.`))}
+  else if(r.pro){C.st=r;LS.set("an_cs",null);pintaCuenta();toast("⭐ "+t("¡Listo! Ya tienes análisis ilimitados.","C'est fait ! Tu as des analyses illimitées.","Done! You now have unlimited analyses."))}
   else if(r.error==="otra_cuenta"||r.error==="no_pagado"||r.error==="otro_producto")LS.set("an_cs",null);
 }
 (async()=>{

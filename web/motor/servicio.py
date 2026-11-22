@@ -1567,7 +1567,8 @@ def crear_perfil(sesion: dict, c: dict) -> dict:
     return r
 
 
-ABONO_DEFECTO = {"url": "https://buy.stripe.com/8x2dRadT91922iqgZz7ok03", "texto": "7 días gratis · luego 29 €/mes"}  # se cambia con ABONO_URL / ABONO_TEXTO
+ABONO_DEFECTO = {"url": "https://buy.stripe.com/6oU00k9CTaJCg9g7oZ7ok0S", "texto": "7 días gratis · luego 39 €/mes"}  # completo: entreno + comida + analizador (antes 29 €)
+ABONO_COMIDA = "https://buy.stripe.com/fZudRadT9dVO6yG8t37ok0T"  # solo comida 9,99 €/mes: falta el modo «solo comida» en la app antes de enseñarlo  # se cambia con ABONO_URL / ABONO_TEXTO
 def _abono_url() -> str:
     return env("ABONO_URL") or ABONO_DEFECTO["url"]
 

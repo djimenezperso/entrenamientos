@@ -257,6 +257,7 @@ const FR = {
   "Perfil guardado en este móvil ✅": "Profil enregistré sur ce téléphone ✅",
   "Código FUNDADOR: 19 €/mes para siempre · solo 20 plazas": "Code FUNDADOR : 19 €/mois à vie · seulement 20 places",
   "7 días gratis · luego 29 €/mes": "7 jours gratuits · puis 29 €/mois",
+  "7 días gratis · luego 39 €/mes": "7 jours gratuits · puis 39 €/mois",
   "Sin conexión o el servidor ha tardado. Vuelve a intentarlo en unos segundos.": "Pas de connexion ou le serveur a tardé. Réessaie dans quelques secondes.",
   "Avisos por Telegram": "Alertes Telegram", "Enviar prueba": "Envoyer un test", "Conectar": "Connecter",
   "Conoce al creador": "Découvre le créateur",
