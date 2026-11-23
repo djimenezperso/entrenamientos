@@ -1141,3 +1141,6 @@ circle.r-p { stroke: var(--fuego); } circle.r-h { stroke: var(--c-h); } circle.r
 .rec-pista { text-align: center; margin: -4px 8px 0; }
 .hoja > * { flex-shrink: 0; }  /* que nada se aplaste cuando la hoja es larga */
 html[data-tema="claro"] .hoja-cab small { color: var(--fuego-txt); }
+.b-tema { color: var(--tinta); }
+html[data-tema="claro"] .banda-demo { background: var(--sup); border: 1px solid var(--raya); color: var(--tinta); }
+html[data-tema="claro"] .banda-demo button:not(.clientes-demo) { box-shadow: inset 0 0 0 1px var(--raya); }

@@ -1140,6 +1140,7 @@ function cabecera(v) {
       <div style="display:flex;gap:8px">
         ${v.coach && v.solicitudes && v.solicitudes.length ? `<button class="redondo campana" id="b-solicitudes" aria-label="${t("Solicitudes")}">${ic.campana}<i>${v.solicitudes.length}</i></button>` : ""}
         ${v.chat_activo && !(v.coach && v.atleta === "Yo") ? `<button class="redondo ${v.chat_no_leidos ? "campana" : ""}" id="b-chat" aria-label="${t("Chat con Diego")}">💬${v.chat_no_leidos ? `<i>${v.chat_no_leidos}</i>` : ""}</button>` : ""}
+        ${botonTema()}
         <button class="redondo" id="b-reloj" aria-label="${t("Reloj")}">${ic.reloj.replace("currentColor", "#1F1208")}</button>
         <button class="redondo" id="b-ajustes" aria-label="${t("Ajustes")}">${ic.ajustes}</button>
       </div>
@@ -2776,6 +2777,7 @@ function cabeceraPantalla(pantalla) {
         <span class="avatar">${v.icono ? v.icono : esc(inicial(v.nombre))}</span>
         <span><small>${esc(v.nombre || "")} ${varias ? ic.abajo : ""}</small><strong class="titulo-pant">${titulo}</strong></span>
       </button>
+      ${botonTema()}
       <button class="redondo" id="b-reloj" aria-label="${t("Reloj")}">${ic.reloj.replace("currentColor", "#1F1208")}</button>
     </div>
     ${pantalla === "progreso" ? `<div class="pestanas pest-cab"><button class="${E.sub !== "historial" ? "on" : ""}" data-sub="resumen">${t("Resumen")}</button>
@@ -3657,3 +3659,18 @@ Object.assign(FR, {  // diseño nuevo (23/11/2026)
   "Para lo que queda del día": "Pour le reste de la journée", "proteína": "protéines", "Qué como en": "Quoi manger au",
   "Cuéntale con el micro lo que ya has comido hoy y te digo qué comer en lo que queda.": "Dis au micro ce que tu as déjà mangé aujourd'hui et je te dis quoi manger pour la suite.",
 });
+
+// botón claro / oscuro en la cabecera (por defecto, claro)
+function botonTema() {
+  const claro = temaActual() === "claro";
+  return `<button class="redondo b-tema" data-cambiar-tema aria-label="${claro ? t("Modo oscuro") : t("Modo claro")}">${claro
+    ? `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 14.5A8 8 0 1 1 9.5 4a6.5 6.5 0 0 0 10.5 10.5z"/></svg>`
+    : `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg>`}</button>`;
+}
+document.addEventListener("click", (ev) => {
+  const b = ev.target.closest("[data-cambiar-tema]");
+  if (!b) return;
+  ponerTema(temaActual() === "claro" ? "oscuro" : "claro");
+  document.querySelectorAll("[data-cambiar-tema]").forEach((x) => { x.outerHTML = botonTema(); });
+});
+Object.assign(FR, { "Modo oscuro": "Mode sombre", "Modo claro": "Mode clair" });
