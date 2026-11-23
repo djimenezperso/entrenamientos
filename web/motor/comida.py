@@ -179,11 +179,20 @@ PALABRAS_COMIDA = {"desayuno": "desayuno", "desayuno:": "desayuno", "por la mañ
 
 ENVASES = {"de", "plato", "platos", "vaso", "vasos", "bol", "boles", "taza", "tazas", "lata", "latas", "puñado", "puñados", "cucharada",
            "cucharadas", "cacito", "cacitos", "trozo", "trozos", "loncha", "lonchas", "ración", "raciones", "pieza", "piezas", "con", "y"}
+ENVASES = ENVASES | {x.replace("ñ", "n").replace("ó", "o") for x in ENVASES}
+NUMEROS.update({k.replace("ñ", "n"): v for k, v in list(NUMEROS.items())})
+
+
+def _sin_acentos(txt: str) -> str:
+    """«salmón» = «salmon», «bœuf» = «boeuf»: se dice o se escribe de las dos maneras."""
+    import unicodedata as _u
+    t = (txt or "").lower().replace("œ", "oe").replace("æ", "ae")
+    return "".join(ch for ch in _u.normalize("NFD", t) if _u.category(ch) != "Mn").replace("n\u0303", "n")
 
 
 def _normal(txt: str) -> str:
     import re as _re
-    return _re.sub(r"\s+", " ", (txt or "").lower().replace(",", " , ").replace(".", " . ").replace(";", " , ")).strip()
+    return _re.sub(r"\s+", " ", _sin_acentos(txt or "").replace(",", " , ").replace(".", " . ").replace(";", " , ")).strip()
 
 
 def interpretar(texto: str, comida_def: str | None = None) -> dict:
@@ -192,7 +201,7 @@ def interpretar(texto: str, comida_def: str | None = None) -> dict:
     txt = " " + _normal(texto) + " "
     # cortar por comidas
     marcas = []
-    for w, cid in sorted(PALABRAS_COMIDA.items(), key=lambda x: -len(x[0])):
+    for w, cid in sorted({_sin_acentos(a): b for a, b in PALABRAS_COMIDA.items()}.items(), key=lambda x: -len(x[0])):
         for m in _re.finditer(r"(?<![\w])" + _re.escape(w) + r"(?![\w])", txt):
             if not any(a <= m.start() < b for a, b, _ in marcas):
                 marcas.append((m.start(), m.end(), cid))
@@ -202,7 +211,7 @@ def interpretar(texto: str, comida_def: str | None = None) -> dict:
         trozos.append((comida_def or "comida", txt[: marcas[0][0]] if marcas else txt))
     for i, (a, b, cid) in enumerate(marcas):
         trozos.append((cid, txt[b: marcas[i + 1][0] if i + 1 < len(marcas) else len(txt)]))
-    lista = sorted(((w, k) for k, ws in SINONIMOS.items() for w in ws), key=lambda x: -len(x[0]))
+    lista = sorted({(_sin_acentos(w), k) for k, ws in SINONIMOS.items() for w in ws}, key=lambda x: (-len(x[0]), x[1]))
     out, entendidos = [], 0
     for cid, trozo in trozos:
         usado = [False] * len(trozo)
@@ -220,7 +229,7 @@ def interpretar(texto: str, comida_def: str | None = None) -> dict:
                 rac = 1.0
                 g = _re.search(r"(\d+(?:[.,]\d+)?)\s*(g|gr|gramos|ml|grammes)\b(?:\s+de)?\s*$", antes)
                 n = _re.search(r"(\d+(?:[.,]\d+)?)\s*(?:\w+\s+de\s+)?$", antes)
-                palabra = _re.search(r"(un par de|\w+)\s+(?:(?:plato|vaso|bol|taza|lata|puñado|cucharada|cacito|trozo|loncha|lonchas)s?\s+(?:de\s+)?)?(?:\w+\s+)?$", antes)
+                palabra = _re.search(r"(un par de|\w+)\s+(?:(?:plato|vaso|bol|taza|lata|punado|cucharada|cacito|trozo|loncha|lonchas)s?\s+(?:de\s+)?)?(?:\w+\s+)?$", antes)
                 if g and k in GRAMOS:
                     rac = float(g.group(1).replace(",", ".")) / GRAMOS[k]
                 elif n:
