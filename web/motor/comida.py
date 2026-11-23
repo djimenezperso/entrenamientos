@@ -352,7 +352,62 @@ def _escalar(op: list[str], cid: str, meta_kcal: float, meta_p: float, ex: set[s
             "receta": recetas.receta(op, items)}
 
 
-def plan_dia(dieta: dict, obj: dict) -> list[dict]:
+def metas_resto(obj: dict, comidas: list[dict]) -> dict:
+    """Lo que ya has comido hoy cambia lo que te toca en las comidas que quedan:
+    lo que sobra (o falta) del día se reparte entre las comidas sin apuntar, según su peso habitual."""
+    if not obj:
+        return {}
+    partes = {cid: parte for cid, _, parte in COMIDAS}
+    hechas = [c for c in comidas if c["items"]]
+    quedan = [c for c in comidas if not c["items"]]
+    if not hechas or not quedan:
+        return {c["id"]: (obj["kcal"] * partes[c["id"]], obj["p"] * partes[c["id"]]) for c in comidas}
+    k = max(0, obj["kcal"] - sum(c["kcal"] for c in hechas))
+    pr = max(0, obj["p"] - sum(c["p"] for c in hechas))
+    tot = sum(partes[c["id"]] for c in quedan) or 1
+    metas = {c["id"]: (obj["kcal"] * partes[c["id"]], obj["p"] * partes[c["id"]]) for c in hechas}
+    for c in quedan:
+        f = partes[c["id"]] / tot
+        metas[c["id"]] = (max(120, k * f), pr * f)
+    return metas
+
+
+def recomendacion(obj: dict, comidas: list[dict], entreno: bool) -> dict | None:
+    """Un consejo corto para lo que queda del día, según lo que ya has apuntado."""
+    hechas = [c for c in comidas if c["items"]]
+    quedan = [c for c in comidas if not c["items"]]
+    if not obj or not hechas or not quedan:
+        return None
+    k = obj["kcal"] - sum(c["kcal"] for c in hechas)
+    p = obj["p"] - sum(c["p"] for c in hechas)
+    h = obj["h"] - sum(c["h"] for c in hechas)
+    g = obj["g"] - sum(c["g"] for c in hechas)
+    nombres = [c["nombre"].lower() for c in quedan]
+    que = nombres[0] if len(nombres) == 1 else ", ".join(nombres[:-1]) + " y " + nombres[-1]
+    noms_fr = {"desayuno": "petit-déj", "comida": "déjeuner", "merienda": "goûter", "cena": "dîner"}
+    q_fr = [noms_fr.get(c["id"], c["nombre"]) for c in quedan]
+    que_fr = q_fr[0] if len(q_fr) == 1 else ", ".join(q_fr[:-1]) + " et " + q_fr[-1]
+    puntos, puntos_fr = [], []
+    if k < 150:
+        puntos.append("Ya casi llegas a tus kcal: lo que queda, ligero (verdura, proteína magra, fruta).")
+        puntos_fr.append("Tu as presque atteint tes kcal : la suite, léger (légumes, protéine maigre, fruit).")
+    if p > 25:
+        puntos.append(f"Te faltan {round(p)} g de proteína: que cada comida lleve su ración (pollo, huevo, skyr, atún, tofu).")
+        puntos_fr.append(f"Il te manque {round(p)} g de protéines : une portion à chaque repas (poulet, œuf, skyr, thon, tofu).")
+    if g < 8:
+        puntos.append("La grasa ya está cubierta: sin fritos ni salsas, aceite justo.")
+        puntos_fr.append("Les lipides sont couverts : pas de friture ni de sauce, huile au minimum.")
+    if entreno and h > 60 and any(c["id"] in ("comida", "merienda") for c in quedan):
+        puntos.append("Hoy entrenas: mete hidratos antes (arroz, pan, plátano, avena).")
+        puntos_fr.append("Tu t'entraînes aujourd'hui : des glucides avant (riz, pain, banane, flocons).")
+    if not puntos:
+        puntos.append("Vas bien: sigue el menú de abajo y llegas justo.")
+        puntos_fr.append("Tu es dans les clous : suis le menu ci-dessous et tu tombes juste.")
+    return {"kcal": max(0, round(k)), "p": max(0, round(p)), "para": que, "para_fr": que_fr,
+            "puntos": puntos, "puntos_fr": puntos_fr}
+
+
+def plan_dia(dieta: dict, obj: dict, metas: dict | None = None) -> list[dict]:
     """Ideas de menú orientativas: varias opciones por comida, con cantidades ajustadas a sus calorías y proteína.
     No es una dieta de dietista: es una guía con datos fijos."""
     if not obj:
@@ -365,8 +420,9 @@ def plan_dia(dieta: dict, obj: dict) -> list[dict]:
         if not ops:
             continue
         ops = ops[hoy % len(ops):] + ops[:hoy % len(ops)]  # cada día empieza por una distinta
-        plan.append({"id": cid, "nombre": nombre, "kcal_meta": round(obj["kcal"] * parte),
-                     "opciones": [_escalar(op, cid, obj["kcal"] * parte, obj["p"] * parte, ex) for op in ops]})
+        mk, mp = (metas or {}).get(cid, (obj["kcal"] * parte, obj["p"] * parte))
+        plan.append({"id": cid, "nombre": nombre, "kcal_meta": round(mk),
+                     "opciones": [_escalar(op, cid, mk, mp, ex) for op in ops]})
     return plan
 
 
@@ -465,6 +521,10 @@ def comida(sesion: dict, atleta: str | None, variante: int = 0) -> dict:  # vari
                 **_sumar([it])} for it in items if it.get("comida") == cid and it.get("alimento") in ALIMENTOS]
         comidas.append({"id": cid, "nombre": nombre, "items": its, **_sumar(its),
                         "objetivo": round(obj["kcal"] * parte) if obj else None, "idea": _idea(cid, ex)})
+    metas = metas_resto(obj, comidas)
+    for c in comidas:  # lo que te toca en cada comida, ya contando lo que has comido hoy
+        if not c["items"] and c["id"] in metas:
+            c["objetivo"] = round(metas[c["id"]][0])
     hab = doc.get("habitual") or {}
     hab_items = [{**i, "nombre": ALIMENTOS[i["alimento"]][0], "racion": ALIMENTOS[i["alimento"]][1], **_sumar([i])}
                  for i in hab.get("items") or [] if i.get("alimento") in ALIMENTOS]
@@ -473,11 +533,13 @@ def comida(sesion: dict, atleta: str | None, variante: int = 0) -> dict:  # vari
         "coach": s.es_coach(sesion) and atleta != "Yo",
         "paga": _paga(atleta, doc), "permitido": bool(doc.get("permitido")),
         "fecha": _hoy(), "entreno": entreno, "dieta": dieta, "objetivo": obj, "llevas": _sumar(items), "comidas": comidas,
-        "plan": plan_dia(dieta, obj),
+        "plan": plan_dia(dieta, obj, metas), "recomienda": recomendacion(obj, comidas, entreno),
         "habitual": {"texto": hab.get("texto", ""), "items": hab_items, "total": _sumar(hab_items),
                      "consejos": consejos(hab_items, obj, entreno, dieta)} if hab_items else None,
         "opciones": {"objetivos": {k: v[0] for k, v in OBJETIVOS.items()}, "dietas": {k: v[0] for k, v in DIETAS.items()},
-                     "exclusiones": EXCLUSIONES},
+                     "exclusiones": EXCLUSIONES,
+                     "reparto": {"dietas": {k: [v[1], v[2]] for k, v in DIETAS.items()},
+                                 "objetivos": {k: v[1] for k, v in OBJETIVOS.items()}, "descanso": DESCANSO_MENOS}},
         "alimentos": [{"id": k, "nombre": v[0], "racion": v[1], "kcal": v[2], "p": v[3], "h": v[4], "g": v[5], "grupo": v[6], "sin": SINONIMOS.get(k, []), "fr": NOMBRES_FR.get(v[0])}
                       for k, v in ALIMENTOS.items() if not set(v[7]) & ex],
     }

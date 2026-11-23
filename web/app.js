@@ -1326,6 +1326,7 @@ function nav(activo = "rutina") {
     ${b("registrar", ic.mas, t("Registrar"), 'data-ir="registrar"')}
     ${b("progreso", ic.grafica, t("Progreso"), 'data-ir="progreso"')}
     ${E.vista && E.vista.con_prs === false ? "" : b("prs", ic.copa, t("Récords"), 'data-ir="prs"')}
+    ${b("analizador", ic.analizar, t("Analizar"), 'data-ir="analizador"')}
   </nav>`;
 }
 
@@ -1440,6 +1441,7 @@ function enlazar() {
     if (ir === "registrar") abrirRegistrar(null);
     else if (ir === "progreso" || ir === "prs") irA(ir);
     else if (ir === "comida") irComida();
+    else if (ir === "analizador") irAnalizador();
     else { E.pantalla = "rutina"; pintar(); window.scrollTo(0, 0); }
   });
   on("b-registrar-dia", () => abrirRegistrar(v.registro, v.partes.filter((p) => p.estado !== "hecho").map((p) => p.parte)));
@@ -1760,6 +1762,14 @@ function hojaPersonas() {
   });
 }
 
+// aspecto claro / oscuro (se guarda en este móvil; no toca los datos de nadie)
+function temaActual() { return document.documentElement.dataset.tema === "claro" ? "claro" : "oscuro"; }
+function ponerTema(tema) {
+  document.documentElement.dataset.tema = tema;
+  try { localStorage.setItem("prog_tema", tema); } catch (e) {}
+  const m = document.querySelector('meta[name="theme-color"]'); if (m) m.content = tema === "claro" ? "#F6F2EC" : "#141210";
+}
+
 function hojaAjustes() {
   const v = E.vista;
   abrirHoja(`${cabHoja(v.nombre, t("Ajustes"))}
@@ -1768,6 +1778,9 @@ function hojaAjustes() {
     <div><div class="paso-etq" style="margin:0 4px 8px">${t("Idioma")}</div>
       <div class="fila-chips"><button class="chip ${E.lang === "es" ? "on" : ""}" data-lang="es">Español</button>
       <button class="chip ${E.lang === "fr" ? "on" : ""}" data-lang="fr">Français</button></div></div>
+    <div><div class="paso-etq" style="margin:0 4px 8px">${t("Aspecto")}</div>
+      <div class="rejilla-2"><button class="chip ${temaActual() === "oscuro" ? "on" : ""}" data-tema="oscuro">🌙 ${t("Oscuro")}</button>
+      <button class="chip ${temaActual() === "claro" ? "on" : ""}" data-tema="claro">☀️ ${t("Claro")}</button></div></div>
     <div class="caja-coach"><div class="paso-etq" style="margin:0 0 8px">${ic.candado} ${t("Modo coach")}</div>
       ${v.coach ? `<div class="mini" style="margin-bottom:10px">${t("Activado: puedes cambiar los pesos de todos.")}</div>
         ${v.atleta !== "Yo" ? `<label class="interruptor"><span>${esc(v.nombre)} ${t("puede cambiar sus pesos sin preguntarte")}</span><input type="checkbox" id="c-permiso" ${v.permiso_pesos ? "checked" : ""}></label>` : ""}
@@ -1891,6 +1904,9 @@ function hojaAjustes() {
     h.querySelectorAll("[data-nivel]").forEach((b) => b.onclick = () => { cerrarHoja(); hacer({ tipo: "nivel", nivel: b.dataset.nivel }); });
     h.querySelectorAll("[data-lang]").forEach((b) => b.onclick = () => {
       E.lang = b.dataset.lang; mem.set("lang", E.lang); mem.set("lang_elegido", "1"); cerrarHoja(); pintar();
+    });
+    h.querySelectorAll("[data-tema]").forEach((b) => b.onclick = () => {
+      ponerTema(b.dataset.tema); h.querySelectorAll("[data-tema]").forEach((x) => x.classList.toggle("on", x === b));
     });
     h.querySelector("#b-salir").onclick = salir;
   });
@@ -3115,14 +3131,18 @@ function pintarComida() {
       <button class="chip chip-dieta" id="cm-dieta">${t("Mi dieta")}: <b>${esc(t((d.opciones.dietas || {})[d.dieta.tipo] || ""))}</b></button>
     </div>
     <section class="card resumen-comida">
-      <div class="rc-cab"><div><small>${t("Te quedan")}</small><b>${num(quedan)}<span> kcal</span></b></div>
-        <span class="rc-de">${num(l.kcal)} ${t("de")} ${num(o.kcal)}<br>${t("comidas")}</span></div>
-      <div class="barra-kcal"><i style="width:${pct(l.kcal, o.kcal)}%"></i></div>
-      <span class="mini">${d.entreno ? t("Día de entreno: más hidratos.") : t("Día de descanso: 300 kcal menos, todo de hidratos.")}</span>
-      <div class="macros">${[["Proteína", l.p, o.p], ["Hidratos", l.h, o.h], ["Grasa", l.g, o.g]].map(([n, a, b]) => `<div class="macro"><small>${t(n)}</small>
-        <b>${num(a)}<span> / ${num(b)} g</span></b><span class="mb"><i style="width:${pct(a, b)}%"></i></span></div>`).join("")}</div>
+      <div class="rc-fila">
+        ${anilloKcal(l.kcal, o.kcal, quedan)}
+        <div class="rc-lado">
+          <span class="rc-de">${num(l.kcal)} ${t("de")} ${num(o.kcal)} kcal · ${d.entreno ? t("día de entreno") : t("día de descanso")}</span>
+          ${[["Proteína", l.p, o.p, "p"], ["Hidratos", l.h, o.h, "h"], ["Grasa", l.g, o.g, "g"]].map(([n, a, b, k]) => `<div class="rc-macro">
+            <div><b>${t(n)}</b><span>${num(a)} / ${num(b)} g</span></div><span class="mb mb-${k}"><i style="width:${pct(a, b)}%"></i></span></div>`).join("")}
+        </div>
+      </div>
     </section>
+    ${graficaDia(d)}
     ${d.solo_mirar ? "" : `<button class="btn btn-fuego btn-voz" id="cm-voz">${ic.microfono} ${t("Decir lo que he comido")}</button>`}
+    ${cajaRecomienda(d)}
     ${filas}
     ${cajaMenu(d)}
     ${cajaHabitual(d)}
@@ -3176,6 +3196,47 @@ function pintarComida() {
   });
 }
 
+// anillo de kcal (diseño nov. 2026)
+function anilloKcal(llevas, objetivo, quedan) {
+  const r = 50, L = 2 * Math.PI * r, f = objetivo ? Math.min(1, llevas / objetivo) : 0;
+  return `<div class="anillo"><svg viewBox="0 0 118 118" role="img" aria-label="${num(llevas)} ${t("de")} ${num(objetivo)} kcal">
+    <circle cx="59" cy="59" r="${r}" fill="none" class="an-pista" stroke-width="12"/>
+    <circle cx="59" cy="59" r="${r}" fill="none" class="an-lleno" stroke-width="12" stroke-linecap="round" stroke-dasharray="${L.toFixed(1)}" stroke-dashoffset="${(L * (1 - f)).toFixed(1)}" transform="rotate(-90 59 59)"/></svg>
+    <div class="anillo-txt"><small>${t("Te quedan")}</small><b>${num(quedan)}</b><span>kcal</span></div></div>`;
+}
+// gráfica «Tu día»: una barra por comida, la caja es el objetivo y el relleno lo comido
+function graficaDia(d) {
+  const cs = d.comidas || [];
+  if (!cs.length) return "";
+  const max = Math.max(1, ...cs.map((c) => Math.max(c.objetivo || 0, c.kcal || 0)));
+  return `<section class="card graf-dia" aria-label="${t("Kcal por comida")}">
+    <div class="gd-cab"><small>${t("Tu día · kcal por comida")}</small>
+      <span class="gd-ley"><i class="gd-c"></i>${t("comido")}<i class="gd-o"></i>${t("objetivo")}</span></div>
+    <div class="gd-barras">${cs.map((c) => {
+      const obj = Math.max(c.objetivo || 0, c.kcal || 0), alto = Math.round(22 + 52 * obj / max);
+      const lleno = obj ? Math.min(100, Math.round(100 * (c.kcal || 0) / obj)) : 0;
+      return `<div class="gd-col"><b>${c.items.length ? num(c.kcal) : "—"}</b><div class="gd-caja ${c.kcal > (c.objetivo || 0) * 1.15 ? "pasado" : ""}" style="height:${alto}px"><i style="height:${lleno}%"></i></div><small>${t(c.nombre)}</small></div>`;
+    }).join("")}</div>
+  </section>`;
+}
+
+// recomendaciones para lo que queda del día, según lo que ya has apuntado
+function cajaRecomienda(d) {
+  const r = d.recomienda, fr = E.lang === "fr";
+  if (!r) {
+    if (d.solo_mirar || (d.comidas || []).some((c) => c.items.length)) return "";
+    return `<p class="mini rec-pista">${t("Cuéntale con el micro lo que ya has comido hoy y te digo qué comer en lo que queda.")}</p>`;
+  }
+  const quedan = (d.comidas || []).filter((c) => !c.items.length);
+  return `<section class="card rec-caja">
+    <div class="rec-cab"><small>${t("Para lo que queda del día")}</small><b>${num(r.kcal)} kcal · ${num(r.p)} g ${t("proteína")}</b>
+      <span class="mini">${t("Para")} ${esc(fr ? r.para_fr : r.para)}</span></div>
+    <ul class="rec-lista">${(fr ? r.puntos_fr : r.puntos).map((x) => `<li>${esc(x)}</li>`).join("")}</ul>
+    ${(d.plan || []).some((m) => quedan.some((c) => c.id === m.id)) ? `<div class="rec-botones">${quedan.filter((c) => (d.plan || []).some((m) => m.id === c.id)).map((c) =>
+      `<button class="mini-btn" data-cm-menu="${c.id}">${t("Qué como en")} ${t(c.nombre).toLowerCase()} · ≈ ${num(c.objetivo || 0)} kcal</button>`).join("")}</div>` : ""}
+  </section>`;
+}
+
 function cajaPermisoComida(d) {
   return `<section class="card caja-permiso"><span class="mini">${d.paga ? t("Este atleta tiene la comida incluida.") : t("Este atleta no paga: la comida le sale bloqueada.")}</span>
     <button class="mini-btn" id="cm-permiso">${d.permitido ? t("Quitarle el acceso") : t("Darle acceso gratis")}</button></section>`;
@@ -3199,10 +3260,44 @@ function hojaDieta() {
     <div class="paso-etq">${t("Objetivo")}</div>
     <div class="rejilla-3">${Object.entries(op.objetivos).map(([k, v]) => `<button class="chip ${k === sel.objetivo ? "on" : ""}" data-dt-obj="${k}">${t(v)}</button>`).join("")}</div>
     <div class="paso-etq">${t("Tipo de dieta")}</div>
-    <div class="rejilla-2">${Object.entries(op.dietas).map(([k, v]) => `<button class="chip ${k === sel.tipo ? "on" : ""}" data-dt-tipo="${k}">${t(v)}</button>`).join("")}</div>
+    <div class="rejilla-2 dt-tipos">${Object.entries(op.dietas).map(([k, v]) => `<button class="chip dt-tipo ${k === sel.tipo ? "on" : ""}" data-dt-tipo="${k}"><b>${t(v)}</b><span class="dt-reparto" data-dt-rep="${k}"></span><small data-dt-pct="${k}"></small></button>`).join("")}</div>
     <div class="paso-etq">${t("Lo que no comes")}</div>
     <div class="fila-chips">${Object.entries(op.exclusiones).map(([k, v]) => `<button class="chip ${sel.no_come.has(k) ? "on" : ""}" data-dt-ex="${k}">${t(v)}</button>`).join("")}</div>
+    <section class="card dt-macros" id="dt-macros"></section>
     <button class="btn btn-fuego" id="dt-guardar">${t("Guardar mi dieta")}</button>`, (h) => {
+    const rep = op.reparto;
+    const calc = (tipo) => {  // misma cuenta que el servidor (comida.py · _objetivo_dia)
+      const peso = parseFloat(String(h.querySelector("#dt-peso").value).replace(",", ".")) || 0;
+      if (!rep || peso <= 0) return null;
+      const [gp, gg] = rep.dietas[tipo] || rep.dietas.equilibrada;
+      const kcal = peso * (rep.objetivos[sel.objetivo] || 32) - (d.entreno ? 0 : rep.descanso);
+      const p = Math.round(peso * gp), g = Math.round(peso * gg), hc = Math.max(50, Math.round((kcal - p * 4 - g * 9) / 4));
+      return { kcal: p * 4 + hc * 4 + g * 9, p, h: hc, g };
+    };
+    const porc = (m) => { const P = m.p * 4 / m.kcal * 100, G = m.g * 9 / m.kcal * 100; return [Math.round(P), Math.round(100 - P - G), Math.round(G)]; };
+    const repintar = () => {
+      Object.keys(op.dietas).forEach((k) => {
+        const m = calc(k), barra = h.querySelector(`[data-dt-rep="${k}"]`), txt = h.querySelector(`[data-dt-pct="${k}"]`);
+        if (!m) { barra.innerHTML = ""; txt.textContent = ""; return; }
+        const [P, H, G] = porc(m);
+        barra.innerHTML = `<i class="r-p" style="width:${P}%"></i><i class="r-h" style="width:${H}%"></i><i class="r-g" style="width:${G}%"></i>`;
+        txt.textContent = `P ${P} · H ${H} · G ${G} %`;
+      });
+      const m = calc(sel.tipo), caja = h.querySelector("#dt-macros");
+      if (!m) { caja.hidden = true; return; }
+      caja.hidden = false;
+      const [P, H] = porc(m), L = 2 * Math.PI * 42, seg = (a, desde) => `stroke-dasharray="${(L * a / 100).toFixed(1)} ${L.toFixed(1)}" stroke-dashoffset="${(-L * desde / 100).toFixed(1)}"`;
+      caja.innerHTML = `<div class="dt-donut"><svg viewBox="0 0 104 104" role="img" aria-label="${t("Reparto de calorías")}"><g transform="rotate(-90 52 52)">
+          <circle cx="52" cy="52" r="42" fill="none" class="r-p" stroke-width="14" ${seg(P, 0)}/>
+          <circle cx="52" cy="52" r="42" fill="none" class="r-h" stroke-width="14" ${seg(H, P)}/>
+          <circle cx="52" cy="52" r="42" fill="none" class="r-g" stroke-width="14" ${seg(100 - P - H, P + H)}/></g></svg>
+        <div class="anillo-txt"><b>${num(m.kcal)}</b><span>kcal</span></div></div>
+        <div class="dt-lista"><small>${t("Tus macros")} · ${d.entreno ? t("día de entreno") : t("día de descanso")}</small>
+          ${[["Proteína", m.p, "p"], ["Hidratos", m.h, "h"], ["Grasa", m.g, "g"]].map(([n, g, k]) => `<div><i class="r-${k}"></i><span>${t(n)}</span><b>${num(g)} g</b></div>`).join("")}</div>`;
+    };
+    h.querySelector("#dt-peso").addEventListener("input", repintar);
+    h.querySelectorAll("[data-dt-obj],[data-dt-tipo]").forEach((b) => b.addEventListener("click", () => setTimeout(repintar)));
+    setTimeout(repintar);
     const marcar = (attr, val) => h.querySelectorAll(`[${attr}]`).forEach((x) => x.classList.toggle("on", x.getAttribute(attr) === val));
     h.querySelectorAll("[data-dt-obj]").forEach((b) => b.onclick = () => { sel.objetivo = b.dataset.dtObj; marcar("data-dt-obj", sel.objetivo); });
     h.querySelectorAll("[data-dt-tipo]").forEach((b) => b.onclick = () => { sel.tipo = b.dataset.dtTipo; marcar("data-dt-tipo", sel.tipo); });
@@ -3268,7 +3363,7 @@ function pintarAnalizador() {
     </section>
     <section class="card an-precio" id="an-cupo"><b>${t("3 análisis gratis")}</b><span class="mini">${t("Pruébalo con tus levantamientos: tienes 3 análisis gratis.")}</span></section>
     <a class="btn btn-fuego" id="an-abrir" href="${URL_ANALIZADOR}?lift=${lift}" target="_blank" rel="noopener">${ic.video} ${t("Analizar mi")} ${lift[0].toUpperCase() + lift.slice(1)}</a>
-  </main>` + nav("prs");
+  </main>` + nav("analizador");
   enlazar();
   const pintaCupo = (r) => {
     const cupo = document.getElementById("an-cupo"), btn = document.getElementById("an-abrir");
@@ -3295,6 +3390,7 @@ function liftDe(ej) {  // los levantamientos que entiende el analizador (no los 
   return null;
 }
 
+ic.analizar = `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="6" width="13" height="12" rx="2"/><path d="M16 10l5-3v10l-5-3z"/><path d="M7 15c1-1 1.5-2.5 2-3.5s1.5-1.5 2.5-2" stroke-dasharray="1.5 2"/></svg>`;
 ic.microfono = `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5.5 11a6.5 6.5 0 0 0 13 0M12 17.5V21"/></svg>`;
 const NOM_COMIDA = { desayuno: "Desayuno", comida: "Comida", merienda: "Merienda", cena: "Cena" };
 
@@ -3554,3 +3650,10 @@ function microTextareas(root = document) {
 }
 new MutationObserver(() => microTextareas()).observe(document.body, { childList: true, subtree: true });
 microTextareas();
+Object.assign(FR, {  // diseño nuevo (23/11/2026)
+  "Para": "Pour", "Analizar": "Analyser", "Aspecto": "Apparence", "Oscuro": "Sombre", "Claro": "Clair",
+  "Tu día · kcal por comida": "Ta journée · kcal par repas", "comido": "mangé", "objetivo": "objectif", "Kcal por comida": "Kcal par repas",
+  "día de entreno": "jour d'entraînement", "día de descanso": "jour de repos", "Tus macros": "Tes macros", "Reparto de calorías": "Répartition des calories",
+  "Para lo que queda del día": "Pour le reste de la journée", "proteína": "protéines", "Qué como en": "Quoi manger au",
+  "Cuéntale con el micro lo que ya has comido hoy y te digo qué comer en lo que queda.": "Dis au micro ce que tu as déjà mangé aujourd'hui et je te dis quoi manger pour la suite.",
+});
