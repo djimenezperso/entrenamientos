@@ -3146,6 +3146,7 @@ function pintarComida() {
     ${d.solo_mirar ? "" : `<button class="btn btn-fuego btn-voz" id="cm-voz">${ic.microfono} ${t("Decir lo que he comido")}</button>`}
     ${cajaRecomienda(d)}
     ${filas}
+    ${cajaConclusiones(d)}
     ${cajaMenu(d)}
     ${cajaHabitual(d)}
     ${d.coach ? cajaPermisoComida(d) : ""}`;
@@ -3236,6 +3237,18 @@ function cajaRecomienda(d) {
     <ul class="rec-lista">${(fr ? r.puntos_fr : r.puntos).map((x) => `<li>${esc(x)}</li>`).join("")}</ul>
     ${(d.plan || []).some((m) => quedan.some((c) => c.id === m.id)) ? `<div class="rec-botones">${quedan.filter((c) => (d.plan || []).some((m) => m.id === c.id)).map((c) =>
       `<button class="mini-btn" data-cm-menu="${c.id}">${t("Qué como en")} ${t(c.nombre).toLowerCase()} · ≈ ${num(c.objetivo || 0)} kcal</button>`).join("")}</div>` : ""}
+  </section>`;
+}
+
+// conclusiones de lo que llevas comido hoy (debajo de las comidas)
+function cajaConclusiones(d) {
+  const cs = d.conclusiones || [];
+  if (!cs.length) return "";
+  const ok = cs.filter((c) => c.tipo === "ok").length;
+  return `<section class="card conclusiones">
+    <div class="tag">${t("Conclusiones de hoy")} · ${ok}/${cs.length} ${t("en verde")}</div>
+    <div class="consejos-comida">${cs.map((c) => `<div class="cc cc-${c.tipo}"><span class="cc-marca">${c.tipo === "ok" ? ic.ok : "!"}</span>
+      <div><b>${esc(trCons(c, "titulo"))}</b><small>${esc(trCons(c, "texto"))}</small></div></div>`).join("")}</div>
   </section>`;
 }
 
@@ -3688,3 +3701,4 @@ hojaDieta = enIdiomaComida(hojaDieta);
 hojaAlimento = enIdiomaComida(hojaAlimento);
 hojaVoz = enIdiomaComida(hojaVoz);
 hojaReceta = enIdiomaComida(hojaReceta);
+Object.assign(FR, { "Conclusiones de hoy": "Bilan du jour", "en verde": "en vert" });

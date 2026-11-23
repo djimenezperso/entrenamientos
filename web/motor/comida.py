@@ -407,6 +407,63 @@ def recomendacion(obj: dict, comidas: list[dict], entreno: bool) -> dict | None:
             "puntos": puntos, "puntos_fr": puntos_fr}
 
 
+CAPRICHOS = {"pizza", "hamburguesa", "chips", "palomitas", "kebab", "helado", "flan", "azucar", "nocilla", "chocolate_leche",
+             "bolleria", "tarta", "kinder_bueno", "kinder_barrita", "kitkat", "twix", "snickers", "mms", "gominolas",
+             "galletas_choco", "speculoos", "macaron", "crepe_dulce", "tiramisu", "chocolate_caliente", "refresco", "cafe_azucar"}
+
+
+def conclusiones_hoy(items: list[dict], obj: dict, entreno: bool) -> list[dict]:
+    """Conclusiones de lo que llevas comido hoy, comparado con lo que te tocaba en esas comidas (español y francés)."""
+    items = [i for i in items if i.get("alimento") in ALIMENTOS]
+    if not obj or not items:
+        return []
+    partes = {cid: parte for cid, _, parte in COMIDAS}
+    hechas = [cid for cid, _, _ in COMIDAS if any(i.get("comida") == cid for i in items)]
+    f = sum(partes[c] for c in hechas) or 1
+    tot = _sumar(items)
+    out = []
+
+    def add(tipo, tit, txt, tit_fr, txt_fr):
+        out.append({"tipo": tipo, "titulo": tit, "texto": txt, "titulo_fr": tit_fr, "texto_fr": txt_fr})
+
+    n = len(hechas)
+    meta_k, meta_p, meta_g = obj["kcal"] * f, obj["p"] * f, obj["g"] * f
+    dif = tot["kcal"] - meta_k
+    if abs(dif) <= meta_k * .12:
+        add("ok", "Vas en tus calorías", f"{tot['kcal']} kcal en {n} comida{'s' if n > 1 else ''}, justo lo que te tocaba (≈ {round(meta_k)}).",
+            "Tu es dans tes calories", f"{tot['kcal']} kcal en {n} repas, pile ce qu'il fallait (≈ {round(meta_k)}).")
+    elif dif > 0:
+        add("aviso", f"Llevas unas {round(dif / 50) * 50} kcal de más", "Lo que queda del día, más ligero: verdura y proteína, menos pan, pasta o dulce.",
+            f"Environ {round(dif / 50) * 50} kcal de trop", "Pour la suite, plus léger : légumes et protéines, moins de pain, pâtes ou sucré.")
+    else:
+        add("aviso", f"Vas corto: unas {round(-dif / 50) * 50} kcal menos", "No pasa nada, súmalas en las comidas que te quedan.",
+            f"Tu es un peu court : environ {round(-dif / 50) * 50} kcal de moins", "Pas de souci, rattrape-les sur les repas suivants.")
+    if tot["p"] >= meta_p * .9:
+        add("ok", "Proteína bien", f"{tot['p']} g hasta ahora (≈ {round(meta_p)} te tocaban).",
+            "Protéines au top", f"{tot['p']} g pour l'instant (≈ {round(meta_p)} prévus).")
+    else:
+        add("aviso", f"Poca proteína: {tot['p']} g de ≈ {round(meta_p)}", "En la próxima comida, una buena ración: pollo, huevos, atún, skyr o tofu.",
+            f"Peu de protéines : {tot['p']} g sur ≈ {round(meta_p)}", "Au prochain repas, une bonne portion : poulet, œufs, thon, skyr ou tofu.")
+    fv = sum(float(i.get("raciones") or 1) for i in items if ALIMENTOS[i["alimento"]][6] == "Fruta y verdura")
+    if fv >= n:
+        add("ok", "Fruta y verdura presentes", f"{fv:g}".replace(".", ",") + " raciones hoy. Sigue así.",
+            "Fruits et légumes présents", f"{fv:g} portions aujourd'hui. Continue.")
+    else:
+        add("aviso", "Falta fruta o verdura", "Mete una pieza de fruta o un plato de verdura en la próxima comida.",
+            "Il manque des fruits ou légumes", "Ajoute un fruit ou une assiette de légumes au prochain repas.")
+    cap = _sumar([i for i in items if i["alimento"] in CAPRICHOS])["kcal"]
+    if cap and cap > tot["kcal"] * .2:
+        add("aviso", f"Caprichos: {cap} kcal", f"Es el {round(cap / tot['kcal'] * 100)} % de lo que llevas. Uno al día está bien; que no sea la base.",
+            f"Plaisirs : {cap} kcal", f"C'est {round(cap / tot['kcal'] * 100)} % de ce que tu as mangé. Un par jour, ça va ; pas plus.")
+    if tot["g"] > meta_g * 1.35:
+        add("aviso", "Mucha grasa hasta ahora", "Lo que queda, con poco aceite y sin fritos ni salsas.",
+            "Beaucoup de lipides jusqu'ici", "Pour la suite, peu d'huile, pas de friture ni de sauce.")
+    if entreno and "merienda" not in hechas and "comida" in hechas and tot["h"] < obj["h"] * f * .8:
+        add("aviso", "Hoy entrenas y vas justo de hidratos", "Antes de entrenar: plátano, pan, arroz o avena.",
+            "Entraînement aujourd'hui et peu de glucides", "Avant la séance : banane, pain, riz ou flocons d'avoine.")
+    return out
+
+
 def plan_dia(dieta: dict, obj: dict, metas: dict | None = None) -> list[dict]:
     """Ideas de menú orientativas: varias opciones por comida, con cantidades ajustadas a sus calorías y proteína.
     No es una dieta de dietista: es una guía con datos fijos."""
@@ -534,6 +591,7 @@ def comida(sesion: dict, atleta: str | None, variante: int = 0) -> dict:  # vari
         "paga": _paga(atleta, doc), "permitido": bool(doc.get("permitido")),
         "fecha": _hoy(), "entreno": entreno, "dieta": dieta, "objetivo": obj, "llevas": _sumar(items), "comidas": comidas,
         "plan": plan_dia(dieta, obj, metas), "recomienda": recomendacion(obj, comidas, entreno),
+        "conclusiones": conclusiones_hoy(items, obj, entreno),
         "habitual": {"texto": hab.get("texto", ""), "items": hab_items, "total": _sumar(hab_items),
                      "consejos": consejos(hab_items, obj, entreno, dieta)} if hab_items else None,
         "opciones": {"objetivos": {k: v[0] for k, v in OBJETIVOS.items()}, "dietas": {k: v[0] for k, v in DIETAS.items()},
