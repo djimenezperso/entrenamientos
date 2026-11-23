@@ -3315,7 +3315,7 @@ function hojaDieta() {
 function hojaAlimento(comidaId) {
   const d = E.comida, c = d.comidas.find((x) => x.id === comidaId);
   let raciones = 1, q = "";
-  const lista = () => {
+  const lista = enIdiomaComida(() => {
     const sa = (x) => String(x || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
     const pal = sa(q).split(/[\s,]+/).filter((w) => w.length > 1 && !["de", "du", "des", "la", "le", "les", "el", "con", "avec"].includes(w));
     const texto = (a) => sa([a.nombre, t(a.nombre), ...(a.sin || [])].join(" "));
@@ -3325,7 +3325,7 @@ function hojaAlimento(comidaId) {
     return grupos.map((g) => `<div class="paso-etq">${t(g)}</div>` + al.filter((a) => a.grupo === g).map((a) =>
       `<button class="alimento" data-al="${a.id}"><span><b>${esc(t(a.nombre))}</b><small>${esc(trRacion(a.racion))} · P ${a.p} · H ${a.h} · G ${a.g}</small></span><span class="al-kcal">${num(a.kcal * raciones)}<small> kcal</small></span></button>`).join("")).join("")
       || `<div class="vacio">${t("No hay nada con ese nombre.")}</div>`;
-  };
+ });
   abrirHoja(`${cabHoja(t(c.nombre), t("Añade lo que has comido"))}
     <button class="btn btn-voz" id="al-voz">${ic.microfono} ${t("Decirlo con el micro")}</button>
     <input class="campo" id="al-q" type="search" placeholder="${t("Buscar alimento")}" autocomplete="off">
@@ -3439,7 +3439,7 @@ function hojaVoz({ modo, comida = null, texto = "" }) {
     if (!SR) $mic.hidden = true;
     $mic.onclick = () => {
       if (grabando) return parar();
-      rec = new SR(); rec.lang = E.lang === "fr" ? "fr-FR" : "es-ES"; rec.continuous = true; rec.interimResults = true;
+      rec = new SR(); rec.lang = langComida() === "fr" ? "fr-FR" : "es-ES"; rec.continuous = true; rec.interimResults = true;
       base = $t.value.trim();
       rec.onresult = (ev) => {
         let fin = "", prov = "";
@@ -3674,3 +3674,17 @@ document.addEventListener("click", (ev) => {
   document.querySelectorAll("[data-cambiar-tema]").forEach((x) => { x.outerHTML = botonTema(); });
 });
 Object.assign(FR, { "Modo oscuro": "Mode sombre", "Modo claro": "Mode clair" });
+
+// Comida: a los atletas siempre en español; Diego (coach) la ve en el idioma que tenga puesto
+function langComida() { return E.vista && E.vista.coach ? E.lang : "es"; }
+function enIdiomaComida(f) {
+  return function (...a) {
+    const antes = E.lang; E.lang = langComida();
+    try { return f.apply(this, a); } finally { E.lang = antes; }
+  };
+}
+pintarComida = enIdiomaComida(pintarComida);
+hojaDieta = enIdiomaComida(hojaDieta);
+hojaAlimento = enIdiomaComida(hojaAlimento);
+hojaVoz = enIdiomaComida(hojaVoz);
+hojaReceta = enIdiomaComida(hojaReceta);
