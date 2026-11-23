@@ -75,10 +75,10 @@ _D = [
     ("calamares", "Calamares", "Calamars", "150 g", 150, 90, 16, 3, 1.4, P, MA, ["calamar", "calamares", "sepia", "pota", "calamars", "seiche"]),
     ("pulpo", "Pulpo", "Poulpe", "150 g", 150, 82, 15, 2, 1, P, MA, ["pulpo", "poulpe"]),
     ("sushi", "Sushi", "Sushi", "8 piezas · 200 g", 200, 150, 6, 28, 1.5, O, PE, ["sushi", "maki", "makis", "california roll", "sashimi"]),
-    ("poke", "Poke bowl", "Poke bowl", "1 bol · 400 g", 400, 140, 8, 18, 4, O, PE, ["poke", "poké", "poke bowl"]),
-    ("poke_salmon", "Poke de salmón", "Poke au saumon", "1 bol · 400 g", 400, 150, 8.5, 18, 5, O, PE, ["poke de salmon", "poke salmon", "poke con salmon", "poke saumon", "poke au saumon", "poke bowl saumon", "poke bowl salmon", "poke bowl de salmon", "poke bowl au saumon"]),
-    ("poke_atun", "Poke de atún", "Poke au thon", "1 bol · 400 g", 400, 130, 9.5, 18, 2.5, O, PE, ["poke de atun", "poke atun", "poke con atun", "poke thon", "poke au thon", "poke bowl thon", "poke bowl au thon", "poke bowl de atun"]),
-    ("poke_pollo", "Poke de pollo", "Poke au poulet", "1 bol · 400 g", 400, 135, 9.5, 18, 3, O, CA, ["poke de pollo", "poke pollo", "poke con pollo", "poke poulet", "poke au poulet", "poke bowl poulet", "poke bowl au poulet", "poke bowl de pollo"]),
+    ("poke", "Poke bowl", "Poke bowl", "1 bol · 450 g", 450, 145, 8, 18, 4.5, O, PE, ["poke", "poké", "poke bowl"]),
+    ("poke_salmon", "Poke de salmón", "Poke au saumon", "1 bol · 450 g", 450, 156, 8.5, 17, 6, O, PE, ["poke de salmon", "poke salmon", "poke con salmon", "poke saumon", "poke au saumon", "poke bowl saumon", "poke bowl salmon", "poke bowl de salmon", "poke bowl au saumon"]),
+    ("poke_atun", "Poke de atún", "Poke au thon", "1 bol · 450 g", 450, 140, 10, 18, 3, O, PE, ["poke de atun", "poke atun", "poke con atun", "poke thon", "poke au thon", "poke bowl thon", "poke bowl au thon", "poke bowl de atun"]),
+    ("poke_pollo", "Poke de pollo", "Poke au poulet", "1 bol · 450 g", 450, 145, 10, 18, 3.8, O, CA, ["poke de pollo", "poke pollo", "poke con pollo", "poke poulet", "poke au poulet", "poke bowl poulet", "poke bowl au poulet", "poke bowl de pollo"]),
     # --- huevos y vegetal ---
     ("huevo_cocido", "Huevo cocido", "Œuf dur", "1 unidad · 55 g", 55, 145, 12.5, 0.7, 10, P, HU, ["huevo duro", "huevo cocido", "œuf dur", "oeuf dur", "œuf mollet"]),
     ("tortilla_patata", "Tortilla de patatas", "Omelette aux pommes de terre", "1 porción · 150 g", 150, 190, 6.5, 13, 12.5, O, HU, ["tortilla de patatas", "tortilla española", "omelette aux pommes de terre"]),
@@ -217,9 +217,9 @@ _D = [
     ("pizza_entera", "Pizza entera", "Pizza entière", "1 pizza · 400 g", 400, 260, 11, 31, 10, O, GL + LA, ["pizza entera", "pizza entière"]),
     ("menu_burger", "Menú hamburguesa con patatas", "Menu burger frites", "1 menú", 400, 245, 9, 27, 11, O, GL + CA, ["mcdonald's", "burger king", "mcdo", "menú hamburguesa", "menu burger"]),
     ("curry", "Curry con arroz", "Curry au riz", "1 plato · 400 g", 400, 140, 7, 17, 5, O, (), ["curry", "pollo al curry", "poulet curry", "butter chicken", "tikka masala"]),
-    ("wok_ternera", "Wok de fideos con ternera", "Wok de nouilles au bœuf", "1 plato · 350 g", 350, 150, 8.5, 17, 5.5, O, GL + CA, ["wok de ternera", "wok ternera", "wok con ternera", "wok de fideos con ternera", "fideos con ternera", "fideos salteados con ternera", "noodles con ternera", "wok de carne", "wok boeuf", "wok au boeuf", "wok de boeuf", "nouilles au boeuf", "nouilles de boeuf", "nouilles boeuf", "nouilles sautees au boeuf", "wok de nouilles au boeuf", "beef noodles"]),
-    ("wok_gambas", "Wok de fideos con gambas", "Wok de nouilles aux crevettes", "1 plato · 350 g", 350, 130, 7.5, 17, 3.5, O, GL + MA, ["wok de gambas", "wok gambas", "wok con gambas", "fideos con gambas", "wok crevettes", "wok aux crevettes", "nouilles aux crevettes", "nouilles crevettes", "pad thai crevettes", "pad thai de gambas"]),
-    ("wok", "Wok de fideos con pollo", "Wok de nouilles au poulet", "1 plato · 350 g", 350, 140, 8, 17, 4.5, O, GL + CA, ["wok", "pad thai", "nouilles sautées", "fideos salteados"]),
+    ("wok_ternera", "Wok de fideos con ternera", "Wok de nouilles au bœuf", "1 plato · 400 g", 400, 170, 8, 20, 6.5, O, GL + CA, ["wok de ternera", "wok ternera", "wok con ternera", "wok de fideos con ternera", "fideos con ternera", "fideos salteados con ternera", "noodles con ternera", "wok de carne", "wok boeuf", "wok au boeuf", "wok de boeuf", "nouilles au boeuf", "nouilles de boeuf", "nouilles boeuf", "nouilles sautees au boeuf", "wok de nouilles au boeuf", "beef noodles"]),
+    ("wok_gambas", "Wok de fideos con gambas", "Wok de nouilles aux crevettes", "1 plato · 400 g", 400, 150, 7, 20, 4.5, O, GL + MA, ["wok de gambas", "wok gambas", "wok con gambas", "fideos con gambas", "wok crevettes", "wok aux crevettes", "nouilles aux crevettes", "nouilles crevettes", "pad thai crevettes", "pad thai de gambas"]),
+    ("wok", "Wok de fideos con pollo", "Wok de nouilles au poulet", "1 plato · 400 g", 400, 160, 8.5, 20, 5.5, O, GL + CA, ["wok", "pad thai", "nouilles sautées", "fideos salteados"]),
 ]
 
 ALIMENTOS_EXTRA: dict = {}
