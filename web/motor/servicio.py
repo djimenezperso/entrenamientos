@@ -4044,6 +4044,10 @@ def accion(sesion: dict, c: dict) -> dict:
         aviso = "WOD de Diego fijado"
     else:
         raise Error("Acción desconocida")
+    if (tipo in CAMBIOS_PROGRAMA + ("peso", "fijar") and es_coach(sesion) and not es_demo(sesion)
+            and atleta != "Yo" and semana > semana_antes):
+        # Diego ha tocado una semana que aún no ha empezado: cuenta como preparada y deja de salir en «Te queda por preparar»
+        rut = dict(rut, semanas_listas=sorted({int(x) for x in rut.get("semanas_listas") or []} | {semana}))
     rut, fin_semana = avanzar_si_completa(atleta, rut)
     datos().guardar(atleta, rut)
     if not es_coach(sesion) and not es_demo(sesion):
