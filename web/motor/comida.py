@@ -582,6 +582,81 @@ def _pauta(doc: dict) -> dict | None:
     return {**p, "dias": dias, "hoy": dt.date.today().weekday() % len(dias)}
 
 
+def _ahora_paris() -> dt.datetime:
+    try:
+        from zoneinfo import ZoneInfo
+        return dt.datetime.now(ZoneInfo("Europe/Paris"))
+    except Exception:
+        return dt.datetime.now()
+
+
+def _hora_min(h: str) -> int | None:
+    try:
+        a, b = (h or "").strip().split(":")[:2]
+        return int(a) * 60 + int(b[:2])
+    except (ValueError, AttributeError):
+        return None
+
+
+def conclusiones_pauta(items: list[dict], dia_pauta: dict) -> list[dict]:
+    """Con dieta de su dietista no se juzga la dieta: solo si la ha seguido (se ha saltado algo, ha metido algo que no era, cantidades)."""
+    items = [i for i in items if i.get("alimento") in ALIMENTOS]
+    nom = {cid: n for cid, n, _ in COMIDAS}
+    fr = {"desayuno": "Petit-déjeuner", "comida": "Repas", "merienda": "Goûter", "cena": "Dîner"}
+    n_es = lambda k: ALIMENTOS[k][0].lower()
+    n_fr = lambda k: (NOMBRES_FR.get(ALIMENTOS[k][0]) or ALIMENTOS[k][0]).lower()
+    lista = lambda xs, f: ", ".join(f(x) for x in xs)
+    ahora = _ahora_paris(); ahora_m = ahora.hour * 60 + ahora.minute
+    orden = [cid for cid, _, _ in COMIDAS]
+    con_items = [cid for cid in orden if any(i.get("comida") == cid for i in items)]
+    ultima = max((orden.index(c) for c in con_items), default=-1)
+    out = []
+
+    def add(tipo, tit, txt, tit_fr, txt_fr):
+        out.append({"tipo": tipo, "titulo": tit, "texto": txt, "titulo_fr": tit_fr, "texto_fr": txt_fr})
+
+    for cid in orden:
+        ms = [m for m in dia_pauta.get("comidas") or [] if (m.get("comida") or "comida") == cid]
+        if not ms:
+            continue
+        toca, hecho = {}, {}
+        for m in ms:
+            for it in m.get("items") or []:
+                toca[it["alimento"]] = toca.get(it["alimento"], 0) + float(it.get("raciones") or 1)
+        for it in items:
+            if it.get("comida") == cid:
+                hecho[it["alimento"]] = hecho.get(it["alimento"], 0) + float(it.get("raciones") or 1)
+        nm, nf = nom[cid], fr[cid]
+        if not hecho:
+            horas = [h for h in (_hora_min(m.get("hora")) for m in ms) if h is not None]
+            pasada = horas and ahora_m > max(horas) + 120
+            if orden.index(cid) < ultima or pasada:
+                que = " y ".join(m.get("nombre", nm).lower() for m in ms)
+                add("aviso", f"{nm}: sin apuntar", f"Según tu dieta tocaba {que}. Si lo comiste, apúntalo; si no, te lo has saltado.",
+                    f"{nf} : rien de noté", f"Ton régime prévoyait ce repas. Si tu l'as mangé, note-le ; sinon, tu l'as sauté.")
+            continue
+        falta = [k for k in toca if k not in hecho]
+        sobra = [k for k in hecho if k not in toca]
+        mas = [k for k in toca if k in hecho and hecho[k] > toca[k] * 1.3]
+        menos = [k for k in toca if k in hecho and hecho[k] < toca[k] * .7]
+        if not (falta or sobra or mas or menos):
+            add("ok", f"{nm} como en tu dieta", "Lo que tocaba, en su cantidad.", f"{nf} comme prévu", "Ce qui était prévu, dans les bonnes quantités.")
+            continue
+        if sobra:
+            add("aviso", f"{nm}: algo que no estaba en tu dieta", lista(sobra, n_es).capitalize() + ".",
+                f"{nf} : quelque chose hors de ton régime", lista(sobra, n_fr).capitalize() + ".")
+        if falta:
+            add("aviso", f"{nm}: te ha faltado algo", lista(falta, n_es).capitalize() + ".",
+                f"{nf} : il manque quelque chose", lista(falta, n_fr).capitalize() + ".")
+        if mas:
+            add("aviso", f"{nm}: más cantidad de la que tocaba", lista(mas, n_es).capitalize() + ".",
+                f"{nf} : plus que prévu", lista(mas, n_fr).capitalize() + ".")
+        if menos:
+            add("aviso", f"{nm}: menos cantidad de la que tocaba", lista(menos, n_es).capitalize() + ".",
+                f"{nf} : moins que prévu", lista(menos, n_fr).capitalize() + ".")
+    return out
+
+
 def comida(sesion: dict, atleta: str | None, variante: int = 0) -> dict:  # variante: ya no se usa
     atleta = atleta or sesion.get("u") or "Yo"
     s.puede_ver(sesion, atleta)
@@ -595,6 +670,10 @@ def comida(sesion: dict, atleta: str | None, variante: int = 0) -> dict:  # vari
     entreno = dia.get("entreno", True)
     items = dia.get("items") or []
     obj = _objetivo_dia(dieta, entreno)
+    pauta = _pauta(doc)
+    pd = pauta["dias"][pauta["hoy"]] if pauta else None
+    if pd:  # con dieta de su dietista, el objetivo del día es el de su dieta, no el calculado
+        obj = {**(obj or {}), "kcal": pd["kcal"], "p": pd["p"], "h": pd["h"], "g": pd["g"]}
     ex = _excluidos(dieta)
     comidas = []
     for cid, nombre, parte in COMIDAS:
@@ -604,7 +683,9 @@ def comida(sesion: dict, atleta: str | None, variante: int = 0) -> dict:  # vari
                         "objetivo": round(obj["kcal"] * parte) if obj else None, "idea": _idea(cid, ex)})
     metas = metas_resto(obj, comidas)
     for c in comidas:  # lo que te toca en cada comida, ya contando lo que has comido hoy
-        if not c["items"] and c["id"] in metas:
+        if pd:
+            c["objetivo"] = round(sum(m["kcal"] for m in pd["comidas"] if (m.get("comida") or "comida") == c["id"]))
+        elif not c["items"] and c["id"] in metas:
             c["objetivo"] = round(metas[c["id"]][0])
     hab = doc.get("habitual") or {}
     hab_items = [{**i, "nombre": ALIMENTOS[i["alimento"]][0], "racion": ALIMENTOS[i["alimento"]][1], **_sumar([i])}
@@ -614,8 +695,8 @@ def comida(sesion: dict, atleta: str | None, variante: int = 0) -> dict:  # vari
         "coach": s.es_coach(sesion) and atleta != "Yo",
         "paga": _paga(atleta, doc), "permitido": bool(doc.get("permitido")),
         "fecha": _hoy(), "entreno": entreno, "dieta": dieta, "objetivo": obj, "llevas": _sumar(items), "comidas": comidas,
-        "plan": plan_dia(dieta, obj, metas), "recomienda": recomendacion(obj, comidas, entreno),
-        "conclusiones": conclusiones_hoy(items, obj, entreno), "pauta": _pauta(doc),
+        "plan": plan_dia(dieta, obj, metas), "recomienda": None if pd else recomendacion(obj, comidas, entreno),
+        "conclusiones": conclusiones_pauta(items, pd) if pd else conclusiones_hoy(items, obj, entreno), "pauta": pauta,
         "habitual": {"texto": hab.get("texto", ""), "items": hab_items, "total": _sumar(hab_items),
                      "consejos": consejos(hab_items, obj, entreno, dieta)} if hab_items else None,
         "opciones": {"objetivos": {k: v[0] for k, v in OBJETIVOS.items()}, "dietas": {k: v[0] for k, v in DIETAS.items()},

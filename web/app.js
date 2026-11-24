@@ -3244,6 +3244,7 @@ function graficaDia(d) {
 // recomendaciones para lo que queda del día, según lo que ya has apuntado
 function cajaRecomienda(d) {
   const r = d.recomienda, fr = E.lang === "fr";
+  if (d.pauta) return "";  // con dieta de su dietista no se le dice qué comer: ya lo pone su dieta
   if (!r) {
     if (d.solo_mirar || (d.comidas || []).some((c) => c.items.length)) return "";
     return `<p class="mini rec-pista">${t("Cuéntale con el micro lo que ya has comido hoy y te digo qué comer en lo que queda.")}</p>`;
