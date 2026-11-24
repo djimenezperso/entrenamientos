@@ -1144,3 +1144,32 @@ html[data-tema="claro"] .hoja-cab small { color: var(--fuego-txt); }
 .b-tema { color: var(--tinta); }
 html[data-tema="claro"] .banda-demo { background: var(--sup); border: 1px solid var(--raya); color: var(--tinta); }
 html[data-tema="claro"] .banda-demo button:not(.clientes-demo) { box-shadow: inset 0 0 0 1px var(--raya); }
+
+/* ===== dieta semanal del atleta (la que le pasa su dietista) ===== */
+.caja-pauta { display: flex; flex-direction: column; gap: 10px; }
+.caja-pauta .tit-comida { margin: 0; }
+.pt-dias { display: grid; grid-template-columns: repeat(7, 1fr); gap: 6px; }
+.pt-dia { height: 40px; border-radius: 12px; border: 1.5px solid var(--raya2); background: var(--sup2); color: var(--tinta);
+  font-weight: 800; font-size: 14px; position: relative; }
+.pt-dia.hoy::after { content: ""; position: absolute; bottom: 5px; left: 50%; width: 5px; height: 5px; margin-left: -2.5px; border-radius: 50%; background: var(--fuego); }
+.pt-dia.on { background: var(--tinta); color: var(--sup); border-color: var(--tinta); }
+.pt-total { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; font-size: 13px; }
+.pt-total span { color: var(--suave); font-size: 12px; text-align: right; }
+.pt-comidas { display: flex; flex-direction: column; gap: 8px; }
+.pt-comida { border-radius: 14px; padding: 10px 12px; background: var(--sup2); border: 1px solid var(--raya); display: flex; flex-direction: column; gap: 4px; }
+.pt-cab { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
+.pt-cab span { color: var(--suave); font-size: 12px; }
+.pt-comida p { margin: 0; font-size: 14px; line-height: 1.4; }
+.pt-pie { display: flex; justify-content: space-between; align-items: center; gap: 8px; min-height: 32px; }
+.pt-pie small { color: var(--suave); }
+.pt-mas { border-top: 1px solid var(--raya); padding-top: 8px; }
+.pt-mas summary { font-weight: 700; cursor: pointer; padding: 4px 0; }
+.pt-horario, .pt-pautas { margin: 6px 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 6px; font-size: 13.5px; }
+.pt-horario li { display: grid; grid-template-columns: 92px 1fr; gap: 8px; }
+.pt-pautas li { padding-left: 14px; position: relative; }
+.pt-pautas li::before { content: "•"; position: absolute; left: 0; color: var(--fuego); }
+.pt-grupo { display: grid; grid-template-columns: 1fr 1fr; gap: 4px 10px; margin: 8px 0; }
+.pt-grupo b { grid-column: 1 / -1; font-size: 13px; }
+.pt-check { display: flex; align-items: center; gap: 8px; font-size: 13.5px; min-height: 30px; }
+.pt-check input { width: 18px; height: 18px; accent-color: var(--fuego); }
+.pt-check input:checked + span { text-decoration: line-through; color: var(--suave); }

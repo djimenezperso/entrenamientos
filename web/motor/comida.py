@@ -567,6 +567,21 @@ def _idea(comida: str, ex: set[str]) -> list[str]:
     return []
 
 
+def _pauta(doc: dict) -> dict | None:
+    """Dieta semanal que le ha pasado su dietista (subida por Diego): día a día, con kcal y macros de cada comida."""
+    p = doc.get("pauta")
+    if not p or not p.get("dias"):
+        return None
+    dias = []
+    for d in p["dias"]:
+        cs = []
+        for m in d.get("comidas") or []:
+            its = [i for i in m.get("items") or [] if i.get("alimento") in ALIMENTOS]
+            cs.append({**m, "items": its, **_sumar(its)})
+        dias.append({"dia": d.get("dia", ""), "comidas": cs, **_sumar([i for m in cs for i in m["items"]])})
+    return {**p, "dias": dias, "hoy": dt.date.today().weekday() % len(dias)}
+
+
 def comida(sesion: dict, atleta: str | None, variante: int = 0) -> dict:  # variante: ya no se usa
     atleta = atleta or sesion.get("u") or "Yo"
     s.puede_ver(sesion, atleta)
@@ -600,7 +615,7 @@ def comida(sesion: dict, atleta: str | None, variante: int = 0) -> dict:  # vari
         "paga": _paga(atleta, doc), "permitido": bool(doc.get("permitido")),
         "fecha": _hoy(), "entreno": entreno, "dieta": dieta, "objetivo": obj, "llevas": _sumar(items), "comidas": comidas,
         "plan": plan_dia(dieta, obj, metas), "recomienda": recomendacion(obj, comidas, entreno),
-        "conclusiones": conclusiones_hoy(items, obj, entreno),
+        "conclusiones": conclusiones_hoy(items, obj, entreno), "pauta": _pauta(doc),
         "habitual": {"texto": hab.get("texto", ""), "items": hab_items, "total": _sumar(hab_items),
                      "consejos": consejos(hab_items, obj, entreno, dieta)} if hab_items else None,
         "opciones": {"objetivos": {k: v[0] for k, v in OBJETIVOS.items()}, "dietas": {k: v[0] for k, v in DIETAS.items()},
@@ -656,6 +671,16 @@ def comida_accion(sesion: dict, c: dict) -> dict:
                 if it.get("alimento") in ALIMENTOS and it.get("comida") in {x[0] for x in COMIDAS}:
                     r = max(.25, min(6, float(it.get("raciones") or 1)))
                     dia.setdefault("items", []).append({"id": uuid.uuid4().hex[:8], "comida": it["comida"], "alimento": it["alimento"], "raciones": r})
+        elif que == "apuntar_pauta":  # apunta hoy una comida de su dieta semanal, tal cual
+            p = _pauta(doc) or {}
+            try:
+                m = p["dias"][int(c.get("dia"))]["comidas"][int(c.get("idx"))]
+            except (KeyError, IndexError, TypeError, ValueError):
+                raise s.Error("Esa comida no está en tu dieta", 400)
+            cid = m.get("comida") if m.get("comida") in {x[0] for x in COMIDAS} else "comida"
+            for it in m["items"]:
+                dia.setdefault("items", []).append({"id": uuid.uuid4().hex[:8], "comida": cid, "alimento": it["alimento"],
+                                                    "raciones": max(.25, min(6, float(it.get("raciones") or 1)))})
         elif que == "habitual":
             its = [{"comida": it["comida"], "alimento": it["alimento"], "raciones": max(.25, min(6, float(it.get("raciones") or 1)))}
                    for it in (c.get("items") or [])[:40] if it.get("alimento") in ALIMENTOS and it.get("comida") in {x[0] for x in COMIDAS}]

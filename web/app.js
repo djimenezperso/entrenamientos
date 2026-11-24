@@ -3108,7 +3108,7 @@ function pintarComida() {
       <div class="tag">${t("Primero, tu dieta")}</div>
       <h2 class="tit-comida">${t("Con tu peso y tu objetivo sacamos tus macros")}</h2>
       <button class="btn btn-fuego" id="cm-dieta">${t("Poner mi dieta")}</button>
-    </section>${d.coach ? cajaPermisoComida(d) : ""}`;
+    </section>${cajaPauta(d)}${d.coach ? cajaPermisoComida(d) : ""}`;
   } else {
     const o = d.objetivo, l = d.llevas, quedan = Math.max(0, o.kcal - l.kcal);
     const pct = (a, b) => Math.min(100, b ? Math.round(a / b * 100) : 0);
@@ -3144,6 +3144,7 @@ function pintarComida() {
     </section>
     ${graficaDia(d)}
     ${d.solo_mirar ? "" : `<button class="btn btn-fuego btn-voz" id="cm-voz">${ic.microfono} ${t("Decir lo que he comido")}</button>`}
+    ${cajaPauta(d)}
     ${cajaRecomienda(d)}
     ${filas}
     ${cajaConclusiones(d)}
@@ -3187,6 +3188,15 @@ function pintarComida() {
   $app.querySelectorAll("[data-mn-apuntar]").forEach((b) => b.onclick = () => {
     const [mid, k] = b.dataset.mnApuntar.split("|"), m = (d.plan || []).find((x) => x.id === mid), op = m && m.opciones[+k || 0];
     if (op) { E.menuAbierto = null; accionComida({ accion: "anadir_varios", items: op.items }).then((ok) => ok && aviso(t("Apuntado"))); }
+  });
+  $app.querySelectorAll("[data-pt-dia]").forEach((b) => b.onclick = () => { E.pautaDia = +b.dataset.ptDia; pintar(); });
+  $app.querySelectorAll("[data-pt-apuntar]").forEach((b) => b.onclick = () => {
+    const [dia, idx] = b.dataset.ptApuntar.split("|"); b.disabled = true;
+    accionComida({ accion: "apuntar_pauta", dia: +dia, idx: +idx }).then((ok) => { if (ok) aviso(t("Apuntado")); else b.disabled = false; });
+  });
+  $app.querySelectorAll("[data-pt-compra]").forEach((c) => c.onchange = () => {
+    const hecho = new Set(leerCompra());
+    c.checked ? hecho.add(c.dataset.ptCompra) : hecho.delete(c.dataset.ptCompra); mem.set("pauta_compra", JSON.stringify([...hecho]));
   });
   on("cm-habitual", () => hojaVoz({ modo: "habitual", texto: (d.habitual || {}).texto || "" }));
   on("cm-como-siempre", () => accionComida({ accion: "como_siempre" }).then((ok) => ok && aviso(t("Apuntado tu día de siempre"))));
@@ -3494,6 +3504,35 @@ function hojaVoz({ modo, comida = null, texto = "" }) {
   });
 }
 
+// dieta semanal que le ha pasado su dietista: un día cada vez, con su hora, lo que lleva y sus kcal
+const DIAS_PAUTA = ["L", "M", "X", "J", "V", "S", "D"];
+const leerCompra = () => { try { return JSON.parse(mem.get("pauta_compra") || "[]"); } catch { return []; } };
+function cajaPauta(d) {
+  const p = d.pauta;
+  if (!p) return "";
+  const i = Math.min(E.pautaDia ?? p.hoy, p.dias.length - 1), dia = p.dias[i], compra = new Set(leerCompra());
+  return `<section class="card caja-pauta">
+    <div class="tag">${esc(p.titulo || "Dieta semanal")}</div>
+    <h2 class="tit-comida">${i === p.hoy ? t("Hoy toca") : esc(dia.dia)}</h2>
+    ${p.subtitulo ? `<p class="mini">${esc(p.subtitulo)}</p>` : ""}
+    <div class="pt-dias" role="tablist">${p.dias.map((x, k) => `<button class="pt-dia ${k === i ? "on" : ""} ${k === p.hoy ? "hoy" : ""}" role="tab" aria-selected="${k === i}" data-pt-dia="${k}" aria-label="${esc(x.dia)}">${DIAS_PAUTA[k] || k + 1}</button>`).join("")}</div>
+    <div class="pt-total"><b>${esc(dia.dia)}</b><span>≈ ${num(dia.kcal)} kcal · P ${num(dia.p)} · H ${num(dia.h)} · G ${num(dia.g)} g</span></div>
+    <div class="pt-comidas">${dia.comidas.map((m, k) => `<div class="pt-comida">
+      <div class="pt-cab"><b>${esc(m.nombre)}</b><span>${esc(m.hora || "")}</span></div>
+      <p>${esc(m.texto)}</p>
+      <div class="pt-pie"><small>≈ ${num(m.kcal)} kcal · P ${num(m.p)} g</small>${d.solo_mirar || i !== p.hoy ? "" : `<button class="mini-btn" data-pt-apuntar="${i}|${k}">${t("Apuntar")}</button>`}</div>
+    </div>`).join("")}</div>
+    ${p.horario && p.horario.length ? `<details class="pt-mas"><summary>${t("Horario")}</summary>
+      <ul class="pt-horario">${p.horario.map((h) => `<li><b>${esc(h.hora)}</b><span>${esc(h.texto)}</span></li>`).join("")}</ul>
+      ${p.horario_nota ? `<p class="mini">${esc(p.horario_nota)}</p>` : ""}</details>` : ""}
+    ${p.compra && p.compra.length ? `<details class="pt-mas"><summary>${t("Lista de la compra")}</summary>
+      ${p.compra.map((g) => `<div class="pt-grupo"><b>${esc(g.grupo)}</b>${g.items.map((x) => `<label class="pt-check"><input type="checkbox" data-pt-compra="${esc(x)}" ${compra.has(x) ? "checked" : ""}><span>${esc(x)}</span></label>`).join("")}</div>`).join("")}</details>` : ""}
+    ${p.pautas && p.pautas.length ? `<details class="pt-mas"><summary>${t("Pautas")}</summary>
+      <ul class="pt-pautas">${p.pautas.map((x) => `<li>${esc(x)}</li>`).join("")}</ul></details>` : ""}
+    ${p.nota ? `<p class="mini aviso-salud">${esc(p.nota)}</p>` : ""}
+  </section>`;
+}
+
 function cajaMenu(d) { return ""; }  // las opciones del menú van dentro de cada comida («Ver menú»)
 
 function bloqueMenu(d, m) {  // opciones en carrusel: se cambian deslizando o tocando el número
@@ -3577,7 +3616,7 @@ Object.assign(FR, {  // textos de Comida y Analizador
   "Huevo": "Œuf", "Gluten": "Gluten", "Frutos secos": "Fruits secs", "Buscar alimento": "Chercher un aliment", "Añade lo que has comido": "Ajoute ce que tu as mangé",
   "Decirlo con el micro": "Le dire au micro", "ración": "portion", "raciones": "portions", "Toca y habla": "Touche et parle", "Escuchando… toca para parar": "J'écoute… touche pour arrêter",
   "Lo que has dicho": "Ce que tu as dit", "Entenderlo": "Comprendre", "Apuntarlo hoy": "Le noter aujourd'hui", "Guardar mi día normal": "Enregistrer ma journée type",
-  "Apuntado": "Noté", "Dieta guardada": "Régime enregistré", "Primero, tu dieta": "D'abord, ton régime", "Poner mi dieta": "Remplir mon régime",
+  "Apuntado": "Noté", "Hoy toca": "Au menu aujourd'hui", "Apuntar": "Noter", "Horario": "Horaires", "Lista de la compra": "Liste de courses", "Pautas": "Conseils", "Dieta guardada": "Régime enregistré", "Primero, tu dieta": "D'abord, ton régime", "Poner mi dieta": "Remplir mon régime",
   "Con tu peso y tu objetivo sacamos tus macros": "Avec ton poids et ton objectif, on calcule tes macros",
   "Come según lo que entrenas": "Mange selon ton entraînement", "Abonarme para usarla": "M'abonner pour l'utiliser",
   "Analizar un vídeo": "Analyser une vidéo", "Analizar vídeo": "Analyser la vidéo", "Analizar mi": "Analyser mon", "3 análisis gratis": "3 analyses gratuites",
