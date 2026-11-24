@@ -3113,16 +3113,24 @@ function pintarComida() {
     const o = d.objetivo, l = d.llevas, quedan = Math.max(0, o.kcal - l.kcal);
     const pct = (a, b) => Math.min(100, b ? Math.round(a / b * 100) : 0);
     let siguiente = d.comidas.findIndex((c) => !c.items.length);
+    const pd = d.pauta && d.pauta.dias[d.pauta.hoy];
+    const dePauta = (cid) => pd ? pd.comidas.map((m, k) => ({ ...m, k })).filter((m) => (m.comida || "comida") === cid) : [];
     const filas = d.comidas.map((c, i) => {
-      const est = c.items.length ? "hecha" : i === siguiente ? "toca" : "luego";
+      const est = c.items.length ? "hecha" : i === siguiente ? "toca" : "luego", dp = dePauta(c.id);
+      const objKcal = dp.length ? dp.reduce((a, m) => a + (m.kcal || 0), 0) : c.objetivo || 0;
       return `<section class="comida-fila ${est}" id="fila-${c.id}">
         <div class="cf-cab">
           <span class="cf-marca">${c.items.length ? ic.ok : i === siguiente ? "!" : "·"}</span>
           <div class="cf-txt"><b>${t(c.nombre)}</b><small>${c.items.length ? esc(c.items.map((x) => t(x.nombre)).join(", ")) : i === siguiente ? t("Te toca ahora") : t("Sin apuntar")}</small></div>
-          <span class="cf-kcal">${c.items.length ? num(c.kcal) : "≈ " + num(c.objetivo || 0)}<small> kcal</small></span>
+          <span class="cf-kcal">${c.items.length ? num(c.kcal) : "≈ " + num(objKcal)}<small> kcal</small></span>
         </div>
+        ${dp.length ? `<div class="cf-pauta">${dp.map((m) => `<div class="cfp">
+          <div class="cfp-cab"><b>${esc(m.nombre)}</b><span>${esc(m.hora || "")}</span></div>
+          <p>${esc(m.texto)}</p>
+          <div class="cfp-pie"><small>≈ ${num(m.kcal)} kcal · P ${num(m.p)} g</small>${d.solo_mirar ? "" : `<button class="mini-btn" data-pt-apuntar="${d.pauta.hoy}|${m.k}">${t("Apuntar")}</button>`}</div>
+        </div>`).join("")}</div>` : ""}
         ${c.items.length ? `<div class="cf-items">${c.items.map((x) => `<div class="cf-item"><span>${esc(t(x.nombre))} · ${num(x.raciones)} × ${esc(trRacion(x.racion))}</span><span>${num(x.kcal)} kcal</span>${d.solo_mirar ? "" : `<button class="cf-quitar" data-cm-quitar="${esc(x.id)}" aria-label="${t("Quitar")}">×</button>`}</div>`).join("")}</div>` : ""}
-        ${d.solo_mirar ? "" : `<div class="cf-botones"><button class="mini-btn" data-cm-anadir="${c.id}">+ ${t("Añadir")}</button>${(d.plan || []).some((m) => m.id === c.id) ? `<button class="mini-btn ${E.menuAbierto === c.id ? "on" : ""}" data-cm-menu="${c.id}" aria-expanded="${E.menuAbierto === c.id}">${E.menuAbierto === c.id ? t("Cerrar menú") : t("Ver menú")}</button>` : ""}</div>`}
+        ${d.solo_mirar ? "" : `<div class="cf-botones"><button class="mini-btn" data-cm-anadir="${c.id}">+ ${t("Añadir")}</button>${!dp.length && (d.plan || []).some((m) => m.id === c.id) ? `<button class="mini-btn ${E.menuAbierto === c.id ? "on" : ""}" data-cm-menu="${c.id}" aria-expanded="${E.menuAbierto === c.id}">${E.menuAbierto === c.id ? t("Cerrar menú") : t("Ver menú")}</button>` : ""}</div>`}
         ${E.menuAbierto === c.id ? bloqueMenu(d, d.plan.find((m) => m.id === c.id)) : ""}
       </section>`;
     }).join("");
@@ -3144,9 +3152,9 @@ function pintarComida() {
     </section>
     ${graficaDia(d)}
     ${d.solo_mirar ? "" : `<button class="btn btn-fuego btn-voz" id="cm-voz">${ic.microfono} ${t("Decir lo que he comido")}</button>`}
-    ${cajaPauta(d)}
     ${cajaRecomienda(d)}
     ${filas}
+    ${cajaPautaSemana(d)}
     ${cajaConclusiones(d)}
     ${cajaMenu(d)}
     ${cajaHabitual(d)}
@@ -3533,6 +3541,29 @@ function cajaPauta(d) {
   </section>`;
 }
 
+function cajaPautaSemana(d) {  // lo de hoy ya va en cada comida; aquí el resto de la semana y los extras, plegado
+  const p = d.pauta;
+  if (!p) return "";
+  const i = Math.min(E.pautaDia ?? p.hoy, p.dias.length - 1), dia = p.dias[i], compra = new Set(leerCompra());
+  return `<section class="card caja-pauta">
+    <div class="tag">${esc(p.titulo || "Dieta semanal")}</div>
+    ${p.subtitulo ? `<p class="mini">${esc(p.subtitulo)}</p>` : ""}
+    <details class="pt-mas" ${E.pautaDia != null && E.pautaDia !== p.hoy ? "open" : ""}><summary>${t("Ver la semana")}</summary>
+      <div class="pt-dias" role="tablist">${p.dias.map((x, k) => `<button class="pt-dia ${k === i ? "on" : ""} ${k === p.hoy ? "hoy" : ""}" role="tab" aria-selected="${k === i}" data-pt-dia="${k}" aria-label="${esc(x.dia)}">${DIAS_PAUTA[k] || k + 1}</button>`).join("")}</div>
+      <div class="pt-total"><b>${esc(dia.dia)}</b><span>≈ ${num(dia.kcal)} kcal · P ${num(dia.p)} · H ${num(dia.h)} · G ${num(dia.g)} g</span></div>
+      <ul class="pt-horario">${dia.comidas.map((m) => `<li><b>${esc(m.nombre)}</b><span>${esc(m.texto)}</span></li>`).join("")}</ul>
+    </details>
+    ${p.horario && p.horario.length ? `<details class="pt-mas"><summary>${t("Horario")}</summary>
+      <ul class="pt-horario">${p.horario.map((h) => `<li><b>${esc(h.hora)}</b><span>${esc(h.texto)}</span></li>`).join("")}</ul>
+      ${p.horario_nota ? `<p class="mini">${esc(p.horario_nota)}</p>` : ""}</details>` : ""}
+    ${p.compra && p.compra.length ? `<details class="pt-mas"><summary>${t("Lista de la compra")}</summary>
+      ${p.compra.map((g) => `<div class="pt-grupo"><b>${esc(g.grupo)}</b>${g.items.map((x) => `<label class="pt-check"><input type="checkbox" data-pt-compra="${esc(x)}" ${compra.has(x) ? "checked" : ""}><span>${esc(x)}</span></label>`).join("")}</div>`).join("")}</details>` : ""}
+    ${p.pautas && p.pautas.length ? `<details class="pt-mas"><summary>${t("Pautas")}</summary>
+      <ul class="pt-pautas">${p.pautas.map((x) => `<li>${esc(x)}</li>`).join("")}</ul></details>` : ""}
+    ${p.nota ? `<p class="mini">${esc(p.nota)}</p>` : ""}
+  </section>`;
+}
+
 function cajaMenu(d) { return ""; }  // las opciones del menú van dentro de cada comida («Ver menú»)
 
 function bloqueMenu(d, m) {  // opciones en carrusel: se cambian deslizando o tocando el número
@@ -3616,7 +3647,7 @@ Object.assign(FR, {  // textos de Comida y Analizador
   "Huevo": "Œuf", "Gluten": "Gluten", "Frutos secos": "Fruits secs", "Buscar alimento": "Chercher un aliment", "Añade lo que has comido": "Ajoute ce que tu as mangé",
   "Decirlo con el micro": "Le dire au micro", "ración": "portion", "raciones": "portions", "Toca y habla": "Touche et parle", "Escuchando… toca para parar": "J'écoute… touche pour arrêter",
   "Lo que has dicho": "Ce que tu as dit", "Entenderlo": "Comprendre", "Apuntarlo hoy": "Le noter aujourd'hui", "Guardar mi día normal": "Enregistrer ma journée type",
-  "Apuntado": "Noté", "Hoy toca": "Au menu aujourd'hui", "Apuntar": "Noter", "Horario": "Horaires", "Lista de la compra": "Liste de courses", "Pautas": "Conseils", "Dieta guardada": "Régime enregistré", "Primero, tu dieta": "D'abord, ton régime", "Poner mi dieta": "Remplir mon régime",
+  "Apuntado": "Noté", "Hoy toca": "Au menu aujourd'hui", "Apuntar": "Noter", "Ver la semana": "Voir la semaine", "Horario": "Horaires", "Lista de la compra": "Liste de courses", "Pautas": "Conseils", "Dieta guardada": "Régime enregistré", "Primero, tu dieta": "D'abord, ton régime", "Poner mi dieta": "Remplir mon régime",
   "Con tu peso y tu objetivo sacamos tus macros": "Avec ton poids et ton objectif, on calcule tes macros",
   "Come según lo que entrenas": "Mange selon ton entraînement", "Abonarme para usarla": "M'abonner pour l'utiliser",
   "Analizar un vídeo": "Analyser une vidéo", "Analizar vídeo": "Analyser la vidéo", "Analizar mi": "Analyser mon", "3 análisis gratis": "3 analyses gratuites",

@@ -1173,3 +1173,16 @@ html[data-tema="claro"] .banda-demo button:not(.clientes-demo) { box-shadow: ins
 .pt-check { display: flex; align-items: center; gap: 8px; font-size: 13.5px; min-height: 30px; }
 .pt-check input { width: 18px; height: 18px; accent-color: var(--fuego); }
 .pt-check input:checked + span { text-decoration: line-through; color: var(--suave); }
+
+/* lo de la dieta semanal dentro de cada comida */
+.cf-pauta { display: flex; flex-direction: column; gap: 6px; }
+.cfp { border-radius: 12px; padding: 10px 12px; background: var(--sup2); border: 1px solid var(--raya); display: flex; flex-direction: column; gap: 4px; }
+.comida-fila.toca .cfp { background: #2E2712; border-color: #5A4A1E; }
+html[data-tema="claro"] .comida-fila.toca .cfp { background: #FFF8E6; border-color: #F0DFA8; }
+.cfp-cab { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; font-size: 13.5px; }
+.cfp-cab span { color: var(--suave); font-size: 12px; }
+.cfp p { margin: 0; font-size: 13.5px; line-height: 1.4; }
+.cfp-pie { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+.cfp-pie small { color: var(--suave); }
+.cfp-pie .mini-btn { min-height: 36px; margin: 0; }
+.caja-pauta .pt-horario li { grid-template-columns: 110px 1fr; }
