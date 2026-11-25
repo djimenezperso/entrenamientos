@@ -2749,8 +2749,32 @@ function guardarDesdeCrono() {
   else if (s.modo === "fortime" || s.modo === "libre") filas[l.id] = { valor: fmtSeg(seg), unit: "tiempo" };
   const marcadas = p.registro ? [p.parte] : E.vista.partes.filter((x) => x.estado !== "hecho" || x.parte === p.parte).map((x) => x.parte);
   cerrarCrono();
+  if (filas[l.id] && filas[l.id].valor && !E.vista.demo) return guardarCronoDirecto(reg, p, l, filas[l.id], seg, s);
   abrirRegistrar(reg, marcadas, { filas, duracion: fmtSeg(seg), tipo: "wod" });
   if (s.nivel && s.nivel !== "RX") setTimeout(() => { const n = document.getElementById("r-notas"); if (n && !n.value) n.value = `Versión ${s.nivel}`; }, 0);
+}
+
+// «Terminar y guardar» guarda de verdad: el resultado del crono (rondas o tiempo) de ESA parte, y la marca como hecha.
+// Si algo falla, abre el formulario de Registrar con todo ya puesto para que no se pierda.
+async function guardarCronoDirecto(reg, p, l, res, seg, s) {
+  const ids = new Set(p.lineas.map((x) => x.id));
+  const filas = ((reg.filas || []).filter((f) => ids.has(f.id)).length ? (reg.filas || []).filter((f) => ids.has(f.id)) : [{ id: l.id, name: l.ejercicio || etqParte(p.etiqueta), valor: "", unit: res.unit }])
+    .map((f) => (f.id === l.id ? { ...f, name: f.name || l.ejercicio || etqParte(p.etiqueta), valor: res.valor, unit: res.unit } : f));
+  if (!filas.some((f) => f.id === l.id)) filas.push({ id: l.id, name: l.ejercicio || etqParte(p.etiqueta), valor: res.valor, unit: res.unit });
+  const partes = (reg.partes || []).filter((x) => x.parte === p.parte);
+  const titulo = `${reg.titulo || ""} · ${p.letra || ""} ${p.etiqueta || ""}`.replace(/^ · /, "").trim();
+  const notas = s.nivel && s.nivel !== "RX" ? `Versión ${s.nivel}` : "";
+  try {
+    const r = await api("registrar", { metodo: "POST", cuerpo: {
+      atleta: E.atleta, tipo: /gym/i.test(p.etiqueta || "") ? "gym" : "wod", titulo, fecha: hoyISO(), duracion: fmtSeg(seg), notas,
+      filas, foto: null, partes, ver_semana: E.semana, ver_dia: E.dia } });
+    E.pantalla = "rutina"; E.borrador = null;
+    poner(r);
+    aviso(`${t("Guardado")} · ${res.valor}${res.unit === "rondas" ? " " + t("rondas") : ""}`);
+  } catch (e) {
+    aviso(e.message, true);
+    abrirRegistrar(reg, [p.parte], { filas: { [l.id]: res }, duracion: fmtSeg(seg), tipo: "wod" });
+  }
 }
 
 // ---------- progreso, historial y PRs ----------

@@ -3757,12 +3757,27 @@ def _al_marcar(sesion: dict, atleta: str, rut: dict, semana: int, dia_id: str, p
                                           "created_at": dt.datetime.now(dt.timezone.utc).isoformat()})
         if atleta == "Yo" or es_coach(sesion) or estado not in ("hecho", "no_hecho") or previos and estado == "hecho":
             return
+        # lo que ya haya apuntado hoy (rondas, tiempo, kg…) para que el aviso diga el resultado, no solo lo que tocaba
+        hoy = dt.date.today().isoformat()
+        por_nombre = {}
+        try:
+            for w in reversed(datos().entrenos(atleta, 15)):
+                if str(w.get("date", ""))[:10] == hoy and not str(w.get("notes") or "").startswith("auto|"):
+                    for e in w.get("entries") or []:
+                        if e.get("value") is not None:
+                            por_nombre[norm(e.get("name", ""))] = e
+        except Exception:  # noqa: BLE001
+            por_nombre = {}
         lin = []
         for l in lineas:
             txt = (prescripcion_semana(l, semana, rut.get("ajustes"))[0] or "").strip()
-            if txt:
+            e = por_nombre.get(norm(l["ejercicio"]))
+            if e is None and len(lineas) == 1:
+                e = next((x for k, x in por_nombre.items() if k in norm(parte) or norm(parte) in k or k in ("wod", "resultado")), None)
+            res = f" → {fmt_valor(e['value'], e.get('unit', ''))}" if e else ""
+            if txt or res:
                 nombre = l["ejercicio"] if norm_busqueda(l["ejercicio"]) != norm_busqueda(_etiqueta_parte(parte)) else ""
-                lin.append(f"• {nombre + ': ' if nombre else ''}{txt[:300]}")
+                lin.append(f"• {nombre + ': ' if nombre else ''}{txt[:300]}{res}")
         marca = "✅ hecho" if estado == "hecho" else "❌ no hecho"
         notificar(f"{marca} · {nv(atleta)} · Semana {semana} · {dia.get('nombre', '')}\n{parte}\n" + "\n".join(lin))
     except Exception:  # noqa: BLE001
